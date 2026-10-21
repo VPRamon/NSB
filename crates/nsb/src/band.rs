@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
 //! Restricted integrals of the existing component spectra; no spectral completion.
-use crate::evaluator::{airglow_band_metadata, moonlight_metadata, zodiacal_metadata};
+use crate::evaluator::{airglow_selection_metadata, moonlight_metadata, zodiacal_metadata};
 use crate::solar_activity::ResolvedSolarActivity;
 use crate::units::length::Nanometers;
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as Radiance;
@@ -82,12 +82,12 @@ impl NsbEvaluator {
                 BandContribution::Airglow(value, solar) => (
                     "airglow",
                     value,
-                    airglow_band_metadata(
+                    airglow_selection_metadata(
                         self.airglow_resolved(),
                         config.site_profile(),
                         query.observer,
-                        solar,
                         config.airglow_geometry(),
+                        Some(solar),
                     ),
                 ),
                 BandContribution::Moon => (

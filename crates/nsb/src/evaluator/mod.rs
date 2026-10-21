@@ -12,7 +12,7 @@ mod point;
 mod types;
 
 pub use core::NsbEvaluator;
-pub(crate) use metadata::{airglow_band_metadata, moonlight_metadata, zodiacal_metadata};
+pub(crate) use metadata::{airglow_selection_metadata, moonlight_metadata, zodiacal_metadata};
 pub use metadata::{
     BandDiagnostic, ComponentCalibrationStatus as CalibrationStatus, NsbComponentMetadata,
 };

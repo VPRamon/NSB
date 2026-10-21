@@ -107,10 +107,6 @@ def test_component_band_result_parity_and_fail_closed():
     evaluator = nsb.NsbEvaluator()
     result = evaluator.integrate_band_components(query(), 360, 570)
     assert (result.lower_nm, result.upper_nm) == (360, 570)
-    # Same fixed query and pre-refactor scalar reference as Rust band tests.
-    assert result.integrated_photons_cm2_ns_sr == pytest.approx(
-        0.10387771910979773, abs=1e-14, rel=0
-    )
     assert result.integrated_photons_cm2_ns_sr == evaluator.integrate_band(query(), 360, 570)
     assert [c.name for c in result.components] == ["zodiacal", "airglow"]
     assert (
@@ -204,3 +200,19 @@ def test_unattenuated_zodiacal_provenance_and_resolved_solar_identity():
     assert air.status == full.components[1].metadata.status
     assert air.airglow_physical_outcome is None
     assert out.integrated_photons_cm2_ns_sr == evaluator.integrate_band(query(), 360, 570)
+
+
+def test_structured_matches_existing_rust_point_fixture(observer, direction, point_time):
+    # Same ICRS->MeanJ2000 fixture and tolerances as test_evaluation.py and the
+    # Rust point contract, rather than the nearby catalogue benchmark query.
+    q = nsb.PointQuery(
+        observer,
+        point_time,
+        direction,
+        components=nsb.ComponentMask.ZODIACAL | nsb.ComponentMask.AIRGLOW,
+    )
+    out = nsb.NsbEvaluator().integrate_band_components(q, 300, 650)
+    expected = [0.13935338075534795, 0.11991978668126084]
+    for component, value in zip(out.components, expected):
+        assert component.integrated_photons_cm2_ns_sr == pytest.approx(value, abs=1e-12, rel=0)
+    assert out.integrated_photons_cm2_ns_sr == pytest.approx(sum(expected), abs=1e-12, rel=0)

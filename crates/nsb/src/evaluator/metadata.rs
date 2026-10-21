@@ -153,32 +153,15 @@ pub(crate) fn zodiacal_metadata(
     }
 }
 
-/// Selection-only Airglow metadata for pre-evaluation descriptors.
-pub(super) fn airglow_selection_metadata(
+/// Selection provenance with an optional applied solar record, no full-band outcome.
+pub(crate) fn airglow_selection_metadata(
     resolved: ResolvedAirglowSelection,
     site_profile: &SiteProfileConfig,
     observer: Observer,
     geometry: &crate::components::airglow::AirglowGeometryModel,
+    solar: Option<&crate::solar_activity::ResolvedSolarActivity>,
 ) -> NsbComponentMetadata {
-    airglow_metadata_inner(resolved, site_profile, observer, None, geometry, None)
-}
-
-/// Restricted-band provenance, without claiming a full-band physical outcome.
-pub(crate) fn airglow_band_metadata(
-    resolved: ResolvedAirglowSelection,
-    site_profile: &SiteProfileConfig,
-    observer: Observer,
-    solar: &crate::solar_activity::ResolvedSolarActivity,
-    geometry: &crate::components::airglow::AirglowGeometryModel,
-) -> NsbComponentMetadata {
-    airglow_metadata_inner(
-        resolved,
-        site_profile,
-        observer,
-        Some(solar),
-        geometry,
-        None,
-    )
+    airglow_metadata_inner(resolved, site_profile, observer, solar, geometry, None)
 }
 
 pub(super) fn airglow_metadata(
