@@ -16,7 +16,8 @@ use crate::{
 };
 use api::{
     add_exceptions, install_component_mask_constants, PyNsbComponent, PyNsbComponentMetadata,
-    PyNsbResult, PySiteProfile, PySiteWindowContext, PyStarlightMap, PyThresholdQueryResult,
+    PyNsbResult, PyRestrictedBandComponent, PyRestrictedBandResult, PySiteProfile,
+    PySiteWindowContext, PyStarlightMap, PyThresholdQueryResult,
 };
 
 #[pymodule]
@@ -38,6 +39,8 @@ fn python_module(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyNsbComponentMetadata>()?;
     module.add_class::<PyNsbComponent>()?;
     module.add_class::<PyNsbResult>()?;
+    module.add_class::<PyRestrictedBandComponent>()?;
+    module.add_class::<PyRestrictedBandResult>()?;
     module.add_class::<PyThresholdQueryResult>()?;
     module.add_class::<PySiteWindowContext>()?;
     module.add_class::<NsbEvaluator>()?;

@@ -25,9 +25,7 @@ def test_full_band_matches_existing_integral_and_subbands_add():
     q = query()
     full = evaluator.integrate_band(q, 300, 650)
     assert math.isfinite(full) and full > 0
-    assert full == pytest.approx(
-        evaluator.evaluate(q).integrated_photons_cm2_ns_sr, rel=1e-12
-    )
+    assert full == pytest.approx(evaluator.evaluate(q).integrated_photons_cm2_ns_sr, rel=1e-12)
     assert evaluator.integrate_band(q, 300, 450.25) + evaluator.integrate_band(
         q, 450.25, 650
     ) == pytest.approx(full, rel=1e-12)
@@ -70,7 +68,8 @@ def test_nonzero_moon_has_no_invented_spectrum():
         nsb.NsbEvaluator().integrate_band(q, 360, 570)
 
 
-def test_band_integration_releases_the_gil():
+@pytest.mark.parametrize("method", ["integrate_band", "integrate_band_components"])
+def test_band_integration_releases_the_gil(method):
     import sys
     import threading
 
@@ -93,7 +92,7 @@ def test_band_integration_releases_the_gil():
     try:
         started.set()
         for _ in range(64):
-            evaluator.integrate_band(q, 360, 570)
+            getattr(evaluator, method)(q, 360, 570)
             if progressed.is_set():
                 break
         # Observe progress before restoring normal Python thread switching.
@@ -102,3 +101,118 @@ def test_band_integration_releases_the_gil():
         sys.setswitchinterval(previous)
         thread.join(timeout=5)
     assert ran_during_rust
+
+
+def test_component_band_result_parity_and_fail_closed():
+    evaluator = nsb.NsbEvaluator()
+    result = evaluator.integrate_band_components(query(), 360, 570)
+    assert (result.lower_nm, result.upper_nm) == (360, 570)
+    assert result.integrated_photons_cm2_ns_sr == evaluator.integrate_band(query(), 360, 570)
+    assert [c.name for c in result.components] == ["zodiacal", "airglow"]
+    assert (
+        sum(c.integrated_photons_cm2_ns_sr for c in result.components)
+        == result.integrated_photons_cm2_ns_sr
+    )
+    for component in result.components:
+        assert component.statistical_uncertainty is None
+        assert component.systematic_uncertainty is None
+        assert component.metadata.provenance
+    assert result.components[1].metadata.solar_activity_provenance
+    with pytest.raises(nsb.UnsupportedError):
+        evaluator.integrate_band_components(query(nsb.ComponentMask.STARLIGHT), 360, 570)
+    with pytest.raises(nsb.NsbError):
+        evaluator.integrate_band_components(query(), 360, 651)
+
+
+@pytest.mark.parametrize("mask", [0, 1, 4, 5, 8, 9, 12, 13])
+def test_structured_components_single_mixed_empty_and_partitioned(mask):
+    # Compose using the same public selectors callers use; no custom flag API.
+    selected = nsb.ComponentMask.ZODIACAL & nsb.ComponentMask.AIRGLOW
+    for bit, flag in (
+        (1, nsb.ComponentMask.ZODIACAL),
+        (4, nsb.ComponentMask.AIRGLOW),
+        (8, nsb.ComponentMask.MOON),
+    ):
+        if mask & bit:
+            selected = selected | flag
+    q = query(selected)
+    evaluator = nsb.NsbEvaluator()
+    whole = evaluator.integrate_band_components(q, 360, 570)
+    assert isinstance(whole, nsb.RestrictedBandResult)
+    assert len(whole.components) == mask.bit_count()
+    assert whole.integrated_photons_cm2_ns_sr == evaluator.integrate_band(q, 360, 570)
+    parts = [evaluator.integrate_band_components(q, a, a + 30) for a in range(360, 570, 30)]
+    assert sum(p.integrated_photons_cm2_ns_sr for p in parts) == pytest.approx(
+        whole.integrated_photons_cm2_ns_sr, rel=1e-12, abs=0
+    )
+    full = evaluator.integrate_band_components(q, 300, 650)
+    assert full.integrated_photons_cm2_ns_sr == pytest.approx(
+        evaluator.evaluate(q).integrated_photons_cm2_ns_sr, rel=1e-12, abs=0
+    )
+    for i, component in enumerate(whole.components):
+        assert isinstance(component, nsb.RestrictedBandComponent)
+        assert component.statistical_uncertainty is component.systematic_uncertainty is None
+        assert sum(p.components[i].integrated_photons_cm2_ns_sr for p in parts) == pytest.approx(
+            component.integrated_photons_cm2_ns_sr, rel=1e-12, abs=0
+        )
+    with pytest.raises(AttributeError):
+        whole.lower_nm = 400
+
+
+@pytest.mark.parametrize(
+    "lower,upper",
+    [(299, 570), (360, 651), (500, 400), (400, 400), (float("nan"), 500), (360, float("inf"))],
+)
+def test_structured_band_rejects_invalid_wavelengths(lower, upper):
+    with pytest.raises(nsb.OutOfRangeError):
+        nsb.NsbEvaluator().integrate_band_components(query(), lower, upper)
+
+
+def test_mixed_unsupported_and_nonzero_moon_fail_without_partial_results():
+    evaluator = nsb.NsbEvaluator()
+    with pytest.raises(nsb.UnsupportedError, match="starlight"):
+        evaluator.integrate_band_components(
+            query(nsb.ComponentMask.ZODIACAL | nsb.ComponentMask.STARLIGHT), 360, 570
+        )
+    q = nsb.PointQuery(
+        siderust.Observer(-70.4045, -24.6272, 2635),
+        datetime(2023, 9, 29, 3, tzinfo=timezone.utc),
+        siderust.Direction(10, -20),
+        components=nsb.ComponentMask.ZODIACAL | nsb.ComponentMask.MOON,
+    )
+    with pytest.raises(nsb.UnsupportedError, match="moonlight"):
+        evaluator.integrate_band_components(q, 360, 570)
+
+
+def test_unattenuated_zodiacal_provenance_and_resolved_solar_identity():
+    config = nsb.NsbModelConfig.generic_clear_sky().with_zodiacal_extinction(
+        nsb.ZodiacalExtinction.NONE
+    )
+    evaluator = nsb.NsbEvaluator(config)
+    out = evaluator.integrate_band_components(query(), 360, 570)
+    full = evaluator.evaluate(query())
+    assert "atmospheric propagation none" in out.components[0].metadata.provenance
+    assert out.components[0].metadata.provenance == full.components[0].metadata.provenance
+    air = out.components[1].metadata
+    assert air.solar_activity_provenance == full.components[1].metadata.solar_activity_provenance
+    assert air.solar_activity_provenance in air.provenance
+    assert air.airglow_selection_kind == full.components[1].metadata.airglow_selection_kind
+    assert air.status == full.components[1].metadata.status
+    assert air.airglow_physical_outcome is None
+    assert out.integrated_photons_cm2_ns_sr == evaluator.integrate_band(query(), 360, 570)
+
+
+def test_structured_matches_existing_rust_point_fixture(observer, direction, point_time):
+    # Same ICRS->MeanJ2000 fixture and tolerances as test_evaluation.py and the
+    # Rust point contract, rather than the nearby catalogue benchmark query.
+    q = nsb.PointQuery(
+        observer,
+        point_time,
+        direction,
+        components=nsb.ComponentMask.ZODIACAL | nsb.ComponentMask.AIRGLOW,
+    )
+    out = nsb.NsbEvaluator().integrate_band_components(q, 300, 650)
+    expected = [0.13935338075534795, 0.11991978668126084]
+    for component, value in zip(out.components, expected):
+        assert component.integrated_photons_cm2_ns_sr == pytest.approx(value, abs=1e-12, rel=0)
+    assert out.integrated_photons_cm2_ns_sr == pytest.approx(sum(expected), abs=1e-12, rel=0)

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
 //! Restricted integrals of the existing component spectra; no spectral completion.
+use crate::evaluator::{airglow_selection_metadata, moonlight_metadata, zodiacal_metadata};
+use crate::solar_activity::ResolvedSolarActivity;
 use crate::units::length::Nanometers;
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as Radiance;
 use crate::{ComponentMask, NsbError, NsbEvaluator, PointQuery, Result};
@@ -10,7 +12,110 @@ pub(crate) fn integrate_linear(x: &[f64], y: &[f64], lower: f64, upper: f64) -> 
     siderust::optica::spectrum::integrate::trapz_range(x, y, lower, upper)
 }
 
+/// A component integral over the explicitly reported restricted band.
+///
+/// Uses the selected component's existing propagation convention. In particular,
+/// this is not an unattenuated source to feed through atmosphere a second time.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct RestrictedBandComponent {
+    /// Stable component name.
+    pub name: &'static str,
+    /// Band-integrated photon radiance, photons/(cm2 ns sr).
+    pub integrated: Radiance,
+    /// Model/configuration provenance; descriptor metadata, not a full-band result.
+    pub metadata: crate::NsbComponentMetadata,
+    /// Band statistical uncertainty; unknown for these component paths.
+    pub statistical_uncertainty: Option<Radiance>,
+    /// Band systematic uncertainty; unknown is not zero.
+    pub systematic_uncertainty: Option<Radiance>,
+}
+
+/// Explicit band bounds and component contributions, without B/V proxy fields.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct RestrictedBandResult {
+    /// Lower wavelength boundary.
+    pub lower: Nanometers,
+    /// Upper wavelength boundary.
+    pub upper: Nanometers,
+    /// Sum of selected contributions, photons/(cm2 ns sr).
+    pub integrated: Radiance,
+    /// Selected contributions, including physically zero supported components.
+    pub components: Vec<RestrictedBandComponent>,
+}
+
+// Only supported physical contributions reach the result builder. Borrowing the
+// resolved solar record avoids a large enum or cloning it on the scalar path.
+enum BandContribution<'a> {
+    Zodiacal(Radiance),
+    Airglow(Radiance, &'a ResolvedSolarActivity),
+    Moon,
+}
+
 impl NsbEvaluator {
+    /// Resolve a restricted-band integral into its selected physical components.
+    ///
+    /// Applies exactly the same domain and unsupported-component gates as
+    /// [`Self::integrate_band`]. No partial successful result is returned when a
+    /// requested component is unsupported. No continuous spectrum, line completion,
+    /// instrument response or calibrated total-sky observable is implied.
+    /// Propagation follows the evaluator configuration (including the explicit
+    /// ZodiacalExtinction::None option); callers must not apply extinction again.
+    /// Metadata follows describe_components semantics. Missing band uncertainties
+    /// remain None; full-band uncertainties cannot be transferred to a sub-band.
+    pub fn integrate_band_components(
+        &self,
+        query: &PointQuery,
+        lower: Nanometers,
+        upper: Nanometers,
+    ) -> Result<RestrictedBandResult> {
+        let mut components = Vec::with_capacity(query.components.bits().count_ones() as usize);
+        let config = self.model_config();
+        let integrated = self.integrate_band_with(query, lower, upper, |contribution| {
+            let (name, integrated, metadata) = match contribution {
+                BandContribution::Zodiacal(value) => (
+                    "zodiacal",
+                    value,
+                    zodiacal_metadata(config.zodiacal_model(), config.zodiacal_extinction()),
+                ),
+                BandContribution::Airglow(value, solar) => (
+                    "airglow",
+                    value,
+                    airglow_selection_metadata(
+                        self.airglow_resolved(),
+                        config.site_profile(),
+                        query.observer,
+                        config.airglow_geometry(),
+                        Some(solar),
+                    ),
+                ),
+                BandContribution::Moon => (
+                    "moon",
+                    Radiance::new(0.0),
+                    moonlight_metadata(
+                        config.moonlight_model(),
+                        config.site_profile(),
+                        query.observer,
+                    ),
+                ),
+            };
+            components.push(RestrictedBandComponent {
+                name,
+                integrated,
+                metadata,
+                statistical_uncertainty: None,
+                systematic_uncertainty: None,
+            });
+        })?;
+        Ok(RestrictedBandResult {
+            lower,
+            upper,
+            integrated,
+            components,
+        })
+    }
+
     /// Integrate existing wavelength-resolved components over a top-hat sub-band.
     ///
     /// Units: photons cm^-2 ns^-1 sr^-1. Bounds must lie within 300–650 nm.
@@ -27,6 +132,19 @@ impl NsbEvaluator {
         query: &PointQuery,
         lower: Nanometers,
         upper: Nanometers,
+    ) -> Result<Radiance> {
+        self.integrate_band_with(query, lower, upper, |_| {})
+    }
+
+    // Gate geometry/band/support before emitting contributions. Evaluation errors
+    // return no public result. Keep the historical Zodiacal-then-Airglow sum order;
+    // physical-zero Moon is checked once up front and contributes no arithmetic.
+    fn integrate_band_with(
+        &self,
+        query: &PointQuery,
+        lower: Nanometers,
+        upper: Nanometers,
+        mut emit: impl FnMut(BandContribution<'_>),
     ) -> Result<Radiance> {
         crate::evaluator::validate_geometry(query.observer, query.target)?;
         if !lower.is_finite()
@@ -57,19 +175,21 @@ impl NsbEvaluator {
             ));
         }
         if query.components.contains(ComponentMask::ZODIACAL) {
-            total += self.zodiacal().compute_band(
+            let value = self.zodiacal().compute_band(
                 query.time,
                 query.observer,
                 query.target,
                 lower,
                 upper,
             )?;
+            total += value;
+            emit(BandContribution::Zodiacal(value));
         }
         if query.components.contains(ComponentMask::AIRGLOW) {
             let config = self.model_config();
             let solar = crate::solar_activity::resolve_f107(query.time, config.solar_activity())?;
             let profile = config.site_profile().resolve(query.observer);
-            total += crate::components::airglow::Airglow::with_shared_continuum(
+            let value = crate::components::airglow::Airglow::with_shared_continuum(
                 query.observer,
                 Arc::clone(self.airglow_continuum()),
             )
@@ -78,6 +198,11 @@ impl NsbEvaluator {
             .with_solar_radio_flux(solar.value)
             .with_scale(profile.airglow.scale)
             .compute_band(query.time, query.target, lower.value(), upper.value())?;
+            total += value;
+            emit(BandContribution::Airglow(value, &solar));
+        }
+        if query.components.contains(ComponentMask::MOON) {
+            emit(BandContribution::Moon);
         }
         Ok(total)
     }
@@ -289,6 +414,222 @@ mod tests {
         assert!(matches!(
             evaluator.integrate_band(&q, Nanometers::new(375.0), Nanometers::new(420.0)),
             Err(NsbError::Unsupported(_))
+        ));
+    }
+    #[test]
+    fn restricted_components_preserve_sum_provenance_and_unknown_uncertainty() {
+        let evaluator = NsbEvaluator::new().unwrap();
+        let q = query(
+            ComponentMask::ZODIACAL | ComponentMask::AIRGLOW | ComponentMask::MOON,
+            "2023-09-15T05:00:00Z",
+        );
+        let lo = Nanometers::new(360.0);
+        let hi = Nanometers::new(570.0);
+        let result = evaluator.integrate_band_components(&q, lo, hi).unwrap();
+        assert_eq!((result.lower, result.upper), (lo, hi));
+        assert_eq!(
+            result.integrated,
+            evaluator.integrate_band(&q, lo, hi).unwrap()
+        );
+        assert_eq!(result.components.len(), 3);
+        let sum: f64 = result.components.iter().map(|c| c.integrated.value()).sum();
+        assert_eq!(sum, result.integrated.value());
+        for component in &result.components {
+            assert!(component.statistical_uncertainty.is_none());
+            assert!(component.systematic_uncertainty.is_none());
+            assert!(!component.metadata.provenance.is_empty());
+        }
+        assert_eq!(result.components[2].integrated.value(), 0.0);
+        assert!(result.components[1].metadata.solar_activity.is_some());
+        let empty = q.clone().with_components(ComponentMask::empty());
+        let result = evaluator.integrate_band_components(&empty, lo, hi).unwrap();
+        assert!(result.components.is_empty());
+        assert_eq!(result.integrated.value(), 0.0);
+        let unsupported = q.with_components(ComponentMask::ZODIACAL | ComponentMask::STARLIGHT);
+        assert!(matches!(
+            evaluator.integrate_band_components(&unsupported, lo, hi),
+            Err(NsbError::Unsupported(_))
+        ));
+        assert!(evaluator.integrate_band_components(&empty, hi, lo).is_err());
+        let moon = query(ComponentMask::MOON, "2023-09-29T03:00:00Z");
+        assert!(matches!(
+            evaluator.integrate_band_components(&moon, lo, hi),
+            Err(NsbError::Unsupported(_))
+        ));
+    }
+    #[test]
+    fn scalar_structured_and_full_band_paths_preserve_composition_and_partitioning() {
+        let evaluator = NsbEvaluator::new().unwrap();
+        for bits in [0_u8, 1, 4, 5, 8, 9, 12, 13] {
+            let q = query(
+                ComponentMask::from_bits(bits).unwrap(),
+                "2023-09-15T05:00:00Z",
+            );
+            for (lo, hi) in [
+                (300.0, 650.0),
+                (360.0, 570.0),
+                (300.0, 300.000001),
+                (649.999999, 650.0),
+            ] {
+                let lo = Nanometers::new(lo);
+                let hi = Nanometers::new(hi);
+                let out = evaluator.integrate_band_components(&q, lo, hi).unwrap();
+                assert_eq!(
+                    out.integrated,
+                    evaluator.integrate_band(&q, lo, hi).unwrap()
+                );
+                assert_eq!(
+                    out.components
+                        .iter()
+                        .map(|c| c.integrated.value())
+                        .sum::<f64>(),
+                    out.integrated.value()
+                );
+                assert_eq!(out.components.len(), bits.count_ones() as usize);
+                for c in &out.components {
+                    assert!(c.statistical_uncertainty.is_none());
+                    assert!(c.systematic_uncertainty.is_none());
+                }
+                if lo.value() == 300.0 && hi.value() == 650.0 {
+                    let original = evaluator.evaluate(&q).unwrap();
+                    assert!(
+                        (out.integrated.value() - original.integrated.value()).abs()
+                            <= 1e-12 * original.integrated.value()
+                    );
+                }
+            }
+            let parts: Vec<_> = (0..7)
+                .map(|i| {
+                    evaluator
+                        .integrate_band_components(
+                            &q,
+                            Nanometers::new(360.0 + f64::from(i) * 30.0),
+                            Nanometers::new(390.0 + f64::from(i) * 30.0),
+                        )
+                        .unwrap()
+                })
+                .collect();
+            let whole = evaluator
+                .integrate_band_components(&q, Nanometers::new(360.0), Nanometers::new(570.0))
+                .unwrap();
+            let sum: f64 = parts.iter().map(|p| p.integrated.value()).sum();
+            assert!((sum - whole.integrated.value()).abs() <= 1e-12 * whole.integrated.value());
+            for (i, component) in whole.components.iter().enumerate() {
+                let sum: f64 = parts
+                    .iter()
+                    .map(|p| p.components[i].integrated.value())
+                    .sum();
+                assert!(
+                    (sum - component.integrated.value()).abs()
+                        <= 1e-12 * component.integrated.value()
+                );
+            }
+        }
+        // Frozen pre-refactor public scalar reference at PR271 commit 6361db0.
+        let q = query(
+            ComponentMask::ZODIACAL | ComponentMask::AIRGLOW,
+            "2023-09-15T05:00:00Z",
+        );
+        let value = evaluator
+            .integrate_band(&q, Nanometers::new(360.0), Nanometers::new(570.0))
+            .unwrap()
+            .value();
+        assert!((value - 0.10387771910979773).abs() < 1e-14);
+    }
+
+    #[test]
+    fn restricted_provenance_uses_the_applied_solar_record_and_extinction_selection() {
+        use crate::units::SolarFluxUnits;
+        use crate::{NsbModelConfig, ZodiacalExtinction};
+        let q = query(
+            ComponentMask::ZODIACAL | ComponentMask::AIRGLOW,
+            "2023-09-15T05:00:00Z",
+        );
+        for extinction in [ZodiacalExtinction::None, ZodiacalExtinction::Noll2012Approx] {
+            let evaluator = NsbEvaluator::with_config(
+                NsbModelConfig::generic_clear_sky()
+                    .with_zodiacal_extinction(extinction)
+                    .with_solar_radio_flux(SolarFluxUnits::new(99.0)),
+            )
+            .unwrap();
+            let out = evaluator
+                .integrate_band_components(&q, Nanometers::new(360.0), Nanometers::new(570.0))
+                .unwrap();
+            let full = evaluator.evaluate(&q).unwrap();
+            let descriptors = evaluator
+                .describe_components(q.observer, q.components)
+                .unwrap();
+            assert_eq!(
+                out.components[0].metadata.provenance,
+                descriptors[0].metadata.provenance
+            );
+            assert_eq!(
+                out.components[0].metadata.provenance,
+                full.components[0].metadata.provenance
+            );
+            assert_eq!(
+                out.components[0].metadata.status,
+                full.components[0].metadata.status
+            );
+            let air = &out.components[1].metadata;
+            let solar = air.solar_activity.as_ref().unwrap();
+            assert_eq!(solar.value.value(), 99.0);
+            assert_eq!(solar.resolution_step, "explicit-override");
+            assert_eq!(
+                air.solar_activity,
+                full.components[1].metadata.solar_activity
+            );
+            assert!(air.provenance.contains(&solar.provenance_fragment()));
+            assert_eq!(air.status, full.components[1].metadata.status);
+            assert_eq!(
+                air.airglow_selection,
+                full.components[1].metadata.airglow_selection
+            );
+            // A full-band evaluation outcome is not relabelled as a sub-band one.
+            assert!(air.airglow_evaluation.is_none());
+        }
+    }
+
+    #[test]
+    fn solar_resolution_errors_and_invalid_geometry_reject_the_entire_band_result() {
+        use crate::units::SolarFluxUnits;
+        use crate::NsbModelConfig;
+        let q = query(
+            ComponentMask::ZODIACAL | ComponentMask::AIRGLOW,
+            "2023-09-15T05:00:00Z",
+        );
+        let lo = Nanometers::new(360.0);
+        let hi = Nanometers::new(570.0);
+        for flux in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            let evaluator = NsbEvaluator::with_config(
+                NsbModelConfig::generic_clear_sky()
+                    .with_solar_radio_flux(SolarFluxUnits::new(flux)),
+            )
+            .unwrap();
+            assert!(matches!(
+                evaluator.integrate_band_components(&q, lo, hi),
+                Err(NsbError::OutOfRange(_))
+            ));
+            assert!(matches!(
+                evaluator.integrate_band(&q, lo, hi),
+                Err(NsbError::OutOfRange(_))
+            ));
+            // Unselected Airglow must not resolve or validate an unrelated source.
+            let only_zodiacal = q.clone().with_components(ComponentMask::ZODIACAL);
+            assert!(evaluator
+                .integrate_band_components(&only_zodiacal, lo, hi)
+                .is_ok());
+        }
+        let evaluator = NsbEvaluator::new().unwrap();
+        let mut invalid = q;
+        invalid.observer.height = crate::units::length::Meters::new(f64::NAN);
+        assert!(matches!(
+            evaluator.integrate_band_components(&invalid, lo, hi),
+            Err(NsbError::OutOfRange(_))
+        ));
+        assert!(matches!(
+            evaluator.integrate_band(&invalid, lo, hi),
+            Err(NsbError::OutOfRange(_))
         ));
     }
 }

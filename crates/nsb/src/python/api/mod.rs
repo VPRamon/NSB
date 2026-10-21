@@ -18,6 +18,7 @@ mod selectors;
 pub(in crate::python) use errors::{add_exceptions, invalid_input};
 pub(in crate::python) use evaluator::PySiteWindowContext;
 pub(in crate::python) use results::{
-    PyNsbComponent, PyNsbComponentMetadata, PyNsbResult, PyThresholdQueryResult,
+    PyNsbComponent, PyNsbComponentMetadata, PyNsbResult, PyRestrictedBandComponent,
+    PyRestrictedBandResult, PyThresholdQueryResult,
 };
 pub(in crate::python) use selectors::{install_component_mask_constants, PySiteProfile};

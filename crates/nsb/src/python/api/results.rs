@@ -362,3 +362,54 @@ mod tests {
         assert!(PyThresholdQueryResult::try_from_inner(result(Period::new(start, end))).is_err());
     }
 }
+
+#[pyclass(
+    name = "RestrictedBandComponent",
+    frozen,
+    module = "nsb",
+    get_all,
+    skip_from_py_object
+)]
+#[derive(Clone)]
+pub(in crate::python) struct PyRestrictedBandComponent {
+    name: String,
+    integrated_photons_cm2_ns_sr: f64,
+    statistical_uncertainty: Option<f64>,
+    systematic_uncertainty: Option<f64>,
+    metadata: PyNsbComponentMetadata,
+}
+
+#[pyclass(
+    name = "RestrictedBandResult",
+    frozen,
+    module = "nsb",
+    get_all,
+    skip_from_py_object
+)]
+pub(in crate::python) struct PyRestrictedBandResult {
+    lower_nm: f64,
+    upper_nm: f64,
+    integrated_photons_cm2_ns_sr: f64,
+    components: Vec<PyRestrictedBandComponent>,
+}
+
+impl From<crate::RestrictedBandResult> for PyRestrictedBandResult {
+    fn from(value: crate::RestrictedBandResult) -> Self {
+        Self {
+            lower_nm: value.lower.value(),
+            upper_nm: value.upper.value(),
+            integrated_photons_cm2_ns_sr: value.integrated.value(),
+            components: value
+                .components
+                .into_iter()
+                .map(|c| PyRestrictedBandComponent {
+                    name: c.name.to_owned(),
+                    integrated_photons_cm2_ns_sr: c.integrated.value(),
+                    statistical_uncertainty: c.statistical_uncertainty.map(|v| v.value()),
+                    systematic_uncertainty: c.systematic_uncertainty.map(|v| v.value()),
+                    metadata: c.metadata.into(),
+                })
+                .collect(),
+        }
+    }
+}

@@ -875,6 +875,7 @@ pub fn nsb::NsbEvaluator::new() -> nsb::Result<Self>
 pub fn nsb::NsbEvaluator::with_config(config: nsb::NsbModelConfig) -> nsb::Result<Self>
 impl nsb::NsbEvaluator
 pub fn nsb::NsbEvaluator::integrate_band(&self, query: &nsb::PointQuery, lower: qtty_core::units::length::Nanometers, upper: qtty_core::units::length::Nanometers) -> nsb::Result<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>
+pub fn nsb::NsbEvaluator::integrate_band_components(&self, query: &nsb::PointQuery, lower: qtty_core::units::length::Nanometers, upper: qtty_core::units::length::Nanometers) -> nsb::Result<nsb::RestrictedBandResult>
 impl nsb::NsbEvaluator
 pub fn nsb::NsbEvaluator::periods_below_threshold(&self, query: &nsb::ThresholdQuery) -> nsb::Result<nsb::ThresholdQueryResult>
 pub fn nsb::NsbEvaluator::periods_below_threshold_adaptive(&self, query: &nsb::ThresholdQuery) -> nsb::Result<nsb::ThresholdQueryResult>
@@ -926,6 +927,17 @@ pub nsb::PointQuery::time: tempoch_core::model::time::Time<tempoch_core::model::
 impl nsb::PointQuery
 pub fn nsb::PointQuery::new(observer: nsb::Observer, time: tempoch_core::model::time::Time<tempoch_core::model::scale::UTC>, target: nsb::Target) -> Self
 pub fn nsb::PointQuery::with_components(self, components: nsb::ComponentMask) -> Self
+#[non_exhaustive] pub struct nsb::RestrictedBandComponent
+pub nsb::RestrictedBandComponent::integrated: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::RestrictedBandComponent::metadata: nsb::NsbComponentMetadata
+pub nsb::RestrictedBandComponent::name: &'static str
+pub nsb::RestrictedBandComponent::statistical_uncertainty: core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>
+pub nsb::RestrictedBandComponent::systematic_uncertainty: core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>
+#[non_exhaustive] pub struct nsb::RestrictedBandResult
+pub nsb::RestrictedBandResult::components: alloc::vec::Vec<nsb::RestrictedBandComponent>
+pub nsb::RestrictedBandResult::integrated: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::RestrictedBandResult::lower: qtty_core::units::length::Nanometers
+pub nsb::RestrictedBandResult::upper: qtty_core::units::length::Nanometers
 pub struct nsb::SiteProfile<P: nsb::site::SiteProfileTag>
 impl nsb::site::SiteProfile<nsb::site::GenericClearSky>
 pub fn nsb::site::SiteProfile<nsb::site::GenericClearSky>::generic_clear_sky() -> Self

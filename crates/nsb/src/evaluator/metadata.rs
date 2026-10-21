@@ -121,7 +121,7 @@ pub(super) fn component_status_for_site_profile(
     site_profile.calibration_status().into()
 }
 
-pub(super) fn zodiacal_metadata(
+pub(crate) fn zodiacal_metadata(
     model: ZodiacalModel,
     extinction: ZodiacalExtinction,
 ) -> NsbComponentMetadata {
@@ -153,14 +153,15 @@ pub(super) fn zodiacal_metadata(
     }
 }
 
-/// Selection-only Airglow metadata for pre-evaluation descriptors.
-pub(super) fn airglow_selection_metadata(
+/// Selection provenance with an optional applied solar record, no full-band outcome.
+pub(crate) fn airglow_selection_metadata(
     resolved: ResolvedAirglowSelection,
     site_profile: &SiteProfileConfig,
     observer: Observer,
     geometry: &crate::components::airglow::AirglowGeometryModel,
+    solar: Option<&crate::solar_activity::ResolvedSolarActivity>,
 ) -> NsbComponentMetadata {
-    airglow_metadata_inner(resolved, site_profile, observer, None, geometry, None)
+    airglow_metadata_inner(resolved, site_profile, observer, solar, geometry, None)
 }
 
 pub(super) fn airglow_metadata(
@@ -366,7 +367,7 @@ fn starlight_map_metadata(
     }
 }
 
-pub(super) fn moonlight_metadata(
+pub(crate) fn moonlight_metadata(
     model: MoonlightModel,
     site_profile: &SiteProfileConfig,
     observer: Observer,

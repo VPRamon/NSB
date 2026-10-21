@@ -24,3 +24,39 @@ change the meaning or units of a valid restricted-band prediction. Observations
 must be independently calibrated to the same ground-level photon radiance and
 wavelength interval before residuals can be interpreted. No Johnson/FORS/AB/Vega
 photometric equivalence is implied by a top-hat band.
+
+## Component-separated restricted observables
+
+`NsbEvaluator::integrate_band_components(query, lower, upper)` returns a typed
+`RestrictedBandResult`: bounds in nanometres, summed photon radiance and named
+`RestrictedBandComponent` contributions with descriptor provenance and explicit
+unknown statistical/systematic band uncertainties. Python exposes the same
+records with `lower_nm`, `upper_nm`, `integrated_photons_cm2_ns_sr`, and
+`components`. This avoids reusing the 300–650 nm `NsbResult` or its B/V proxies
+for a different physical observable. It supports ablations without fitting any
+component to observations. All requested components must pass existing gates;
+unsupported Starlight/nonzero Moon never produces a partial successful result.
+
+Propagation follows existing component configuration; selecting
+`ZodiacalExtinction::None` still selects TOA zodiacal light. The API performs no
+additional atmospheric propagation or instrument convolution. These integrals
+must not be treated as new unattenuated sources. Descriptor metadata retains
+model/site maturity, and Airglow adds the resolved F10.7 provenance; full-band
+physical evaluation/uncertainty records are not relabelled as sub-band records.
+No Airglow lines, DGL, calibrated response, or new model maturity are implied.
+
+Both restricted APIs share one internal evaluation pass. A private exhaustive
+contribution enum carries the supported Zodiacal, Airglow and physically zero
+Moon results; public names are presentation only. Zodiacal and Airglow are each
+integrated once, F10.7 is resolved once when Airglow is selected, and Moon is
+checked once before the other models. The scalar path has no component-vector
+or metadata construction. The structured path allocates only its result vector
+and constructs metadata from the same physical values and resolved solar record.
+The historical addition order (Zodiacal, then Airglow) is retained exactly; Moon
+contributes no arithmetic because only its physical-zero case is supported.
+
+Airglow's restricted metadata includes the applied F10.7 record in both the typed
+field and provenance text, without borrowing a full-band physical-outcome record.
+No aggregate uncertainty fields are added: component band uncertainties and their
+cross-component covariance are unavailable, so extra aggregate fields would only
+duplicate an unknown rather than express a scientifically usable total budget.

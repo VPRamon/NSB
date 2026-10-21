@@ -22,6 +22,27 @@ pub(in crate::python) struct PySiteWindowContext {
 
 #[pymethods]
 impl NsbEvaluator {
+    /// Component-separated restricted band; same physical gates as integrate_band.
+    #[pyo3(name = "integrate_band_components")]
+    fn py_integrate_band_components(
+        &self,
+        py: Python<'_>,
+        query: PyRef<'_, PointQuery>,
+        lower_nm: f64,
+        upper_nm: f64,
+    ) -> PyResult<super::results::PyRestrictedBandResult> {
+        let query = query.clone();
+        py.detach(|| {
+            self.integrate_band_components(
+                &query,
+                crate::units::length::Nanometers::new(lower_nm),
+                crate::units::length::Nanometers::new(upper_nm),
+            )
+        })
+        .map(Into::into)
+        .map_err(to_py_err)
+    }
+
     /// Existing component integral in photons/(cm2 ns sr), restricted to 300–650 nm.
     /// Raises UnsupportedError for starlight or nonzero moonlight; never fills gaps.
     #[pyo3(name = "integrate_band")]

@@ -111,6 +111,7 @@ impl NsbEvaluator {
                     self.config.site_profile(),
                     observer,
                     self.config.airglow_geometry(),
+                    None,
                 ),
             });
         }
