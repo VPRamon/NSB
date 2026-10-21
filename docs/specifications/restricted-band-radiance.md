@@ -24,3 +24,23 @@ change the meaning or units of a valid restricted-band prediction. Observations
 must be independently calibrated to the same ground-level photon radiance and
 wavelength interval before residuals can be interpreted. No Johnson/FORS/AB/Vega
 photometric equivalence is implied by a top-hat band.
+
+## Component-separated restricted observables
+
+`NsbEvaluator::integrate_band_components(query, lower, upper)` returns a typed
+`RestrictedBandResult`: bounds in nanometres, summed photon radiance and named
+`RestrictedBandComponent` contributions with descriptor provenance and explicit
+unknown statistical/systematic band uncertainties. Python exposes the same
+records with `lower_nm`, `upper_nm`, `integrated_photons_cm2_ns_sr`, and
+`components`. This avoids reusing the 300–650 nm `NsbResult` or its B/V proxies
+for a different physical observable. It supports ablations without fitting any
+component to observations. All requested components must pass existing gates;
+unsupported Starlight/nonzero Moon never produces a partial successful result.
+
+Propagation follows existing component configuration; selecting
+`ZodiacalExtinction::None` still selects TOA zodiacal light. The API performs no
+additional atmospheric propagation or instrument convolution. These integrals
+must not be treated as new unattenuated sources. Descriptor metadata retains
+model/site maturity, and Airglow adds the resolved F10.7 provenance; full-band
+physical evaluation/uncertainty records are not relabelled as sub-band records.
+No Airglow lines, DGL, calibrated response, or new model maturity are implied.

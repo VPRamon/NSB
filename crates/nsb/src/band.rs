@@ -10,7 +10,95 @@ pub(crate) fn integrate_linear(x: &[f64], y: &[f64], lower: f64, upper: f64) -> 
     siderust::optica::spectrum::integrate::trapz_range(x, y, lower, upper)
 }
 
+/// A component integral over the explicitly reported restricted band.
+///
+/// Uses the selected component's existing propagation convention. In particular,
+/// this is not an unattenuated source to feed through atmosphere a second time.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct RestrictedBandComponent {
+    /// Stable component name.
+    pub name: &'static str,
+    /// Band-integrated photon radiance, photons/(cm2 ns sr).
+    pub integrated: Radiance,
+    /// Model/configuration provenance; descriptor metadata, not a full-band result.
+    pub metadata: crate::NsbComponentMetadata,
+    /// Band statistical uncertainty; unknown for these component paths.
+    pub statistical_uncertainty: Option<Radiance>,
+    /// Band systematic uncertainty; unknown is not zero.
+    pub systematic_uncertainty: Option<Radiance>,
+}
+
+/// Explicit band bounds and component contributions, without B/V proxy fields.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct RestrictedBandResult {
+    /// Lower wavelength boundary.
+    pub lower: Nanometers,
+    /// Upper wavelength boundary.
+    pub upper: Nanometers,
+    /// Sum of selected contributions, photons/(cm2 ns sr).
+    pub integrated: Radiance,
+    /// Selected contributions, including physically zero supported components.
+    pub components: Vec<RestrictedBandComponent>,
+}
+
 impl NsbEvaluator {
+    /// Resolve a restricted-band integral into its selected physical components.
+    ///
+    /// Applies exactly the same domain and unsupported-component gates as
+    /// [`Self::integrate_band`]. No partial successful result is returned when a
+    /// requested component is unsupported. No continuous spectrum, line completion,
+    /// instrument response or calibrated total-sky observable is implied.
+    /// Propagation follows the evaluator configuration (including the explicit
+    /// ZodiacalExtinction::None option); callers must not apply extinction again.
+    /// Metadata follows describe_components semantics. Missing band uncertainties
+    /// remain None; full-band uncertainties cannot be transferred to a sub-band.
+    pub fn integrate_band_components(
+        &self,
+        query: &PointQuery,
+        lower: Nanometers,
+        upper: Nanometers,
+    ) -> Result<RestrictedBandResult> {
+        // Preflight all gates, including empty selections and nonzero Moon.
+        let integrated = self.integrate_band(query, lower, upper)?;
+        let descriptors = self.describe_components(query.observer, query.components)?;
+        let mut components = Vec::with_capacity(descriptors.len());
+        for descriptor in descriptors {
+            let mask = match descriptor.name {
+                "zodiacal" => ComponentMask::ZODIACAL,
+                "airglow" => ComponentMask::AIRGLOW,
+                "moon" => ComponentMask::MOON,
+                _ => {
+                    return Err(NsbError::Unsupported(
+                        "unsupported restricted component".into(),
+                    ))
+                }
+            };
+            let selected = query.clone().with_components(mask);
+            let mut metadata = descriptor.metadata;
+            if mask == ComponentMask::AIRGLOW {
+                metadata.solar_activity = Some(crate::solar_activity::resolve_f107(
+                    query.time,
+                    self.model_config().solar_activity(),
+                )?);
+            }
+            components.push(RestrictedBandComponent {
+                name: descriptor.name,
+                integrated: self.integrate_band(&selected, lower, upper)?,
+                metadata,
+                statistical_uncertainty: None,
+                systematic_uncertainty: None,
+            });
+        }
+        Ok(RestrictedBandResult {
+            lower,
+            upper,
+            integrated,
+            components,
+        })
+    }
+
     /// Integrate existing wavelength-resolved components over a top-hat sub-band.
     ///
     /// Units: photons cm^-2 ns^-1 sr^-1. Bounds must lie within 300–650 nm.
@@ -288,6 +376,47 @@ mod tests {
         ));
         assert!(matches!(
             evaluator.integrate_band(&q, Nanometers::new(375.0), Nanometers::new(420.0)),
+            Err(NsbError::Unsupported(_))
+        ));
+    }
+    #[test]
+    fn restricted_components_preserve_sum_provenance_and_unknown_uncertainty() {
+        let evaluator = NsbEvaluator::new().unwrap();
+        let q = query(
+            ComponentMask::ZODIACAL | ComponentMask::AIRGLOW | ComponentMask::MOON,
+            "2023-09-15T05:00:00Z",
+        );
+        let lo = Nanometers::new(360.0);
+        let hi = Nanometers::new(570.0);
+        let result = evaluator.integrate_band_components(&q, lo, hi).unwrap();
+        assert_eq!((result.lower, result.upper), (lo, hi));
+        assert_eq!(
+            result.integrated,
+            evaluator.integrate_band(&q, lo, hi).unwrap()
+        );
+        assert_eq!(result.components.len(), 3);
+        let sum: f64 = result.components.iter().map(|c| c.integrated.value()).sum();
+        assert_eq!(sum, result.integrated.value());
+        for component in &result.components {
+            assert!(component.statistical_uncertainty.is_none());
+            assert!(component.systematic_uncertainty.is_none());
+            assert!(!component.metadata.provenance.is_empty());
+        }
+        assert_eq!(result.components[2].integrated.value(), 0.0);
+        assert!(result.components[1].metadata.solar_activity.is_some());
+        let empty = q.clone().with_components(ComponentMask::empty());
+        let result = evaluator.integrate_band_components(&empty, lo, hi).unwrap();
+        assert!(result.components.is_empty());
+        assert_eq!(result.integrated.value(), 0.0);
+        let unsupported = q.with_components(ComponentMask::ZODIACAL | ComponentMask::STARLIGHT);
+        assert!(matches!(
+            evaluator.integrate_band_components(&unsupported, lo, hi),
+            Err(NsbError::Unsupported(_))
+        ));
+        assert!(evaluator.integrate_band_components(&empty, hi, lo).is_err());
+        let moon = query(ComponentMask::MOON, "2023-09-29T03:00:00Z");
+        assert!(matches!(
+            evaluator.integrate_band_components(&moon, lo, hi),
             Err(NsbError::Unsupported(_))
         ));
     }

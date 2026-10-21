@@ -102,3 +102,21 @@ def test_band_integration_releases_the_gil():
         sys.setswitchinterval(previous)
         thread.join(timeout=5)
     assert ran_during_rust
+
+
+def test_component_band_result_parity_and_fail_closed():
+    evaluator = nsb.NsbEvaluator()
+    result = evaluator.integrate_band_components(query(), 360, 570)
+    assert (result.lower_nm, result.upper_nm) == (360, 570)
+    assert result.integrated_photons_cm2_ns_sr == evaluator.integrate_band(query(), 360, 570)
+    assert [c.name for c in result.components] == ["zodiacal", "airglow"]
+    assert sum(c.integrated_photons_cm2_ns_sr for c in result.components) == result.integrated_photons_cm2_ns_sr
+    for component in result.components:
+        assert component.statistical_uncertainty is None
+        assert component.systematic_uncertainty is None
+        assert component.metadata.provenance
+    assert result.components[1].metadata.solar_activity_provenance
+    with pytest.raises(nsb.UnsupportedError):
+        evaluator.integrate_band_components(query(nsb.ComponentMask.STARLIGHT), 360, 570)
+    with pytest.raises(nsb.NsbError):
+        evaluator.integrate_band_components(query(), 360, 651)

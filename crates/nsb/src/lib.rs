@@ -69,6 +69,7 @@
 #![warn(missing_docs)]
 
 mod band;
+pub use band::{RestrictedBandComponent, RestrictedBandResult};
 /// Advanced component models used to construct or inspect individual contributors.
 pub mod components;
 /// Runtime scientific data and build-verified bundled metadata.
