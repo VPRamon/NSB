@@ -303,3 +303,42 @@ fn portable_replay_retains_artifact_bytes_within_roundoff_and_rejects_negative_s
         );
     }
 }
+
+#[test]
+fn combined_oxygen_point_uncertainty_propagates_only_the_continuum_fit_covariance() {
+    let low = fit();
+    let mut req = request();
+    for o in &mut req.observations {
+        o.uncertainty *= 10.;
+    }
+    let high = AirglowCalibrationProfile::fit(req).unwrap();
+    let config = |profile| {
+        NsbModelConfig::generic_clear_sky()
+            .with_solar_radio_flux(SolarFluxUnits::new(100.))
+            .with_airglow_model(AirglowModel::ParanalPalaceOxygenV1)
+            .with_airglow_calibration(profile)
+            .unwrap()
+    };
+    let low_result = NsbEvaluator::with_config(config(low.clone()))
+        .unwrap()
+        .evaluate(&query())
+        .unwrap();
+    let high_result = NsbEvaluator::with_config(config(high.clone()))
+        .unwrap()
+        .evaluate(&query())
+        .unwrap();
+    let total = low_result.integrated.value();
+    assert!((total - high_result.integrated.value()).abs() < 1e-12);
+    let sigma =
+        |r: &nsb::NsbResult| r.components[0].relative_uncertainty.unwrap() * r.integrated.value();
+    let continuum = NsbEvaluator::with_config(calibrated(AirglowModel::ParanalPalaceV1))
+        .unwrap()
+        .evaluate(&query())
+        .unwrap()
+        .integrated
+        .value()
+        / low.scale().value();
+    let expected_variance_change = continuum.powi(2) * (high.variance() - low.variance());
+    let actual_variance_change = sigma(&high_result).powi(2) - sigma(&low_result).powi(2);
+    assert!((actual_variance_change - expected_variance_change).abs() < 1e-15);
+}
