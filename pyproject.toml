@@ -37,4 +37,5 @@ features = ["python"]
 include = [
     { path = "LICENSE", format = "sdist" },
     { path = "crates/nsb/THIRD_PARTY_NOTICES.md", format = ["sdist", "wheel"] },
+    { path = "crates/nsb/AIRGLOW_DATA_NOTICES.md", format = ["sdist", "wheel"] },
 ]

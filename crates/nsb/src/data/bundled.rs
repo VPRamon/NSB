@@ -2,13 +2,14 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 //! Runtime access to build-verified bundled scientific data metadata.
 //!
-//! `crates/nsb/data/manifest.toml` remains the canonical declarative registry.
+//! The original registry and component-owned experimental oxygen supplement
+//! are verified together; the original Starlight approval snapshot stays intact.
 //! The build script parses and validates it, then embeds the resulting metadata
 //! as static Rust data. Runtime code must not parse the TOML manifest.
 
 /// Provenance and integrity metadata for one verified bundled scientific asset.
 ///
-/// Values are generated from `crates/nsb/data/manifest.toml` during compilation
+/// Values are generated from the build-verified scientific registries during compilation
 /// for assets whose existence and SHA-256 digest were verified by the build.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]

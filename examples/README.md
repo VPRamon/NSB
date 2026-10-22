@@ -40,3 +40,10 @@ coordinates.
 
 **Note:** `nsb-cli` is a workspace crate and is not published separately
 to crates.io in the 0.1 release line.
+
+### Registered Airglow calibration
+
+`cargo run --locked -p nsb --example airglow_calibration` generates a runnable,
+checksum-linked synthetic fit request and portable artifact. The example recovers
+one continuum scale without promoting scientific maturity. See
+[the complete observatory workflow](../docs/user-guide/airglow-calibration.md).

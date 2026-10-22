@@ -37,6 +37,12 @@ impl NsbEvaluator {
 
     /// Construct from explicit immutable model choices.
     pub fn with_config(config: NsbModelConfig) -> Result<Self> {
+        if (config.site_profile().airglow_profile.is_some()
+            || config.airglow_model() == Some(airglow::AirglowModel::ParanalPalaceOxygenV1))
+            && !matches!(config.airglow_geometry(), airglow::AirglowGeometryModel::VanRhijn(g) if *g == airglow::VanRhijnConfig::default())
+        {
+            return Err(NsbError::Unsupported("registered continuum fits and experimental oxygen require the standard continuum geometry; oxygen uses separate source heights".into()));
+        }
         let zodiacal = match config.zodiacal_model() {
             zodiacal::ZodiacalModel::Leinert1998 => ZodiacalLight::leinert1998()?,
         }
@@ -180,6 +186,7 @@ impl NsbEvaluator {
                 .with_geometry(self.config.airglow_geometry().clone())
                 .with_solar_radio_flux(solar.value)
                 .with_scale(profile.airglow.scale)
+                .with_calibration(self.config.site_profile().airglow_profile.clone())
                 .compute(time, target)?;
         Ok((outputs, solar))
     }

@@ -197,6 +197,7 @@ impl NsbEvaluator {
             .with_geometry(config.airglow_geometry().clone())
             .with_solar_radio_flux(solar.value)
             .with_scale(profile.airglow.scale)
+            .with_calibration(config.site_profile().airglow_profile.clone())
             .compute_band(query.time, query.target, lower.value(), upper.value())?;
             total += value;
             emit(BandContribution::Airglow(value, &solar));

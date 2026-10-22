@@ -64,6 +64,7 @@ pub(crate) struct PreparedPalaceSample {
 
 #[derive(Debug, Clone)]
 pub(crate) struct AirglowContinuum {
+    pub(crate) oxygen_enabled: bool,
     wavelengths_nm: [f64; SAMPLE_COUNT],
     components: [PalaceContinuumComponent; COMPONENT_COUNT],
     climatology: [PalaceClimatologyCell; CLIMATOLOGY_ROWS],
@@ -302,6 +303,7 @@ fn parse(source: &str) -> Result<AirglowContinuum> {
         )
         .collect();
     Ok(AirglowContinuum {
+        oxygen_enabled: false,
         wavelengths_nm: wavelengths.try_into().expect("validated length"),
         components: components
             .try_into()

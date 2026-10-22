@@ -97,8 +97,18 @@ fn repository_manifest_path() -> PathBuf {
 fn verify(manifest_path: &Path) -> Result<()> {
     let raw = fs::read_to_string(manifest_path)
         .with_context(|| format!("failed to read {}", manifest_path.display()))?;
-    let manifest: Manifest = toml::from_str(&raw)
+    let mut manifest: Manifest = toml::from_str(&raw)
         .with_context(|| format!("failed to parse {}", manifest_path.display()))?;
+    let supplemental_path = manifest_path.with_file_name("airglow-oxygen-manifest.toml");
+    let supplemental: Manifest = toml::from_str(&fs::read_to_string(supplemental_path)?)?;
+    if supplemental.schema_version != manifest.schema_version
+        || supplemental.assets.len() != 1
+        || supplemental.assets[0].path != "airglow_palace_oxygen_v1.json"
+        || supplemental.assets[0].calibration_status != "experimental-planning-proxy"
+    {
+        bail!("invalid component-owned experimental oxygen registry");
+    }
+    manifest.assets.extend(supplemental.assets);
     if manifest.schema_version != 1 {
         bail!(
             "unsupported asset manifest schema {}",
@@ -345,6 +355,7 @@ fn discover_assets(base: &Path) -> Result<BTreeSet<String>> {
     let mut files = BTreeSet::new();
     discover_recursive(base, base, &mut files)?;
     files.remove("manifest.toml");
+    files.remove("airglow-oxygen-manifest.toml");
     Ok(files)
 }
 

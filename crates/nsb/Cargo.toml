@@ -71,3 +71,7 @@ harness = false
 [[bench]]
 name = "airglow_geometry"
 harness = false
+
+[[bench]]
+name = "airglow_calibration"
+harness = false

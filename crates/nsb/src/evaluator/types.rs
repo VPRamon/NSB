@@ -295,6 +295,16 @@ impl NsbModelConfig {
         self
     }
 
+    /// Apply a registered continuum fit. This remains experimental and cannot
+    /// promote a site to independently validated scientific status.
+    pub fn with_airglow_calibration(
+        mut self,
+        profile: crate::site::AirglowCalibrationProfile,
+    ) -> crate::Result<Self> {
+        self.site_profile = self.site_profile.with_airglow_calibration(profile)?;
+        Ok(self)
+    }
+
     pub(crate) fn site_profile(&self) -> &SiteProfileConfig {
         &self.site_profile
     }

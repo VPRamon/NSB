@@ -52,6 +52,7 @@ mod extinction;
 mod geometry;
 mod model;
 mod output;
+mod oxygen;
 mod selection;
 pub(crate) mod temporal;
 pub(crate) mod units;
@@ -59,6 +60,7 @@ pub(crate) mod units;
 pub(crate) use calibration::AirglowContinuum;
 pub(crate) use domain::AirglowNightPhase;
 pub(crate) use extinction::NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG;
+pub(crate) use geometry::target_altitude;
 pub use geometry::{
     AirglowGeometryMetadata, AirglowGeometryModel, AirglowWavelengthApplicability,
     ValidatedZenithDomain, VanRhijnConfig, VerticalEmissionProfile,

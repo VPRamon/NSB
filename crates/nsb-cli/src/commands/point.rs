@@ -64,6 +64,9 @@ pub(crate) fn model_config(
         .with_moonlight_model(moonlight_model);
     config = match args.airglow_model {
         crate::cli::AirglowModelArg::Automatic => config,
+        crate::cli::AirglowModelArg::ParanalPalaceOxygenV1 => {
+            config.with_airglow_model(AirglowModel::ParanalPalaceOxygenV1)
+        }
         crate::cli::AirglowModelArg::ParanalPalaceV1 => {
             config.with_airglow_model(AirglowModel::ParanalPalaceV1)
         }
@@ -101,6 +104,11 @@ pub(crate) fn model_config(
             profile.checksum_sha256()
         );
         config = config.with_airglow_geometry(AirglowGeometryModel::VerticalProfile(profile));
+    }
+    if let Some(path) = &args.airglow_calibration {
+        let raw = std::fs::read_to_string(path)?;
+        let profile = nsb::site::AirglowCalibrationProfile::from_toml_str(&raw)?;
+        config = config.with_airglow_calibration(profile)?;
     }
     config = config.with_zodiacal_extinction(match args.zodiacal_extinction {
         crate::cli::ZodiacalExtinctionArg::Noll2012 => ZodiacalExtinction::Noll2012Approx,

@@ -220,7 +220,15 @@ To add only a short name for an existing catalog record, add an entry to
 site-profile markers; profile selection remains explicit via `--site-profile` or
 typed `with_site_profile`.
 
-## Level 6: add a calibrated observatory profile
+## Level 6: register an observatory continuum fit
+
+The experimental [Airglow calibration workflow](airglow-calibration.md) accepts
+independently isolated continuum observations, fits one normalization, exports a
+versioned TOML artifact, and loads it through Rust, Python and the CLI. Registered
+fits preserve training/reference checksums, uncertainty and applicability; they
+remain experimental and do not confer trusted calibrated maturity.
+
+## Level 7: admit a validated observatory profile
 
 A calibrated profile is a scientific product. It requires changes in the
 runtime library and reproducible validation evidence.
@@ -255,5 +263,5 @@ validation, and packaging. Start with the
 - Arbitrary coordinates and all named/custom observatories use generic
   clear-sky assumptions unless `--site-profile` is selected explicitly.
 - The CTAO planning profiles are planning presets, not calibrated products.
-- Site-specific airglow or atmospheric parameters are not currently exposed as
-  arbitrary CLI flags; a validated new profile is a library and data change.
+- Registered Airglow continuum fits use `--airglow-calibration`; arbitrary
+  atmospheric fitting and trusted maturity promotion remain unsupported.

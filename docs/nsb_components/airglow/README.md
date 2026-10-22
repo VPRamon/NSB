@@ -334,3 +334,16 @@ representativeness remains explicitly limited.
 - [Validation matrix](../../specifications/validation.md)
 - [Performance contract](../../specifications/performance.md)
 - [CTAO site profiles](../../specifications/ctao-site-profiles.md)
+
+## Experimental oxygen and registered observatory fits
+
+The automatic/default continuum behavior above is unchanged. Explicit
+`ParanalPalaceOxygenV1` adds a bounded PALACE Og/Or oxygen subset with separate
+97/250 km source heights and climatologies; it is experimental, not full PALACE
+line completion. See [physical evidence and limitations](validation/oxygen-and-calibration-v1.md).
+
+[Registered continuum calibration](../../user-guide/airglow-calibration.md)
+provides a one-parameter fit/export/load workflow through the existing site and
+model configuration. A registered fit is never automatically admitted as an
+independently validated calibration. Neither oxygen selection nor fitted scales
+change the production default or the existing Starlight product.
