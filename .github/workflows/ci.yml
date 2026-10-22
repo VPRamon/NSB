@@ -606,21 +606,14 @@ jobs:
           ${{ matrix.venv-python }} -c "import pathlib, subprocess, sys; wheels = list(pathlib.Path('dist').glob('*.whl')); assert len(wheels) == 1, wheels; subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--only-binary=:all:', str(wheels[0])])"
       - name: Test installed wheel
         run: ${{ matrix.venv-python }} -m pytest python/tests -q
-      - name: Verify publication numerics and common interfaces
+      - name: Test Rust, installed Python and CLI equivalence
         if: matrix.os == 'ubuntu-latest'
         shell: bash
+        env:
+          NSB_INTERFACE_TESTS: "1"
         run: |
-          set -euo pipefail
-          ${{ matrix.venv-python }} -m pip install -r examples/publication/requirements.txt
-          cargo build --locked --bins -p nsb-cli -p nsb --example publication_probe
-          ${{ matrix.venv-python }} examples/publication/run.py
-      - name: Upload publication verification receipts
-        if: always() && matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: publication-verification-linux
-          path: target/publication/results
-          if-no-files-found: warn
+          cargo build --locked -p nsb-cli --bin nsb
+          ${{ matrix.venv-python }} -m pytest python/tests/test_interface_equivalence.py -q
       - name: Set up additional Linux Python
         if: ${{ matrix.additional-python }}
         uses: actions/setup-python@v5

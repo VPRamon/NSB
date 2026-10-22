@@ -1,6 +1,0 @@
-........................................................................ [ 51%]
-....
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! KeyboardInterrupt !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-/home/valles/workspace/nsb/python/tests/test_planning.py:140: KeyboardInterrupt
-(to show a full traceback on KeyboardInterrupt use --full-trace)
-76 passed in 410.47s (0:06:50)

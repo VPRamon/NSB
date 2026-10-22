@@ -3,9 +3,5 @@ crates/nsb/data/** -text
 # Portable fit examples and test references also carry exact-byte checksums.
 crates/nsb/examples/airglow-calibration/** -text
 python/tests/fixtures/airglow-calibration.toml -text
-# Publication inputs and receipts are SHA256-addressed, including on Windows.
-examples/publication/config/** -text
-examples/publication/expected/** -text
-reports/publication-verification/** -text
-# Preserve captured command output verbatim, including linker whitespace.
-reports/publication-verification/logs/** -whitespace
+# Preserve exact cross-interface fixture bytes across platform checkouts.
+crates/nsb/tests/data/interfaces/** -text

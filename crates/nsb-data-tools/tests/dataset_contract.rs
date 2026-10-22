@@ -198,14 +198,13 @@ fn no_unapproved_python_or_shell_programs_exist() {
         &mut found,
         &allowed_legacy_generator,
     );
-    // The publication example calls the installed Rust bindings and plots their
-    // outputs; it implements no dataset producer or copied physical model.
-    // Keep this exception to one reviewed file, not the examples directory.
-    let publication_example = crate_root()
-        .join("../../examples/publication/run.py")
+    // One reviewed public-binding notebook; it contains no dataset producer or
+    // independent sky model. Keep all other notebook/script paths disallowed.
+    let notebook = crate_root()
+        .join("../../examples/scientific-reproducibility.ipynb")
         .canonicalize()
-        .expect("the publication example must remain available");
-    found.retain(|path| path.canonicalize().ok().as_deref() != Some(&publication_example));
+        .expect("the public-API notebook must remain available");
+    found.retain(|path| path.canonicalize().ok().as_deref() != Some(&notebook));
     assert!(found.is_empty(), "non-Rust programs remain: {found:#?}");
 }
 

@@ -1,8 +1,0 @@
-  Installing nsb-cli v0.1.1 (/home/valles/workspace/nsb/target/publication/clean-source/crates/nsb-cli)
-    Updating crates.io index
-   Compiling nsb v0.1.1 (/home/valles/workspace/nsb/target/publication/clean-source/crates/nsb)
-   Compiling nsb-cli v0.1.1 (/home/valles/workspace/nsb/target/publication/clean-source/crates/nsb-cli)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.35s
-   Replacing /home/valles/workspace/nsb/target/publication/installed/bin/nsb
-    Replaced package `nsb-cli v0.1.1 (/home/valles/workspace/nsb/target/publication/clean-source/crates/nsb-cli)` with `nsb-cli v0.1.1 (/home/valles/workspace/nsb/target/publication/clean-source/crates/nsb-cli)` (executable `nsb`)
-warning: be sure to add `/home/valles/workspace/nsb/target/publication/installed/bin` to your PATH to be able to run the installed binaries

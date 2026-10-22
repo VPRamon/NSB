@@ -45,6 +45,12 @@ tag-triggered publication workflow succeeds.
 
 ### Fixed
 
+- Correct the private S10 photon-energy numerator to exact SI `h*c`. The prior
+  constant differed by about 1.98e-14 relative; only S10 diagnostics change at
+  that scale. Integrated photon radiances, model defaults and observational
+  evidence are unchanged. An independent SI regression covers 16 cases.
+
+
 - Verify and process the same manifest, GaiaXPy design and source CSV bytes in
   the source-interval utility, preventing input replacement from invalidating
   recorded scientific checksums (#258).

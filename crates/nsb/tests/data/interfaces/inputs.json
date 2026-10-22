@@ -1,5 +1,5 @@
 {
-  "schema": "nsb-publication-fixtures-v1",
+  "schema": "nsb-interface-fixtures-v1",
   "units": "photons cm^-2 ns^-1 sr^-1",
   "coordinates": "ICRS degrees; east-positive geodetic longitude; ellipsoidal height m",
   "time_scale": "UTC",

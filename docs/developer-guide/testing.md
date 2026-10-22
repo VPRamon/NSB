@@ -112,6 +112,45 @@ Rename that test or binary only together with `.github/workflows/scientific-vali
   when numeric protection lives in unit-test regression pins (see Jones 2013
   validation notes).
 
+## Numerical and interface regression
+
+`cargo test --workspace --all-features --locked` runs `numerical_contracts`
+(clipped analytic spectra, quadratic trapezoid convergence, radiance units,
+Beer–Lambert composition), `interface_equivalence` (registered public Rust
+results and deterministic evaluation), and the exact-SI S10 unit regression.
+These verify implementation contracts, not observational accuracy.
+
+The Linux installed-wheel CI job also compares Rust, installed Python and CLI:
+
+```bash
+cargo build --locked -p nsb-cli --bin nsb
+NSB_INTERFACE_TESTS=1 .wheel-venv/bin/python -m pytest python/tests/test_interface_equivalence.py -q
+```
+
+Use an isolated venv containing a release wheel built from the same checkout
+(`maturin build --release --locked`) and pytest. The pytest fixture runs the
+ordinary Rust integration test and reads its temporary JSON output; CLI commands
+run outside the checkout. Default pytest runs explicitly skip this optional
+native-build integration when `NSB_INTERFACE_TESTS` is unset. Enabled checks fail
+if native builds, binaries or dependencies are missing. `NSB_CLI` may identify
+a different CLI binary; Cargo's normal target directory is used otherwise.
+
+The nine shared fixtures under `crates/nsb/tests/data/interfaces/` preserve the
+original registered numerical values: six continuum F10.7 inputs, zodiacal,
+combined zodiacal+continuum and physically zero Moon. Point totals/components
+are compared across all three interfaces. Four restricted bands are compared
+between Rust and Python; the CLI does not expose this operation. The tests retain
+component sums, full-band/partition identities, repeated-run determinism,
+positive increasing sweep and nonpositive-flux rejection. Starlight, nonzero
+Moon restricted bands and the complete planning API are outside this fixture
+intersection; their existing domain/contract tests remain authoritative.
+
+Tolerances are unchanged: `1e-14 + 2e-12 * max(abs(a), abs(b))` in
+photons cm^-2 ns^-1 sr^-1, allowing serialization/ABI rounding with an absolute
+floor for physically zero components. Numerical analytic cases retain their
+original absolute tolerances. Reference changes require scientific review;
+there is no automatic reference-registration command or committed result log.
+
 ## Mutation testing
 
 Tool: `cargo-mutants` **27.1.0** (pin this version when reproducing).

@@ -61,7 +61,6 @@ mod tests {
         // Independent SI oracle: exact h and c, cm^-2 -> m^-2 (1e4),
         // ns^-1 -> s^-1 (1e9). Density is per nm on both sides, so no
         // spectral Jacobian remains. S10 is an NSB calibration convention.
-        let mut maximum_relative_error = 0.0_f64;
         for wavelength_nm in [300.0, 445.0, 551.0, 650.0] {
             for density in [0.0, 1e-8, 0.001, 1.0] {
                 let expected = density * 1e13 * 6.626_070_15e-34 * 299_792_458.0
@@ -72,24 +71,12 @@ mod tests {
                     Nanometers::new(wavelength_nm),
                 )
                 .value();
-                if expected != 0.0 {
-                    maximum_relative_error =
-                        maximum_relative_error.max((actual - expected).abs() / expected.abs());
-                }
                 assert!(
                     (actual - expected).abs() <= 3e-15 * expected.abs(),
                     "wavelength={wavelength_nm} nm, density={density}: {actual} vs {expected} S10"
                 );
             }
         }
-        eprintln!(
-            "NSB_PHOTON_SI_RECEIPT={}",
-            serde_json::json!({"family":"photon_energy_to_s10", "cases":16,
-                "reference":"exact SI h*c and explicit cm^-2 ns^-1 scaling / 1.28e-11 S10 convention",
-                "wavelength_nm":[300,445,551,650], "density_ph_cm2_ns_sr_nm":[0,1e-8,0.001,1],
-                "units":"S10 diagnostic", "relative_tolerance":3e-15,
-                "max_relative_error":maximum_relative_error, "result":"PASS"})
-        );
     }
 
     #[test]
