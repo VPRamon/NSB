@@ -16,3 +16,6 @@ frozen Gaia map with the factorized solver and component/convergence JSON output
 Use the explicit settings and checksum-pinned command in
 [`docs/validation/gaia-xp-factorized.md`](../../../docs/validation/gaia-xp-factorized.md).
 No complete experimental map is needed by normal tests.
+
+- `airglow_calibration`: runnable synthetic continuum fit, export and strict replay;
+  see `docs/user-guide/airglow-calibration.md` for independent-input requirements.

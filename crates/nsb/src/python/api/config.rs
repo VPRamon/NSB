@@ -24,6 +24,25 @@ impl NsbModelConfig {
         self.clone().with_moonlight_model(model)
     }
 
+    #[pyo3(name = "with_airglow_calibration_toml")]
+    fn py_with_airglow_calibration_toml(&self, raw: &str) -> PyResult<Self> {
+        let profile = crate::site::AirglowCalibrationProfile::from_toml_str(raw)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        self.clone()
+            .with_airglow_calibration(profile)
+            .map_err(|e| PyValueError::new_err(e.to_string()))
+    }
+
+    #[pyo3(name = "with_solar_radio_flux_sfu")]
+    fn py_with_solar_radio_flux_sfu(&self, sfu: f64) -> PyResult<Self> {
+        if !sfu.is_finite() || sfu <= 0. {
+            return Err(PyValueError::new_err("F10.7 must be finite and positive"));
+        }
+        Ok(self
+            .clone()
+            .with_solar_radio_flux(crate::SolarFluxUnits::new(sfu)))
+    }
+
     #[pyo3(name = "with_airglow_model")]
     fn py_with_airglow_model(&self, model: AirglowModel) -> Self {
         self.clone().with_airglow_model(model)

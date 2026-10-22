@@ -156,9 +156,22 @@ pub(crate) fn integrate_attenuated_continuum_band(
             means[index] * RAYLEIGH_PER_NM_TO_BAND_SPECTRAL * total_scale,
         )
     };
+    let (line_mean, line_sigma) = if continuum.oxygen_enabled {
+        super::oxygen::integrate(
+            time,
+            ctx.location,
+            altitude,
+            ctx.atmosphere,
+            ctx.solar_radio_flux.value(),
+            lower,
+            upper,
+        )?
+    } else {
+        (0., 0.)
+    };
     Ok(SpectralContinuumIntegrals {
-        integrated: BandPhotonRadiance::new(integrate(&means)),
-        integrated_uncertainty: BandPhotonRadiance::new(integrate(&sigmas)),
+        integrated: BandPhotonRadiance::new(integrate(&means) + line_mean),
+        integrated_uncertainty: BandPhotonRadiance::new(integrate(&sigmas) + line_sigma),
         b_density: density(445),
         v_density: density(551),
     })

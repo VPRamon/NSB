@@ -1,0 +1,41 @@
+[
+  {
+    "id": "synthetic-1",
+    "utc": "2023-09-04T01:48:00Z",
+    "ra_deg": 266.41683,
+    "dec_deg": -29.00781,
+    "wavelength_nm": [
+      300.0,
+      650.0
+    ],
+    "solar_flux_sfu": 100.0,
+    "continuum_radiance": 0.13138138648445594,
+    "uncertainty": 0.001
+  },
+  {
+    "id": "synthetic-2",
+    "utc": "2023-09-04T02:48:00Z",
+    "ra_deg": 266.41683,
+    "dec_deg": -29.00781,
+    "wavelength_nm": [
+      300.0,
+      650.0
+    ],
+    "solar_flux_sfu": 110.0,
+    "continuum_radiance": 0.14262947878159601,
+    "uncertainty": 0.001
+  },
+  {
+    "id": "synthetic-3",
+    "utc": "2023-09-05T01:48:00Z",
+    "ra_deg": 266.41683,
+    "dec_deg": -29.00781,
+    "wavelength_nm": [
+      300.0,
+      650.0
+    ],
+    "solar_flux_sfu": 120.0,
+    "continuum_radiance": 0.13625561129904717,
+    "uncertainty": 0.001
+  }
+]

@@ -9,10 +9,13 @@
 //! Observatory- or project-named planning markers belong at an application or
 //! data layer; the core crate only provides the generic mechanism.
 
+/// Portable registered continuum calibration workflow.
+pub mod airglow_profile;
 /// Shared atmospheric assumptions used by site-aware NSB components.
 pub(crate) mod atmosphere;
 /// Versioned evidence contract for dedicated site-calibration assets.
 pub(crate) mod calibration;
+pub use airglow_profile::AirglowCalibrationProfile;
 
 pub use atmosphere::AtmosphericConditions;
 
@@ -59,8 +62,8 @@ pub enum CalibrationStatus {
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct AirglowSiteCalibration {
     pub(crate) scale: Ratios,
-    pub(crate) provenance: &'static str,
-    pub(crate) assumptions: &'static str,
+    pub(crate) provenance: String,
+    pub(crate) assumptions: String,
 }
 
 impl AirglowSiteCalibration {
@@ -71,7 +74,8 @@ impl AirglowSiteCalibration {
                 "Bundled PALACE v1.0 Paranal-derived unresolved-continuum planning product ",
                 "reused as an explicit generic/planning proxy; neutral site scale; ",
                 "not site-calibrated."
-            ),
+            )
+            .to_owned(),
             assumptions: concat!(
                 "No site-specific airglow continuum scale is bundled by the core ",
                 "library; named application-layer profiles should record this ",
@@ -80,7 +84,8 @@ impl AirglowSiteCalibration {
                 "planning approximations unless an explicit validated scientific ",
                 "profile is selected; provenance from Paranal is not calibration ",
                 "evidence for the observer location."
-            ),
+            )
+            .to_owned(),
         }
     }
 }
@@ -122,6 +127,7 @@ impl<P: SiteProfileTag> PartialEq for SiteProfile<P> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct SiteProfileConfig {
+    pub(crate) airglow_profile: Option<std::sync::Arc<AirglowCalibrationProfile>>,
     name: String,
     calibration_status: CalibrationStatus,
     _representative_altitude: Option<Kilometers>,
@@ -159,6 +165,7 @@ impl<P: SiteProfileTag> SiteProfile<P> {
 
         Ok(Self {
             config: SiteProfileConfig {
+                airglow_profile: None,
                 name: P::NAME.to_owned(),
                 calibration_status: CalibrationStatus::PlanningPreset,
                 _representative_altitude: Some(representative_altitude),
@@ -191,8 +198,29 @@ impl<P: SiteProfileTag> SiteProfile<P> {
 }
 
 impl SiteProfileConfig {
+    pub(crate) fn with_airglow_calibration(
+        mut self,
+        profile: AirglowCalibrationProfile,
+    ) -> Result<Self> {
+        self.atmosphere = Some(profile.request().definition.atmosphere()?);
+        self.calibration_status = CalibrationStatus::PlanningPreset;
+        self.name = profile.request().definition.evidence.calibration_id.clone();
+        self.atmosphere_provenance = format!(
+            "Registered calibration atmosphere; {}",
+            profile.request().definition.measurement_provenance
+        );
+        self.airglow.scale = profile.scale();
+        self.airglow.provenance = format!("registered-fit-not-independently-validated; calibration {} sha256 {}; base {} sha256 {}; training observations {}; method weighted-origin-scale-night-sandwich-v1; continuum scale {} variance {}; {}",
+            self.name, profile.checksum_sha256(), profile.request().definition.base_model,
+            profile.request().definition.base_asset_sha256, profile.request().observations.len(),
+            profile.scale().value(), profile.variance(), profile.request().definition.software_provenance);
+        self.airglow.assumptions = "Independent continuum input required; no physical correction for missing lines; fixed PALACE temporal/solar response; no trusted scientific admission; scale covariance excludes model discrepancy".into();
+        self.airglow_profile = Some(std::sync::Arc::new(profile));
+        Ok(self)
+    }
     fn generic_clear_sky() -> Self {
         Self {
+            airglow_profile: None,
             name: GenericClearSky::NAME.to_owned(),
             calibration_status: CalibrationStatus::GenericFallback,
             _representative_altitude: None,

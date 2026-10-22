@@ -42,3 +42,16 @@ UV/selection inputs rather than inventing them.
 Candidate generation never silently registers Starlight as runtime production
 data. A future bundled product requires explicit scientific, provenance, and
 redistribution approval in its release change.
+
+## Registered Airglow continuum calibration
+
+`cargo run --locked -p nsb-data-tools --bin nsb-airglow-calibrate -- --input request.toml --output calibration.toml`
+verifies referenced observation bytes and fits one continuum normalization with
+fixed physical assumptions. The output is portable experimental evidence, not
+trusted independent calibration admission. See
+[the runnable workflow](../../docs/user-guide/airglow-calibration.md).
+
+`python3 crates/nsb-data-tools/scripts/project_oxygen.py PALACE.zip output.json`
+projects the checksum-pinned CC BY 4.0 PALACE Og/Or data only (requires astropy
+and numpy). It does not import or run PALACE's GPL program. See
+[the source and physical audit](../../docs/nsb_components/airglow/validation/oxygen-and-calibration-v1.md).

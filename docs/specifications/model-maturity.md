@@ -45,3 +45,19 @@ site-validation evidence. Issue #38 remains the scientific promotion gate.
 `ValidatedExternalMap` is explicit and remains outside `ComponentMask::ALL`.
 Failure of any admission check is an error; it never falls back to an
 experimental seed map.
+
+## Registered Airglow fits and oxygen extension
+
+`ParanalPalaceOxygenV1` is an explicit experimental published-data reconstruction
+of the Og/Or subset, not the automatic fallback. Its continuum remains the legacy
+reference; oxygen geometry and variability are separate, with omitted species,
+molecular absorption and solar extrapolation limitations stated in result metadata.
+
+Portable user continuum fits are reproducible **registered fits**, with recorded
+training observations, covariance and provenance. Their component status is
+`Experimental`; site status stays `PlanningPreset` and trusted calibrated status
+remains false. User-configured planning assumptions, registered empirical fits,
+and independently admitted scientific products are distinct. Neither an artifact
+field, name, checksum nor successful synthetic recovery grants independent
+validation. See the [workflow](../user-guide/airglow-calibration.md) and
+[development evidence](../nsb_components/airglow/validation/oxygen-and-calibration-v1.md).

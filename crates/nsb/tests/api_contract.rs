@@ -132,13 +132,18 @@ fn core_public_api_does_not_freeze_observatory_named_profiles() {
         "AirglowSiteCalibration",
         "ResolvedSiteProfile",
         "ErasedSiteProfile",
-        "with_airglow_calibration",
     ] {
         assert!(
             !snapshot.contains(forbidden),
             "public API snapshot must not expose forbidden site-profile symbol {forbidden}"
         );
     }
+    // Registered opaque artifacts are now supported at NsbModelConfig. Keep
+    // arbitrary calibration setters off public planning SiteProfile objects.
+    assert!(!snapshot.lines().any(
+        |line| line.contains("site::SiteProfile") && line.contains("with_airglow_calibration")
+    ));
+    assert!(snapshot.contains("NsbModelConfig::with_airglow_calibration(self, profile: nsb::site::airglow_profile::AirglowCalibrationProfile)"));
     assert!(
         !snapshot.lines().any(|line| {
             (line.contains("site::SiteProfile") || line.contains("site::Atmospheric"))

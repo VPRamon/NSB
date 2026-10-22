@@ -1,0 +1,90 @@
+method = "weighted-origin-scale-night-sandwich-v1"
+parameter_unit = "dimensionless"
+parameter_bounds = [0.0, 100.0]
+lower_bound_exclusive = true
+fitter_software = "nsb-0.1.1"
+maturity = "registered-fit-not-independently-validated"
+scale = 1.2
+variance = 0.00002563653899902484
+chi_square = 0.0000000000000000000000000008077935669463161
+degrees_of_freedom = 2
+
+[request]
+reserved_nights = ["2023-09-06"]
+
+[request.definition]
+schema_version = 1
+base_model = "paranal-palace-v1"
+base_asset_sha256 = "f03b48cce44764c05e7208e59a0c9dbbb773ffc4b32444f8157dc5ac36fd119e"
+longitude_deg = -70.4044
+latitude_deg = -24.6275
+coordinate_convention = "WGS84-geodetic-ellipsoid-m"
+solar_flux_range_sfu = [67.0, 166.0]
+max_zenith_deg = 60.0
+measurement_provenance = "SYNTHETIC isolated continuum; exact 1.2 multiplier, independent per-row sigma 0.001; no real observational evidence."
+software_provenance = "NSB 0.1.1 airglow_calibration example; see Git commit of this request."
+
+[request.definition.evidence]
+schema_version = 1
+calibration_id = "synthetic-paranal-continuum-v1"
+site = "synthetic-paranal"
+limitations = ["Synthetic only; no real-world calibration or accuracy claim."]
+
+[request.definition.evidence.validity]
+valid_from = "2023-09-01"
+valid_through = "2023-09-30"
+wavelength_nm = [300, 650]
+
+[request.definition.evidence.atmosphere]
+representative_altitude_m = 2635.0
+representative_altitude_uncertainty_m = 1.0
+surface_pressure_hpa = 743.0
+surface_pressure_uncertainty_hpa = 5.0
+rayleigh_scale_height_km = 8.0
+rayleigh_scale_height_uncertainty_km = 0.2
+aerosol_optical_depth_550_nm = 0.03
+aerosol_optical_depth_uncertainty_550_nm = 0.01
+angstrom_exponent = 1.0
+angstrom_exponent_uncertainty = 0.2
+
+[request.definition.evidence.airglow]
+continuum_scale = 1.2
+continuum_scale_uncertainty = 0.005063253795636245
+temporal_correction_applied = false
+
+[[request.definition.evidence.references]]
+id = "synthetic-measurements"
+path = "measurements.txt"
+sha256 = "dd02f614144dd68713a4b1ad6b1ddacb54aa9538d54d9e9f98499cc2a32daff7"
+source = "Synthetic example generator in crates/nsb/examples/airglow_calibration.rs"
+license = "AGPL-3.0-only"
+
+[[request.observations]]
+id = "synthetic-1"
+utc = "2023-09-04T01:48:00Z"
+ra_deg = 266.41683
+dec_deg = -29.00781
+wavelength_nm = [300.0, 650.0]
+solar_flux_sfu = 100.0
+continuum_radiance = 0.13138138648445594
+uncertainty = 0.001
+
+[[request.observations]]
+id = "synthetic-2"
+utc = "2023-09-04T02:48:00Z"
+ra_deg = 266.41683
+dec_deg = -29.00781
+wavelength_nm = [300.0, 650.0]
+solar_flux_sfu = 110.0
+continuum_radiance = 0.14262947878159601
+uncertainty = 0.001
+
+[[request.observations]]
+id = "synthetic-3"
+utc = "2023-09-05T01:48:00Z"
+ra_deg = 266.41683
+dec_deg = -29.00781
+wavelength_nm = [300.0, 650.0]
+solar_flux_sfu = 120.0
+continuum_radiance = 0.13625561129904717
+uncertainty = 0.001

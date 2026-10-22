@@ -91,6 +91,9 @@ pub enum AirglowModelArg {
     /// Explicit Paranal-derived legacy/reference planning model.
     #[value(name = "paranal-palace-v1")]
     ParanalPalaceV1,
+    /// Experimental PALACE continuum plus oxygen lines (vacuum wavelength).
+    #[value(name = "paranal-palace-oxygen-v1")]
+    ParanalPalaceOxygenV1,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -161,6 +164,10 @@ pub struct ModelArgs {
     /// Checksum-pinned `nsb` vertical-emission-profile TOML (Van Rhijn is default).
     #[arg(long)]
     pub airglow_vertical_profile: Option<PathBuf>,
+
+    /// Portable registered continuum calibration TOML (experimental; strict site/domain).
+    #[arg(long)]
+    pub airglow_calibration: Option<PathBuf>,
 
     /// Zodiacal atmospheric extinction model.
     #[arg(long, value_enum, default_value_t = ZodiacalExtinctionArg::Noll2012)]

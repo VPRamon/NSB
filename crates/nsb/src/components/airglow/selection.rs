@@ -206,13 +206,15 @@ pub(crate) fn resolve_airglow_selection(
             fallback_reason: Some(AirglowFallbackReason::GlobalPlanningModelUnavailable),
         }),
         AirglowSelection::Explicit(model) => match model {
-            AirglowModel::ParanalPalaceV1 => Ok(ResolvedAirglowSelection {
-                model,
-                selection_kind: AirglowSelectionKind::Explicit,
-                requested_model: Some(model),
-                used_automatic_fallback: false,
-                fallback_reason: None,
-            }),
+            AirglowModel::ParanalPalaceV1 | AirglowModel::ParanalPalaceOxygenV1 => {
+                Ok(ResolvedAirglowSelection {
+                    model,
+                    selection_kind: AirglowSelectionKind::Explicit,
+                    requested_model: Some(model),
+                    used_automatic_fallback: false,
+                    fallback_reason: None,
+                })
+            }
         },
     }
 }
@@ -221,11 +223,9 @@ pub(crate) fn resolve_airglow_selection(
 pub(crate) fn load_continuum_for_model(
     model: AirglowModel,
 ) -> Result<std::sync::Arc<super::calibration::AirglowContinuum>> {
-    match model {
-        AirglowModel::ParanalPalaceV1 => Ok(std::sync::Arc::new(
-            super::calibration::load_builtin_standard()?,
-        )),
-    }
+    let mut continuum = super::calibration::load_builtin_standard()?;
+    continuum.oxygen_enabled = matches!(model, AirglowModel::ParanalPalaceOxygenV1);
+    Ok(std::sync::Arc::new(continuum))
 }
 
 #[cfg(test)]

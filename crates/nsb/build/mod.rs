@@ -28,7 +28,22 @@ pub fn run() {
     let manifest_raw = fs::read_to_string(&manifest_path).unwrap_or_else(|err| {
         panic!("failed to read {}: {err}", manifest_path.display());
     });
-    let manifest = parse_manifest(&manifest_raw).unwrap_or_else(|err| panic!("{err}"));
+    let mut manifest = parse_manifest(&manifest_raw).unwrap_or_else(|err| panic!("{err}"));
+    // The original manifest is checksum-pinned by immutable Starlight approval.
+    // Append only this component-owned experimental asset; supplemental metadata
+    // cannot replace or confer admission on any original asset.
+    println!("cargo:rerun-if-changed=data/airglow-oxygen-manifest.toml");
+    let oxygen_raw = fs::read_to_string(data_dir.join("airglow-oxygen-manifest.toml"))
+        .expect("read experimental oxygen registry");
+    let oxygen = parse_manifest(&oxygen_raw).expect("parse experimental oxygen registry");
+    assert_eq!(oxygen.schema_version, manifest.schema_version);
+    assert_eq!(oxygen.assets.len(), 1);
+    let asset = &oxygen.assets[0];
+    assert_eq!(asset.path, "airglow_palace_oxygen_v1.json");
+    assert_eq!(asset.schema, "nsb-airglow-palace-oxygen-v1");
+    assert_eq!(asset.calibration_status, "experimental-planning-proxy");
+    assert!(asset.runtime_embedded);
+    manifest.assets.extend(oxygen.assets);
     validate_manifest_structure(&manifest).unwrap_or_else(|err| {
         panic!("scientific asset manifest validation failed: {err}");
     });

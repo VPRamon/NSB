@@ -1,2 +1,5 @@
 # Scientific assets are checksum-addressed; checkout must preserve exact bytes on every OS.
 crates/nsb/data/** -text
+# Portable fit examples and test references also carry exact-byte checksums.
+crates/nsb/examples/airglow-calibration/** -text
+python/tests/fixtures/airglow-calibration.toml -text

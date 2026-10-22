@@ -83,3 +83,6 @@ authorized promotion makes the four-component default available in Rust/Python.
 See the [source terms, attribution, public contact directory and concern procedure](../nsb_components/starlight/licensing/README.md)
 and the distributed `THIRD_PARTY_NOTICES.md`. Cite the original scientific
 sources, preserve their notices and assess the data terms for your actual use.
+
+- [Registered observatory Airglow calibration](airglow-calibration.md): independent
+  continuum input, fit/export/load, provenance, uncertainty and scientific limits.

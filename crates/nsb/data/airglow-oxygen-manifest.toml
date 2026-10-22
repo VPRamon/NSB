@@ -1,0 +1,15 @@
+schema_version = 1
+
+# Supplement preserves the immutable registry pinned by the Starlight approval.
+
+[[assets]]
+path = "airglow_palace_oxygen_v1.json"
+schema = "nsb-airglow-palace-oxygen-v1"
+sha256 = "7db1b18102eea3abbbef21ed602e681fbed454deb65cc7d0743b5c465a703fc5"
+source = "Noll, Schmidt, Hannawald, Kausch and Kimeswenger, PALACE v1.0, DOI 10.5281/zenodo.14064023; palace_lines.fits and palace_var.fits; source archive SHA-256 a42577ffee8f76d9ac3765a9a2811d766c30158cf74c0a364ebf7a726dd9a0dc"
+license = "CC-BY-4.0"
+generator = "nsb-data-tools/scripts/project_oxygen.py"
+generation_command = "python3 crates/nsb-data-tools/scripts/project_oxygen.py PALACE.zip crates/nsb/data/airglow_palace_oxygen_v1.json"
+validation_report = "docs/nsb_components/airglow/validation/oxygen-and-calibration-v1.md"
+calibration_status = "experimental-planning-proxy"
+runtime_embedded = true

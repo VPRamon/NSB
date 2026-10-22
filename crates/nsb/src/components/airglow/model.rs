@@ -47,6 +47,8 @@ pub enum AirglowModel {
     /// its emission-line model. It is the temporary automatic fallback, not a
     /// globally calibrated climatology or a CTAO site calibration.
     ParanalPalaceV1,
+    /// Experimental continuum plus PALACE Og/Or oxygen lines, vacuum 300–650 nm.
+    ParanalPalaceOxygenV1,
 }
 
 impl AirglowModel {
@@ -54,6 +56,7 @@ impl AirglowModel {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::ParanalPalaceV1 => "paranal-palace-v1",
+            Self::ParanalPalaceOxygenV1 => "paranal-palace-oxygen-v1",
         }
     }
 }
@@ -71,6 +74,7 @@ pub(crate) struct Airglow {
     geometry: AirglowGeometryModel,
     solar_radio_flux: SolarFluxUnits,
     scale: ScaleFactors,
+    profile: Option<Arc<crate::site::AirglowCalibrationProfile>>,
 }
 
 impl Airglow {
@@ -88,7 +92,28 @@ impl Airglow {
             geometry,
             solar_radio_flux: DEFAULT_SOLAR_RADIO_FLUX,
             scale: ScaleFactors::new(1.0),
+            profile: None,
         }
+    }
+
+    pub(crate) fn with_calibration(
+        mut self,
+        profile: Option<Arc<crate::site::AirglowCalibrationProfile>>,
+    ) -> Self {
+        self.profile = profile;
+        self
+    }
+    fn validate_calibration(
+        &self,
+        time: Time<UTC>,
+        altitude: crate::units::angular::Degrees,
+        solar: SolarFluxUnits,
+        band: [f64; 2],
+    ) -> Result<()> {
+        if let Some(profile) = &self.profile {
+            profile.validate_query(self.location, time, altitude.value(), solar.value(), band)?;
+        }
+        Ok(())
     }
 
     /// Select atmospheric pressure/Rayleigh/Mie assumptions for Noll scattering.
@@ -135,7 +160,8 @@ impl Airglow {
         target: SphericalDirection<EquatorialMeanJ2000>,
     ) -> Result<AirglowOutputs> {
         let altitude = target_altitude(time, self.location, target);
-        evaluate_continuum(
+        self.validate_calibration(time, altitude, self.solar_radio_flux, [300., 650.])?;
+        let mut out = evaluate_continuum(
             &self.continuum,
             time,
             altitude,
@@ -146,7 +172,30 @@ impl Airglow {
                 solar_radio_flux: self.solar_radio_flux,
                 user_scale: self.scale,
             },
-        )
+        )?;
+        if let Some(profile) = &self.profile {
+            if let Some(relative) = out.relative_uncertainty {
+                let total = out.integrated.value();
+                let lines = if self.continuum.oxygen_enabled {
+                    super::oxygen::integrate(
+                        time,
+                        self.location,
+                        altitude,
+                        self.atmosphere,
+                        self.solar_radio_flux.value(),
+                        300.,
+                        650.,
+                    )?
+                    .0
+                } else {
+                    0.
+                };
+                let scale_error =
+                    (total - lines).max(0.) * profile.variance().sqrt() / profile.scale().value();
+                out.relative_uncertainty = Some((relative * total).hypot(scale_error) / total);
+            }
+        }
+        Ok(out)
     }
 
     pub(crate) fn compute_band(
@@ -157,6 +206,7 @@ impl Airglow {
         upper: f64,
     ) -> Result<BandPhotonRadiance> {
         let altitude = target_altitude(time, self.location, target);
+        self.validate_calibration(time, altitude, self.solar_radio_flux, [lower, upper])?;
         let ctx = AirglowEvaluationContext {
             location: self.location,
             atmosphere: self.atmosphere,
@@ -187,6 +237,7 @@ impl Airglow {
         solar_radio_flux: SolarFluxUnits,
     ) -> Result<BandPhotonRadiance> {
         let altitude = target_altitude(time, self.location, target);
+        self.validate_calibration(time, altitude, solar_radio_flux, [300., 650.])?;
         evaluate_integrated_continuum_with_night_phase(
             &self.continuum,
             time,
@@ -213,6 +264,7 @@ impl Airglow {
         solar_radio_flux: SolarFluxUnits,
     ) -> Result<()> {
         let altitude = target_altitude(time, self.location, target);
+        self.validate_calibration(time, altitude, solar_radio_flux, [300., 650.])?;
         validate_integrated_continuum_inputs(
             altitude,
             &AirglowEvaluationContext {

@@ -92,6 +92,13 @@ pub(crate) fn prepare_site_context(
         .with_atmosphere(profile.atmosphere)
         .with_geometry(evaluator.model_config().airglow_geometry().clone())
         .with_scale(profile.airglow.scale)
+        .with_calibration(
+            evaluator
+                .model_config()
+                .site_profile()
+                .airglow_profile
+                .clone(),
+        )
     });
     let solar_activity_cache = uses_airglow
         .then(|| {
