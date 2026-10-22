@@ -315,14 +315,65 @@ impl AirglowCalibrationProfile {
     /// Strict portable TOML loader; replay the fit and reject edited fit statistics.
     pub fn from_toml_str(raw: &str) -> Result<Self> {
         let artifact: Artifact = toml::from_str(raw).map_err(|e| invalid(e.to_string()))?;
-        let fitted = Self::fit(artifact.request.clone())?;
-        if fitted.artifact != artifact {
+        if !finite_range(artifact.scale, f64::MIN_POSITIVE, 100.)
+            || !artifact.variance.is_finite()
+            || artifact.variance <= 0.
+            || !artifact.chi_square.is_finite()
+            || artifact.chi_square < 0.
+        {
+            return Err(invalid("nonphysical calibration artifact statistics"));
+        }
+        let mut replay = Self::fit(artifact.request.clone())?.artifact;
+        // Platform libm can differ by a few ULPs. Check numerical replay at
+        // explicit roundoff tolerance, but retain the portable artifact's
+        // original numbers so its canonical bytes/hash do not change on load.
+        let close = |a: f64, b: f64, absolute: f64| {
+            a.is_finite()
+                && b.is_finite()
+                && (a - b).abs() <= absolute + 1.0e-12 * a.abs().max(b.abs())
+        };
+        let supplied = &artifact.request.definition.evidence.airglow;
+        let calculated = &replay.request.definition.evidence.airglow;
+        if !close(artifact.scale, replay.scale, 1.0e-24)
+            || !close(artifact.variance, replay.variance, 1.0e-24)
+            || !close(artifact.chi_square, replay.chi_square, 1.0e-20)
+            || !close(
+                supplied.continuum_scale,
+                calculated.continuum_scale,
+                1.0e-24,
+            )
+            || !close(
+                supplied.continuum_scale_uncertainty,
+                calculated.continuum_scale_uncertainty,
+                1.0e-24,
+            )
+        {
             return Err(invalid(
                 "calibration artifact does not match reproducible registered fit",
             ));
         }
-        Ok(fitted)
+        replay.scale = artifact.scale;
+        replay.variance = artifact.variance;
+        replay.chi_square = artifact.chi_square;
+        replay.request.definition.evidence.airglow.continuum_scale = supplied.continuum_scale;
+        replay
+            .request
+            .definition
+            .evidence
+            .airglow
+            .continuum_scale_uncertainty = supplied.continuum_scale_uncertainty;
+        if replay != artifact {
+            return Err(invalid(
+                "calibration artifact does not match reproducible registered fit",
+            ));
+        }
+        let canonical = toml::to_string(&artifact).map_err(|e| invalid(e.to_string()))?;
+        Ok(Self {
+            artifact,
+            checksum: to_hex(&sha256(canonical.as_bytes())),
+        })
     }
+
     /// Deterministic serialization, with no wall-clock fields or self checksum.
     pub fn to_toml_string(&self) -> Result<String> {
         toml::to_string(&self.artifact).map_err(|e| invalid(e.to_string()))

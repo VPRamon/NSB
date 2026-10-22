@@ -281,3 +281,25 @@ fn night_isolation_uses_observatory_local_solar_noon_at_remote_longitudes() {
         .to_string()
         .contains("training/evaluation night overlap"));
 }
+
+#[test]
+fn portable_replay_retains_artifact_bytes_within_roundoff_and_rejects_negative_statistics() {
+    let mut artifact: toml::Value = toml::from_str(&fit().to_toml_string().unwrap()).unwrap();
+    let rounded = artifact["scale"].as_float().unwrap() * (1. + 1.0e-13);
+    artifact["scale"] = rounded.into();
+    artifact["request"]["definition"]["evidence"]["airglow"]["continuum_scale"] = rounded.into();
+    let raw = toml::to_string(&artifact).unwrap();
+    let loaded = AirglowCalibrationProfile::from_toml_str(&raw).unwrap();
+    assert_eq!(loaded.scale().value(), rounded);
+    assert_eq!(
+        loaded,
+        AirglowCalibrationProfile::from_toml_str(&loaded.to_toml_string().unwrap()).unwrap()
+    );
+    for key in ["scale", "variance", "chi_square"] {
+        let mut changed = artifact.clone();
+        changed[key] = (-1.0e-30).into();
+        assert!(
+            AirglowCalibrationProfile::from_toml_str(&toml::to_string(&changed).unwrap()).is_err()
+        );
+    }
+}

@@ -82,7 +82,10 @@ systematics and model discrepancy can dominate the reported covariance.
 
 TOML serialization is deterministic. Loading denies unknown fields, validates
 all domains/provenance, verifies the exact bundled base asset, replays the fit,
-and rejects modified statistics, bounds, software or maturity labels. The
+and rejects inconsistent statistics, bounds, software or maturity labels. Numerical
+replay allows relative roundoff of 10^-12 (absolute floors 10^-24 for scale/variance
+and 10^-20 for chi-square), retaining the original artifact numbers and canonical
+checksum across platforms. No scientific re-fitting is hidden in loading. The
 canonical artifact checksum is available from `checksum_sha256()`.
 
 ## Apply in Rust, Python or the CLI

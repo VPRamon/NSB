@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Vallés Puig, Ramon
 """Portable registered fit uses the same Rust calculation as every public API."""
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import nsb
@@ -16,7 +16,7 @@ def test_registered_artifact_load_and_experimental_oxygen():
     assert not fitted.is_airglow_site_calibrated
     query = nsb.PointQuery(
         siderust.Observer(lon_deg=-70.4044, lat_deg=-24.6275, height_m=2635),
-        datetime(2023, 9, 4, 1, 48, tzinfo=UTC),
+        datetime(2023, 9, 4, 1, 48, tzinfo=timezone.utc),
         siderust.Direction(ra_deg=266.41683, dec_deg=-29.00781),
         components=nsb.ComponentMask.AIRGLOW,
     )
