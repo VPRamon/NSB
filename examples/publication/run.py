@@ -118,7 +118,7 @@ def main():
     env = os.environ.copy()
     env["PYO3_PYTHON"] = sys.executable
     if options.build:
-        subprocess.run(["cargo", "build", "--locked", "-p", "nsb-cli", "-p", "nsb",
+        subprocess.run(["cargo", "build", "--locked", "--bins", "-p", "nsb-cli", "-p", "nsb",
                         "--example", "publication_probe"], cwd=ROOT, env=env, check=True)
         subprocess.run([sys.executable, "-m", "maturin", "build", "--release", "--locked", "--out",
                         str(ROOT / "target/publication/wheels")], cwd=ROOT, env=env, check=True)

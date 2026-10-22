@@ -612,7 +612,7 @@ jobs:
         run: |
           set -euo pipefail
           ${{ matrix.venv-python }} -m pip install -r examples/publication/requirements.txt
-          cargo build --locked -p nsb-cli -p nsb --example publication_probe
+          cargo build --locked --bins -p nsb-cli -p nsb --example publication_probe
           ${{ matrix.venv-python }} examples/publication/run.py
       - name: Upload publication verification receipts
         if: always() && matrix.os == 'ubuntu-latest'
