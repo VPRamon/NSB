@@ -88,3 +88,7 @@ wavelength_nm = [300.0, 650.0]
 solar_flux_sfu = 120.0
 continuum_radiance = 0.13625561129904717
 uncertainty = 0.001
+
+[[request.measurement_sources]]
+reference_id = "synthetic-measurements"
+format = "observations-json-v1"

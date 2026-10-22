@@ -65,6 +65,17 @@ pub struct AirglowCalibrationObservation {
     pub uncertainty: f64,
 }
 
+/// Checksum-pinned normalized measurement table used by the offline exporter.
+/// Records use observation IDs as keys; all physical fields must match exactly.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AirglowCalibrationMeasurementSource {
+    /// Identity of an existing definition.evidence.references entry.
+    pub reference_id: String,
+    /// Versioned table encoding: `observations-json-v1` or `observations-toml-v1`.
+    pub format: String,
+}
+
 /// A complete fit request; every observation is training data.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -76,6 +87,10 @@ pub struct AirglowCalibrationRequest {
     /// Reserved evaluation night IDs (local mean solar date after subtracting 12 h).
     /// Reservation documents isolation, not independent scientific validation.
     pub reserved_nights: Vec<String>,
+    /// Offline source verification contract. Empty only for legacy/in-memory fits;
+    /// the export CLI requires at least one table and verifies every training row.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub measurement_sources: Vec<AirglowCalibrationMeasurementSource>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -187,6 +202,23 @@ impl AirglowCalibrationProfile {
         request.definition.validate()?;
         if request.observations.len() < 3 {
             return Err(invalid("fit requires >=3 observations"));
+        }
+        let mut source_ids = BTreeSet::new();
+        for source in &request.measurement_sources {
+            if !source_ids.insert(&source.reference_id)
+                || !request
+                    .definition
+                    .reference_checksums()
+                    .any(|(id, _, _)| id == source.reference_id)
+                || !matches!(
+                    source.format.as_str(),
+                    "observations-json-v1" | "observations-toml-v1"
+                )
+            {
+                return Err(invalid(
+                    "invalid measurement source reference or unsupported format version",
+                ));
+            }
         }
         let d = &request.definition;
         let continuum =
@@ -323,7 +355,16 @@ impl AirglowCalibrationProfile {
         {
             return Err(invalid("nonphysical calibration artifact statistics"));
         }
+        // Compatibility is schema + versioned method + fixed model/assets and
+        // assumptions, all checked by replay. The producing package is provenance.
+        if artifact.fitter_software.trim().is_empty() {
+            return Err(invalid("missing fitter software provenance"));
+        }
         let mut replay = Self::fit(artifact.request.clone())?.artifact;
+        if artifact.method != replay.method {
+            return Err(invalid("unsupported calibration algorithm version"));
+        }
+        replay.fitter_software.clone_from(&artifact.fitter_software);
         // Platform libm can differ by a few ULPs. Check numerical replay at
         // explicit roundoff tolerance, but retain the portable artifact's
         // original numbers so its canonical bytes/hash do not change on load.

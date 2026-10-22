@@ -63,11 +63,41 @@ cargo run --locked -p nsb-data-tools --bin nsb-airglow-calibrate -- \
 ```
 
 Reference paths are normalized, relative to the request file. The utility checks
-actual reference bytes against their SHA-256 values before fitting and refuses
-to overwrite an existing output. Artifact loading can replay the registered
-numerical fit without the original files; the artifact contains training rows
-and their source checksums. Replay is not authentication of the observer's
-scientific claims. Archive the original calibrated measurements separately.
+**all** reference bytes against SHA-256, then verifies every training observation
+against explicitly selected normalized measurement tables before fitting:
+
+```toml
+[[measurement_sources]]
+reference_id = "my-reduced-continuum" # an existing evidence.references ID
+format = "observations-json-v1"
+```
+
+`observations-json-v1` is a JSON array of observation objects;
+`observations-toml-v1` is a TOML document containing `[[observations]]` rows.
+Both use exactly the request observation fields and units described above.
+Each training ID must occur exactly once across selected tables, and **every**
+field (including time, coordinates, wavelength bounds, solar flux, radiance and
+uncertainty) must equal its source record. Extra non-training records are allowed;
+duplicate IDs are rejected. Table encodings are versioned and unknown versions
+fail closed. File extensions are unrestricted. No tolerance is applied to copied
+measurements; use the same exported values in both request and source table.
+
+For real measurements, export this small normalized table from your documented
+spectral reduction; retain the original FITS/CSV spectra and reduction products
+as additional checksum-pinned references. This interface does not reduce spectra
+or verify that foreground removal was scientifically correct. Record that chain
+in `measurement_provenance` and `software_provenance`.
+
+The artifact retains source-reference IDs, format versions, record IDs, full
+training rows and source checksums, so an auditor can repeat the source checks
+with archived files. Outputs are never overwritten. Offline artifact loading
+replays the numerical fit without accessing the original files; replay alone
+cannot authenticate source bytes or scientific claims. Archive source files.
+Legacy artifacts without `measurement_sources` remain loadable; direct Rust
+`fit()` also supports in-memory requests without external file verification.
+The CLI now requires explicit mappings and rejects old unmapped requests: add
+`measurement_sources` referencing a normalized table, then re-export to obtain
+an audited source relationship. Older artifacts are not retroactively verified.
 
 The closed-form weighted fit is `a = sum(x*y/sigma²)/sum(x²/sigma²)`, with fixed
 physical model predictions `x` and independent continuum measurements `y`.
@@ -82,7 +112,14 @@ systematics and model discrepancy can dominate the reported covariance.
 
 TOML serialization is deterministic. Loading denies unknown fields, validates
 all domains/provenance, verifies the exact bundled base asset, replays the fit,
-and rejects inconsistent statistics, bounds, software or maturity labels. Numerical
+and rejects inconsistent statistics, bounds or maturity labels. Compatibility is
+schema version 1, method `weighted-origin-scale-night-sandwich-v1`, the exact
+`paranal-palace-v1` base asset, and registered physical assumptions. The versioned
+method covers prediction and fitting semantics; incompatible changes require a
+new method/schema identifier. `fitter_software` records the nonempty original
+producer identity, not an execution-version requirement. Compatible patch/minor
+releases preserve that identity on load/export, with no package-version whitelist.
+Numerical
 replay allows relative roundoff of 10^-12 (absolute floors 10^-24 for scale/variance
 and 10^-20 for chi-square), retaining the original artifact numbers and canonical
 checksum across platforms. No scientific re-fitting is hidden in loading. The

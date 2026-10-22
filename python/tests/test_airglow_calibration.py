@@ -9,8 +9,12 @@ import pytest
 import siderust
 
 
-def test_registered_artifact_load_and_experimental_oxygen():
+@pytest.mark.parametrize("producer", [None, "nsb-0.2.7+archived-reduction"])
+def test_registered_artifact_load_and_experimental_oxygen(producer):
     raw = (Path(__file__).resolve().parent / "fixtures/airglow-calibration.toml").read_text()
+    if producer is not None:
+        raw = raw.replace('fitter_software = "nsb-0.1.1"', f'fitter_software = "{producer}"')
+        assert producer in raw
     config = nsb.NsbModelConfig.generic_clear_sky().with_solar_radio_flux_sfu(100)
     fitted = config.with_airglow_calibration_toml(raw)
     assert not fitted.is_airglow_site_calibrated

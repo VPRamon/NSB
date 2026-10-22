@@ -342,3 +342,81 @@ fn combined_oxygen_point_uncertainty_propagates_only_the_continuum_fit_covarianc
     let actual_variance_change = sigma(&high_result).powi(2) - sigma(&low_result).powi(2);
     assert!((actual_variance_change - expected_variance_change).abs() < 1e-15);
 }
+
+#[test]
+fn compatible_software_provenance_survives_load_export_and_evaluation() {
+    let raw = fit().to_toml_string().unwrap();
+    let mut document: toml::Value = toml::from_str(&raw).unwrap();
+    document["fitter_software"] = "nsb-0.2.7+archived-reduction".into();
+    let portable = toml::to_string(&document).unwrap();
+    let loaded = AirglowCalibrationProfile::from_toml_str(&portable).unwrap();
+    let canonical = loaded.to_toml_string().unwrap();
+    assert!(canonical.contains("nsb-0.2.7+archived-reduction"));
+    assert_eq!(
+        loaded.checksum_sha256(),
+        siderust::checksum::to_hex(&siderust::checksum::sha256(canonical.as_bytes()))
+    );
+    let again = AirglowCalibrationProfile::from_toml_str(&canonical).unwrap();
+    assert_eq!(again, loaded);
+    let config = NsbModelConfig::generic_clear_sky()
+        .with_solar_radio_flux(SolarFluxUnits::new(100.))
+        .with_airglow_calibration(again)
+        .unwrap();
+    assert!(NsbEvaluator::with_config(config)
+        .unwrap()
+        .evaluate(&query())
+        .is_ok());
+    for (field, value) in [
+        ("method", "weighted-origin-scale-night-sandwich-v2"),
+        ("method", "unknown-algorithm"),
+        ("maturity", "independently-validated"),
+        ("fitter_software", " "),
+    ] {
+        let mut changed = document.clone();
+        changed[field] = value.into();
+        assert!(
+            AirglowCalibrationProfile::from_toml_str(&toml::to_string(&changed).unwrap()).is_err()
+        );
+    }
+    for field in ["scale", "variance", "chi_square"] {
+        let mut changed = document.clone();
+        changed[field] = (changed[field].as_float().unwrap() + 0.01).into();
+        assert!(
+            AirglowCalibrationProfile::from_toml_str(&toml::to_string(&changed).unwrap()).is_err()
+        );
+    }
+    for field in ["schema_version", "base_asset_sha256"] {
+        let mut changed = document.clone();
+        changed["request"]["definition"][field] = if field == "schema_version" {
+            2.into()
+        } else {
+            "a".repeat(64).into()
+        };
+        assert!(
+            AirglowCalibrationProfile::from_toml_str(&toml::to_string(&changed).unwrap()).is_err()
+        );
+    }
+}
+
+#[test]
+fn legacy_artifacts_and_source_mapping_versions_have_explicit_compatibility() {
+    // Removing the optional mapping recreates the pre-extension artifact.
+    let raw = include_str!("../examples/airglow-calibration/calibration.toml")
+        .split("\n[[request.measurement_sources]]")
+        .next()
+        .unwrap();
+    let legacy = AirglowCalibrationProfile::from_toml_str(raw).unwrap();
+    assert!(legacy.request().measurement_sources.is_empty());
+    assert_eq!(legacy.to_toml_string().unwrap().trim_end(), raw.trim_end());
+    for case in 0..3 {
+        let mut req = request();
+        match case {
+            0 => req.measurement_sources[0].format = "observations-json-v2".into(),
+            1 => req.measurement_sources[0].reference_id = "missing".into(),
+            _ => req
+                .measurement_sources
+                .push(req.measurement_sources[0].clone()),
+        }
+        assert!(AirglowCalibrationProfile::fit(req).is_err());
+    }
+}

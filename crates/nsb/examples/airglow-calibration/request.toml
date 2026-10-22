@@ -1,5 +1,9 @@
 reserved_nights = ["2023-09-06"]
 
+[[measurement_sources]]
+reference_id = "synthetic-measurements"
+format = "observations-json-v1"
+
 [definition]
 schema_version = 1
 base_model = "paranal-palace-v1"

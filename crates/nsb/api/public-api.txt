@@ -288,6 +288,9 @@ pub fn nsb::site::airglow_profile::AirglowCalibrationDefinition::calibration_id(
 pub fn nsb::site::airglow_profile::AirglowCalibrationDefinition::reference_checksums(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&str, &str, &str)>
 pub fn nsb::site::airglow_profile::AirglowCalibrationDefinition::site_id(&self) -> &str
 pub fn nsb::site::airglow_profile::AirglowCalibrationDefinition::validate(&self) -> nsb::Result<()>
+pub struct nsb::site::airglow_profile::AirglowCalibrationMeasurementSource
+pub nsb::site::airglow_profile::AirglowCalibrationMeasurementSource::format: alloc::string::String
+pub nsb::site::airglow_profile::AirglowCalibrationMeasurementSource::reference_id: alloc::string::String
 pub struct nsb::site::airglow_profile::AirglowCalibrationObservation
 pub nsb::site::airglow_profile::AirglowCalibrationObservation::continuum_radiance: f64
 pub nsb::site::airglow_profile::AirglowCalibrationObservation::dec_deg: f64
@@ -308,6 +311,7 @@ pub fn nsb::site::airglow_profile::AirglowCalibrationProfile::to_toml_string(&se
 pub fn nsb::site::airglow_profile::AirglowCalibrationProfile::variance(&self) -> f64
 pub struct nsb::site::airglow_profile::AirglowCalibrationRequest
 pub nsb::site::airglow_profile::AirglowCalibrationRequest::definition: nsb::site::airglow_profile::AirglowCalibrationDefinition
+pub nsb::site::airglow_profile::AirglowCalibrationRequest::measurement_sources: alloc::vec::Vec<nsb::site::airglow_profile::AirglowCalibrationMeasurementSource>
 pub nsb::site::airglow_profile::AirglowCalibrationRequest::observations: alloc::vec::Vec<nsb::site::airglow_profile::AirglowCalibrationObservation>
 pub nsb::site::airglow_profile::AirglowCalibrationRequest::reserved_nights: alloc::vec::Vec<alloc::string::String>
 #[non_exhaustive] pub enum nsb::site::CalibrationStatus
