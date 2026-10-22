@@ -32,8 +32,8 @@ def main():
         ("metadata", [sys.executable, "scripts/check-release-metadata.py"]),
         ("license-headers", ["bash", "scripts/check-license-headers.sh"]),
         ("cfg-boundaries", ["bash", "scripts/check-cfg-test-boundaries.sh"]),
-        ("python-tests", [sys.executable, "-m", "pytest", "python/tests", "-q"]),
         ("example", [sys.executable, "examples/publication/run.py", "--build"]),
+        ("python-tests", [sys.executable, "-m", "pytest", "python/tests", "-q"]),
         ("cargo-package", ["cargo", "package", "-p", "nsb", "--locked"]),
         ("publish-dry-run", ["cargo", "publish", "--manifest-path", "crates/nsb/Cargo.toml", "--dry-run", "--locked"]),
     ]

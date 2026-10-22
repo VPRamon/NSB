@@ -12,7 +12,8 @@ at execution time. Scientific assets are the checksum-verified bundled inputs.
 Use Linux x86_64, Rust stable with Cargo, CPython 3.12 including its development
 library, and a compiler/linker. Rust 1.89 is the declared minimum; consult the
 build receipts for the actually tested toolchains. The local wheel has the
-`abi3-py310` ABI but a local Linux platform tag, not a manylinux certification.
+`abi3-py310` ABI and the platform tag recorded in the receipts. This does not
+establish compatibility with every release target (in particular manylinux_2_28).
 
 Check out the **candidate source commit listed in
 [software-provenance.json](../../reports/publication-verification/software-provenance.json)**.
@@ -31,7 +32,7 @@ source must be available to Cargo during initial installation. This is not a
 registry release: ordinary Cargo packaging and registry-only sdist installation
 remain blocked by [#265](https://github.com/VPRamon/NSB/issues/265). Do not remove
 the patch, use `--no-verify` to assert publishability, or publish this candidate.
-`--build` builds a fresh wheel in `target/publication/wheels`, installs that
+`--build` builds a fresh release-profile wheel in `target/publication/wheels`, installs that
 wheel into the calling interpreter and builds the native probe and CLI. Remove
 stale wheels if deliberately changing package versions in the same checkout.
 

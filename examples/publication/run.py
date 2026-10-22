@@ -120,7 +120,7 @@ def main():
     if options.build:
         subprocess.run(["cargo", "build", "--locked", "-p", "nsb-cli", "-p", "nsb",
                         "--example", "publication_probe"], cwd=ROOT, env=env, check=True)
-        subprocess.run([sys.executable, "-m", "maturin", "build", "--locked", "--out",
+        subprocess.run([sys.executable, "-m", "maturin", "build", "--release", "--locked", "--out",
                         str(ROOT / "target/publication/wheels")], cwd=ROOT, env=env, check=True)
         wheels = list((ROOT / "target/publication/wheels").glob("nsb_py-*.whl"))
         if len(wheels) != 1:

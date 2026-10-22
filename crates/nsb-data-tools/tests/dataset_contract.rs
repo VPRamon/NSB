@@ -198,6 +198,14 @@ fn no_unapproved_python_or_shell_programs_exist() {
         &mut found,
         &allowed_legacy_generator,
     );
+    // The publication example calls the installed Rust bindings and plots their
+    // outputs; it implements no dataset producer or copied physical model.
+    // Keep this exception to one reviewed file, not the examples directory.
+    let publication_example = crate_root()
+        .join("../../examples/publication/run.py")
+        .canonicalize()
+        .expect("the publication example must remain available");
+    found.retain(|path| path.canonicalize().ok().as_deref() != Some(&publication_example));
     assert!(found.is_empty(), "non-Rust programs remain: {found:#?}");
 }
 
