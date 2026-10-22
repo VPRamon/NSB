@@ -1,0 +1,29 @@
+{
+  "schema": "nsb-publication-fixtures-v1",
+  "units": "photons cm^-2 ns^-1 sr^-1",
+  "coordinates": "ICRS degrees; east-positive geodetic longitude; ellipsoidal height m",
+  "time_scale": "UTC",
+  "model": {
+    "site_profile": "generic-clear-sky",
+    "airglow_model": "paranal-palace-v1",
+    "airglow_geometry": "van_rhijn; emission height 88 km",
+    "zodiacal_model": "leinert-1998",
+    "zodiacal_extinction": "noll2012",
+    "moonlight_model": "jones2013",
+    "integration": "existing component grids, top-hat 300-650 nm; no instrument response"
+  },
+  "observer": {"lon": -70.4045, "lat": -24.6272, "height": 2635.0},
+  "time": "2023-09-15T05:00:00Z",
+  "target": {"ra": 10.0, "dec": -20.0},
+  "cases": [
+    {"id": "airglow-67", "components": ["airglow"], "sfu": 67.0},
+    {"id": "airglow-80", "components": ["airglow"], "sfu": 80.0},
+    {"id": "airglow-100", "components": ["airglow"], "sfu": 100.0},
+    {"id": "airglow-120", "components": ["airglow"], "sfu": 120.0},
+    {"id": "airglow-140", "components": ["airglow"], "sfu": 140.0},
+    {"id": "airglow-166", "components": ["airglow"], "sfu": 166.0},
+    {"id": "zodiacal", "components": ["zodiacal"], "sfu": 100.0},
+    {"id": "composition", "components": ["zodiacal", "airglow"], "sfu": 100.0},
+    {"id": "moon-zero", "components": ["moon"], "sfu": 100.0}
+  ]
+}
