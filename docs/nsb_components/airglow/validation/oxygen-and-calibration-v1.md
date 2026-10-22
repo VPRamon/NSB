@@ -6,6 +6,11 @@ Baseline NSB main: `1b2556727205694c7765ef0d254c5d1b301582ec`.
 Frozen nsb2 main: `bc9320db03fbff69997ce366c6e76a37339c5d00`.
 Historical benchmark: [nsb-validation PR #16](https://github.com/VPRamon/nsb-validation/pull/16).
 That result, its cohort, predictions and admission are preserved unchanged.
+Numerical implementation: `168e73dae89060423eebc344871b0084d217c305`.
+Diagnostic source: `c602006e83ec646bc10c705e46e9ae18c7c61a08` in nsb-validation;
+NSB extension SHA-256 `e6f19103a9287d2efe0ef86d97d0a8173a50d9c786271ec50b91930949a945f6`.
+The clean source checkout, frozen inputs and complete output inventory are in
+[the machine-readable manifest](https://github.com/VPRamon/nsb-validation/blob/science/four-component-empirical-benchmark/reports/airglow-diagnostic-v1/manifest.json).
 New machine-readable reports live under `reports/airglow-diagnostic-v1` in
 that validation branch. Numerical results here describe development evidence,
 not independent observational validation.
@@ -188,10 +193,10 @@ use; retaining the original production default is the recommended release policy
 `cargo bench -p nsb --bench airglow_calibration --locked -- --warm-up-time 0.1
 --measurement-time 0.2` compares point, 365–650 nm band, initialization, artifact
 replay and one-hour window paths on deterministic Paranal fixtures. Ten-sample
-local Criterion estimates: continuum/oxygen point 11.42/11.53 ms,
-band 11.56/11.49 ms, initialization 123/128 microseconds, one-hour planning
-13.16/12.53 ms. Registered+oxygen point/band/window are 13.27/11.60/12.92 ms;
-artifact validation/replay takes 35.52 ms for three measurements. Timing noise
+local Criterion estimates (source `37dbf93c83887bac33c4719b613329d128c9fcb2`):
+continuum/oxygen point 11.59/11.54 ms, band 11.59/11.66 ms, initialization
+121/123 microseconds, one-hour planning 13.63/12.91 ms. Registered+oxygen
+point/band/window are 13.12/13.14/13.45 ms; artifact validation/replay takes 36.04 ms for three measurements. Timing noise
 and overlapping intervals preclude claiming a speedup. These short local
 measurements bound practical overhead, not general hardware performance.
 The oxygen asset is about 32 KiB static JSON plus about 7 KiB parsed tables,
@@ -205,3 +210,11 @@ aggregation and atmosphere/geometry compatibility. Canonical run outcomes are
 recorded in the implementation PR and validation report. Scientific source
 reproduction is opt-in and requires the small checksum-pinned PALACE archive;
 ordinary Rust tests need no public downloads.
+
+
+Local verification at the numerical implementation revision: fmt and all-feature,
+all-target clippy pass; workspace tests 1064 passed/7 ignored; explicit end-to-end
+5 passed and science-metadata 7 passed; Python 139 passed; the optional source
+projection 1 passed using the verified PALACE archive. The public API snapshot and
+historical SemVer gate pass while keeping the legacy evidence schema private.
+GitHub CI status is recorded on PR #272; local results do not substitute for it.
