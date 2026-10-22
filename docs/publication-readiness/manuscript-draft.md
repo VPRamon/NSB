@@ -110,7 +110,7 @@ NSB packages an auditable, reusable framework for optical night-sky background c
 1. Leinert, C. et al. (1998). The 1997 reference of diffuse night sky brightness. *A&AS* **127**, 1–99.
 2. Noll, S. et al. (2012). An atmospheric radiation model for Cerro Paranal. *A&A* **543**, A92.
 3. Noll, S., Schmidt, C., Hannawald, P., Kausch, W. & Kimeswenger, S. (2025). PALACE v1.0: Paranal Airglow Line And Continuum Emission model. *GMD* **18**, 4353–4398. https://doi.org/10.5194/gmd-18-4353-2025.
-4. Jones, A. et al. (2013). An advanced scattered moonlight model for Cerro Paranal. *A&A* **560**, A91. [Bibliographic details to verify against repository provenance.]
+4. Jones, A., Noll, S., Kausch, W., Szyszka, C. & Kimeswenger, S. (2013). An advanced scattered moonlight model for Cerro Paranal. *A&A* **560**, A91. https://doi.org/10.1051/0004-6361/201322433.
 5. Roellinghoff, G., Spencer, S. T. & Funk, S. (2025). Advanced modelling of the night sky background light for imaging atmospheric Cherenkov telescopes. *A&A* **698**, A212. https://doi.org/10.1051/0004-6361/202554532.
 6. NSB, audited source `57584ee298f25f8af7a6f169d71e87f8a59eea9a`, [scientific model](https://github.com/VPRamon/NSB/blob/57584ee298f25f8af7a6f169d71e87f8a59eea9a/docs/specifications/scientific-model.md).
 7. NSB, [scientific metadata contract](https://github.com/VPRamon/NSB/blob/57584ee298f25f8af7a6f169d71e87f8a59eea9a/docs/specifications/scientific-metadata.md).
