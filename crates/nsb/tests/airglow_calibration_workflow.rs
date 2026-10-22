@@ -14,6 +14,11 @@ use tempoch::{Time, UTC};
 fn request() -> AirglowCalibrationRequest {
     toml::from_str(include_str!("../examples/airglow-calibration/request.toml")).unwrap()
 }
+fn edit_evidence(request: &mut AirglowCalibrationRequest, edit: impl FnOnce(&mut toml::Value)) {
+    let mut document = toml::Value::try_from(&*request).unwrap();
+    edit(&mut document["definition"]["evidence"]);
+    *request = document.try_into().unwrap();
+}
 fn query() -> PointQuery {
     PointQuery::new(
         Geodetic::new_raw(
@@ -65,11 +70,15 @@ fn schema_provenance_nonfinite_and_forged_maturity_fail_closed() {
             0 => req.definition.schema_version = 2,
             1 => req.definition.base_asset_sha256 = "a".repeat(64),
             2 => req.definition.longitude_deg = f64::NAN,
-            3 => req.definition.evidence.atmosphere.surface_pressure_hpa = -1.,
+            3 => edit_evidence(&mut req, |e| {
+                e["atmosphere"]["surface_pressure_hpa"] = (-1.).into()
+            }),
             4 => req.definition.measurement_provenance.clear(),
             5 => req.observations[0].uncertainty = 0.,
             6 => req.observations[0].continuum_radiance = f64::INFINITY,
-            7 => req.definition.evidence.airglow.temporal_correction_applied = true,
+            7 => edit_evidence(&mut req, |e| {
+                e["airglow"]["temporal_correction_applied"] = true.into()
+            }),
             _ => req.definition.solar_flux_range_sfu = [166., 67.],
         }
         assert!(AirglowCalibrationProfile::fit(req).is_err(), "edit {edit}");
@@ -235,7 +244,9 @@ fn independent_synthetic_night_and_restricted_applicability_are_supported() {
     let held_out = evaluator.evaluate(&q).unwrap();
     assert!(held_out.integrated.value() > 0.);
     let mut req = request();
-    req.definition.evidence.validity.wavelength_nm = [400, 500];
+    edit_evidence(&mut req, |e| {
+        e["validity"]["wavelength_nm"] = toml::Value::Array(vec![400.into(), 500.into()])
+    });
     for o in &mut req.observations {
         o.wavelength_nm = [400., 500.];
     }

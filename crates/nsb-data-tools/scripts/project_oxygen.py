@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Vallés Puig, Ramon
 """Project only CC-BY-4.0 PALACE data, never import/execute its GPL program.
 
 Requires astropy and numpy. Input: pinned PALACE.zip; output: canonical JSON.

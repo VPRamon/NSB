@@ -21,17 +21,17 @@ fn main() -> Result<()> {
     let raw = std::fs::read_to_string(&args.input)?;
     let request: AirglowCalibrationRequest = toml::from_str(&raw)?;
     // Validate before accessing paths: reference paths must be relative, normalized.
-    request.definition.evidence.validate()?;
-    for reference in &request.definition.evidence.references {
+    request.definition.validate()?;
+    for (id, relative_path, expected_sha256) in request.definition.reference_checksums() {
         let path = args
             .input
             .parent()
             .unwrap_or(std::path::Path::new("."))
-            .join(&reference.path);
+            .join(relative_path);
         let bytes = std::fs::read(&path)
             .with_context(|| format!("read calibration reference {}", path.display()))?;
-        if to_hex(&sha256(&bytes)) != reference.sha256 {
-            bail!("calibration reference checksum mismatch: {}", reference.id);
+        if to_hex(&sha256(&bytes)) != expected_sha256 {
+            bail!("calibration reference checksum mismatch: {}", id);
         }
     }
     let profile = AirglowCalibrationProfile::fit(request)?;

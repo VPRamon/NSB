@@ -14,6 +14,7 @@ pub const fn nsb::components::airglow::AirglowGeometryModel::model_id(&self) -> 
 impl core::default::Default for nsb::components::airglow::AirglowGeometryModel
 pub fn nsb::components::airglow::AirglowGeometryModel::default() -> Self
 #[non_exhaustive] pub enum nsb::components::airglow::AirglowModel
+pub nsb::components::airglow::AirglowModel::ParanalPalaceOxygenV1
 pub nsb::components::airglow::AirglowModel::ParanalPalaceV1
 impl nsb::AirglowModel
 pub const fn nsb::AirglowModel::as_str(self) -> &'static str
@@ -270,12 +271,60 @@ pub static nsb::data::bundled::BUNDLED_ASSETS: &[nsb::data::bundled::BundledAsse
 pub fn nsb::data::bundled::bundled_asset(path: &str) -> core::option::Option<&'static nsb::data::bundled::BundledAssetMetadata>
 pub fn nsb::data::bundled::bundled_assets() -> impl core::iter::traits::iterator::Iterator<Item = &'static nsb::data::bundled::BundledAssetMetadata>
 pub mod nsb::site
+pub mod nsb::site::airglow_profile
+pub struct nsb::site::airglow_profile::AirglowCalibrationDefinition
+pub nsb::site::airglow_profile::AirglowCalibrationDefinition::base_asset_sha256: alloc::string::String
+pub nsb::site::airglow_profile::AirglowCalibrationDefinition::base_model: alloc::string::String
+pub nsb::site::airglow_profile::AirglowCalibrationDefinition::coordinate_convention: alloc::string::String
+pub nsb::site::airglow_profile::AirglowCalibrationDefinition::latitude_deg: f64
+pub nsb::site::airglow_profile::AirglowCalibrationDefinition::longitude_deg: f64
+pub nsb::site::airglow_profile::AirglowCalibrationDefinition::max_zenith_deg: f64
+pub nsb::site::airglow_profile::AirglowCalibrationDefinition::measurement_provenance: alloc::string::String
+pub nsb::site::airglow_profile::AirglowCalibrationDefinition::schema_version: u32
+pub nsb::site::airglow_profile::AirglowCalibrationDefinition::software_provenance: alloc::string::String
+pub nsb::site::airglow_profile::AirglowCalibrationDefinition::solar_flux_range_sfu: [f64; 2]
+impl nsb::site::airglow_profile::AirglowCalibrationDefinition
+pub fn nsb::site::airglow_profile::AirglowCalibrationDefinition::calibration_id(&self) -> &str
+pub fn nsb::site::airglow_profile::AirglowCalibrationDefinition::reference_checksums(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&str, &str, &str)>
+pub fn nsb::site::airglow_profile::AirglowCalibrationDefinition::site_id(&self) -> &str
+pub fn nsb::site::airglow_profile::AirglowCalibrationDefinition::validate(&self) -> nsb::Result<()>
+pub struct nsb::site::airglow_profile::AirglowCalibrationObservation
+pub nsb::site::airglow_profile::AirglowCalibrationObservation::continuum_radiance: f64
+pub nsb::site::airglow_profile::AirglowCalibrationObservation::dec_deg: f64
+pub nsb::site::airglow_profile::AirglowCalibrationObservation::id: alloc::string::String
+pub nsb::site::airglow_profile::AirglowCalibrationObservation::ra_deg: f64
+pub nsb::site::airglow_profile::AirglowCalibrationObservation::solar_flux_sfu: f64
+pub nsb::site::airglow_profile::AirglowCalibrationObservation::uncertainty: f64
+pub nsb::site::airglow_profile::AirglowCalibrationObservation::utc: alloc::string::String
+pub nsb::site::airglow_profile::AirglowCalibrationObservation::wavelength_nm: [f64; 2]
+pub struct nsb::site::airglow_profile::AirglowCalibrationProfile
+impl nsb::site::airglow_profile::AirglowCalibrationProfile
+pub fn nsb::site::airglow_profile::AirglowCalibrationProfile::checksum_sha256(&self) -> &str
+pub fn nsb::site::airglow_profile::AirglowCalibrationProfile::fit(request: nsb::site::airglow_profile::AirglowCalibrationRequest) -> nsb::Result<Self>
+pub fn nsb::site::airglow_profile::AirglowCalibrationProfile::from_toml_str(raw: &str) -> nsb::Result<Self>
+pub fn nsb::site::airglow_profile::AirglowCalibrationProfile::request(&self) -> &nsb::site::airglow_profile::AirglowCalibrationRequest
+pub fn nsb::site::airglow_profile::AirglowCalibrationProfile::scale(&self) -> qtty_core::units::dimensionless::Ratios
+pub fn nsb::site::airglow_profile::AirglowCalibrationProfile::to_toml_string(&self) -> nsb::Result<alloc::string::String>
+pub fn nsb::site::airglow_profile::AirglowCalibrationProfile::variance(&self) -> f64
+pub struct nsb::site::airglow_profile::AirglowCalibrationRequest
+pub nsb::site::airglow_profile::AirglowCalibrationRequest::definition: nsb::site::airglow_profile::AirglowCalibrationDefinition
+pub nsb::site::airglow_profile::AirglowCalibrationRequest::observations: alloc::vec::Vec<nsb::site::airglow_profile::AirglowCalibrationObservation>
+pub nsb::site::airglow_profile::AirglowCalibrationRequest::reserved_nights: alloc::vec::Vec<alloc::string::String>
 #[non_exhaustive] pub enum nsb::site::CalibrationStatus
 pub nsb::site::CalibrationStatus::Calibrated
 pub nsb::site::CalibrationStatus::GenericFallback
 pub nsb::site::CalibrationStatus::PlanningPreset
 impl core::convert::From<nsb::site::CalibrationStatus> for nsb::ComponentCalibrationStatus
 pub fn nsb::ComponentCalibrationStatus::from(status: nsb::site::CalibrationStatus) -> Self
+pub struct nsb::site::AirglowCalibrationProfile
+impl nsb::site::airglow_profile::AirglowCalibrationProfile
+pub fn nsb::site::airglow_profile::AirglowCalibrationProfile::checksum_sha256(&self) -> &str
+pub fn nsb::site::airglow_profile::AirglowCalibrationProfile::fit(request: nsb::site::airglow_profile::AirglowCalibrationRequest) -> nsb::Result<Self>
+pub fn nsb::site::airglow_profile::AirglowCalibrationProfile::from_toml_str(raw: &str) -> nsb::Result<Self>
+pub fn nsb::site::airglow_profile::AirglowCalibrationProfile::request(&self) -> &nsb::site::airglow_profile::AirglowCalibrationRequest
+pub fn nsb::site::airglow_profile::AirglowCalibrationProfile::scale(&self) -> qtty_core::units::dimensionless::Ratios
+pub fn nsb::site::airglow_profile::AirglowCalibrationProfile::to_toml_string(&self) -> nsb::Result<alloc::string::String>
+pub fn nsb::site::airglow_profile::AirglowCalibrationProfile::variance(&self) -> f64
 #[non_exhaustive] pub struct nsb::site::AtmosphericConditions
 pub nsb::site::AtmosphericConditions::mie_params: siderust::atmosphere::mie::MieParams
 pub nsb::site::AtmosphericConditions::rayleigh_scale_height: qtty_core::units::length::Kilometers
@@ -683,6 +732,7 @@ pub const nsb::SolarFluxUnit::RATIO: f64
 pub const nsb::SolarFluxUnit::SYMBOL: &'static str
 pub type nsb::units::SolarFluxUnits = qtty_core::quantity::Quantity<nsb::SolarFluxUnit>
 #[non_exhaustive] pub enum nsb::AirglowModel
+pub nsb::AirglowModel::ParanalPalaceOxygenV1
 pub nsb::AirglowModel::ParanalPalaceV1
 impl nsb::AirglowModel
 pub const fn nsb::AirglowModel::as_str(self) -> &'static str
@@ -899,6 +949,7 @@ pub const fn nsb::NsbModelConfig::moonlight_model(&self) -> nsb::components::moo
 pub fn nsb::NsbModelConfig::site_profile_name(&self) -> &str
 pub fn nsb::NsbModelConfig::solar_activity(&self) -> &nsb::solar_activity::SolarActivitySource
 pub fn nsb::NsbModelConfig::starlight_product(&self) -> core::option::Option<&nsb::StarlightProduct>
+pub fn nsb::NsbModelConfig::with_airglow_calibration(self, profile: nsb::site::airglow_profile::AirglowCalibrationProfile) -> nsb::Result<Self>
 pub fn nsb::NsbModelConfig::with_airglow_geometry(self, geometry: nsb::components::airglow::AirglowGeometryModel) -> Self
 pub fn nsb::NsbModelConfig::with_airglow_model(self, model: nsb::AirglowModel) -> Self
 pub fn nsb::NsbModelConfig::with_airglow_selection(self, selection: nsb::AirglowSelection) -> Self

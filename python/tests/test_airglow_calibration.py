@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Vallés Puig, Ramon
 """Portable registered fit uses the same Rust calculation as every public API."""
 from datetime import UTC, datetime
 from pathlib import Path
@@ -8,8 +10,7 @@ import siderust
 
 
 def test_registered_artifact_load_and_experimental_oxygen():
-    root = Path(__file__).resolve().parents[2]
-    raw = (root / "crates/nsb/examples/airglow-calibration/calibration.toml").read_text()
+    raw = (Path(__file__).resolve().parent / "fixtures/airglow-calibration.toml").read_text()
     config = nsb.NsbModelConfig.generic_clear_sky().with_solar_radio_flux_sfu(100)
     fitted = config.with_airglow_calibration_toml(raw)
     assert not fitted.is_airglow_site_calibrated

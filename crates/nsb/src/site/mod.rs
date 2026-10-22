@@ -14,7 +14,7 @@ pub mod airglow_profile;
 /// Shared atmospheric assumptions used by site-aware NSB components.
 pub(crate) mod atmosphere;
 /// Versioned evidence contract for dedicated site-calibration assets.
-pub mod calibration;
+pub(crate) mod calibration;
 pub use airglow_profile::AirglowCalibrationProfile;
 
 pub use atmosphere::AtmosphericConditions;

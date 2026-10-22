@@ -26,7 +26,7 @@ pub struct AirglowCalibrationDefinition {
     /// Exact bundled continuum checksum.
     pub base_asset_sha256: String,
     /// Site identity, validity, atmosphere, references, fitted scale and sigma.
-    pub evidence: SiteCalibrationAsset,
+    pub(crate) evidence: SiteCalibrationAsset,
     /// East longitude in degrees.
     pub longitude_deg: f64,
     /// Geodetic latitude in degrees.
@@ -110,7 +110,8 @@ fn finite_range(x: f64, lo: f64, hi: f64) -> bool {
 }
 
 impl AirglowCalibrationDefinition {
-    fn validate(&self) -> Result<()> {
+    /// Validate fixed assumptions and the private, existing evidence contract.
+    pub fn validate(&self) -> Result<()> {
         self.evidence
             .validate()
             .map_err(|e| invalid(e.to_string()))?;
@@ -139,6 +140,22 @@ impl AirglowCalibrationDefinition {
             ));
         }
         Ok(())
+    }
+    /// Registered calibration identity; a presentation name cannot confer admission.
+    pub fn calibration_id(&self) -> &str {
+        &self.evidence.calibration_id
+    }
+    /// Stable observatory identity from the evidence package.
+    pub fn site_id(&self) -> &str {
+        self.evidence.site.as_str()
+    }
+    /// Registered reference (identity, normalized relative path, SHA-256).
+    /// Read-only projection keeps the legacy evidence schema private.
+    pub fn reference_checksums(&self) -> impl Iterator<Item = (&str, &str, &str)> {
+        self.evidence
+            .references
+            .iter()
+            .map(|r| (r.id.as_str(), r.path.as_str(), r.sha256.as_str()))
     }
     fn observer(&self) -> Geodetic<ECEF> {
         Geodetic::new_raw(

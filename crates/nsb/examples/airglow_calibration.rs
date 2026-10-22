@@ -60,7 +60,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             * 1.2;
     }
     let measurements = serde_json::to_string_pretty(&request.observations)?;
-    request.definition.evidence.references[0].sha256 = to_hex(&sha256(measurements.as_bytes()));
+    let mut document = toml::Value::try_from(&request)?;
+    document["definition"]["evidence"]["references"][0]["sha256"] =
+        toml::Value::String(to_hex(&sha256(measurements.as_bytes())));
+    request = document.try_into()?;
     std::fs::write(output.join("measurements.txt"), measurements)?;
     std::fs::write(output.join("request.toml"), toml::to_string(&request)?)?;
     let profile = AirglowCalibrationProfile::fit(request)?;

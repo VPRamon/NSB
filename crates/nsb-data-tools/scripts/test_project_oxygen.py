@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Vallés Puig, Ramon
 """Opt-in source-byte reproduction: no network and no PALACE code execution."""
 import os
 from pathlib import Path
