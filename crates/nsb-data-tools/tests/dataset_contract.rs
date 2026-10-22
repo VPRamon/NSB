@@ -198,6 +198,13 @@ fn no_unapproved_python_or_shell_programs_exist() {
         &mut found,
         &allowed_legacy_generator,
     );
+    // One reviewed public-binding notebook; it contains no dataset producer or
+    // independent sky model. Keep all other notebook/script paths disallowed.
+    let notebook = crate_root()
+        .join("../../examples/scientific-reproducibility.ipynb")
+        .canonicalize()
+        .expect("the public-API notebook must remain available");
+    found.retain(|path| path.canonicalize().ok().as_deref() != Some(&notebook));
     assert!(found.is_empty(), "non-Rust programs remain: {found:#?}");
 }
 

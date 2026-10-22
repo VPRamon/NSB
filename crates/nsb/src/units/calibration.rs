@@ -12,7 +12,7 @@ use super::{energy, unit, Quantity};
 pub(crate) type JouleMeters = Quantity<unit::Prod<unit::Joule, unit::Meter>>;
 
 /// Photon energy numerator, `h · c`, in joule metre.
-pub(crate) const HC: JouleMeters = JouleMeters::new(1.986_445_857_148_968e-25);
+pub(crate) const HC: JouleMeters = JouleMeters::new(6.626_070_15e-34 * 299_792_458.0);
 
 /// Photometric calibration: 1 S10 → W m⁻² sr⁻¹ µm⁻¹.
 ///
@@ -55,6 +55,29 @@ pub(crate) fn s10_for_spectral_photon_radiance(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn photon_energy_to_s10_matches_si_definition() {
+        // Independent SI oracle: exact h and c, cm^-2 -> m^-2 (1e4),
+        // ns^-1 -> s^-1 (1e9). Density is per nm on both sides, so no
+        // spectral Jacobian remains. S10 is an NSB calibration convention.
+        for wavelength_nm in [300.0, 445.0, 551.0, 650.0] {
+            for density in [0.0, 1e-8, 0.001, 1.0] {
+                let expected = density * 1e13 * 6.626_070_15e-34 * 299_792_458.0
+                    / (wavelength_nm * 1e-9)
+                    / 1.28e-11;
+                let actual = s10_for_spectral_photon_radiance(
+                    SpectralBandPhotonRadiance::new(density),
+                    Nanometers::new(wavelength_nm),
+                )
+                .value();
+                assert!(
+                    (actual - expected).abs() <= 3e-15 * expected.abs(),
+                    "wavelength={wavelength_nm} nm, density={density}: {actual} vs {expected} S10"
+                );
+            }
+        }
+    }
 
     #[test]
     fn s10_calibration_constants_preserve_historical_um_and_nm_values() {

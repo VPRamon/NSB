@@ -3,3 +3,5 @@ crates/nsb/data/** -text
 # Portable fit examples and test references also carry exact-byte checksums.
 crates/nsb/examples/airglow-calibration/** -text
 python/tests/fixtures/airglow-calibration.toml -text
+# Preserve exact cross-interface fixture bytes across platform checkouts.
+crates/nsb/tests/data/interfaces/** -text

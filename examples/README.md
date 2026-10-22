@@ -1,8 +1,7 @@
 # Examples
 
 The runnable Rust examples live in [`crates/nsb/examples/`](../crates/nsb/examples/).
-This root directory is a **guide and index**, not a second copy of the source
-code. The Rust examples are compiled by the repository CI.
+This root directory indexes the examples and contains one Python notebook. The Rust examples are compiled by the repository CI.
 
 ## Rust
 
@@ -30,6 +29,10 @@ The [Python quickstart](../README.md#python) shows a complete point evaluation
 using `nsb-py` (import `nsb`) and `siderust`. Continue with the
 [Python guide](../docs/python.md) for threshold-window planning, model
 selection, errors and units.
+
+The optional [continuum notebook](scientific-reproducibility.ipynb) demonstrates
+a fixed-geometry F10.7 sweep with an isolated, precisely pinned source build,
+bundled assets and one figure. Its outputs are cleared in Git.
 
 ## Command line
 
