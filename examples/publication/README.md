@@ -16,7 +16,8 @@ build receipts for the actually tested toolchains. The local wheel has the
 establish compatibility with every release target (in particular manylinux_2_28).
 
 Check out the **candidate source commit listed in
-[software-provenance.json](../../reports/publication-verification/software-provenance.json)**.
+`software-provenance.json` in the
+[publication evidence directory](../../reports/publication-verification)**.
 The evidence commit adds receipts only; the candidate commit includes all executable
 code, inputs, reference outputs and documentation needed for reproduction.
 
