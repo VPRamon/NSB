@@ -1,0 +1,47 @@
+{
+  "source_commit": "a2ae1274f401a56e73d87350b41d025a5fff0928",
+  "working_tree_status": "",
+  "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+  "python": "3.12.13 (main, Jul 23 2026, 14:43:28) [Clang 22.1.3 ]",
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43",
+  "machine": "x86_64",
+  "packages": {
+    "nsb-py": "0.1.1",
+    "siderust": "0.4.0",
+    "tempoch": "0.4.0",
+    "maturin": "1.15.0",
+    "matplotlib": "3.10.8",
+    "pytest": "9.0.3"
+  },
+  "lockfile_sha256": "693716afa2f23b8aa749e98378f40d11feae720614c152b7ab771be60fb2d875",
+  "fixture_sha256": "2fd40ca28159740e18d061c870495ced58cc8da10c30b8ae58eaea7ffe0efd1b",
+  "results_sha256": "56422c5ee5c2f6edcd32fa07400ae35f3b4f1f66fbd161c09240742043b11404",
+  "binary_sha256": {
+    "cli": "f8ad0d90dcb0b714c338d544e6aea31d45f7031df323dd1a6452fe3c22cee51c",
+    "rust_probe": "e903cc17996077bb17ab1d9e4f6322442cb6ae9a957713d11809192671a65d1c"
+  },
+  "siderust": "83d1ebb29ca1ae0b327d5784d13eda231d52c120",
+  "python_freeze": [
+    "contourpy==1.4.0",
+    "cycler==0.12.1",
+    "fonttools==4.67.0",
+    "iniconfig==2.3.1",
+    "kiwisolver==1.5.1",
+    "matplotlib==3.10.8",
+    "maturin==1.15.0",
+    "nsb-py @ file:///home/valles/workspace/nsb/target/publication/clean-example/target/publication/wheels/nsb_py-0.1.1-cp310-abi3-manylinux_2_35_x86_64.whl#sha256=6d7d980beb4ee312bfd5c7b6d8e28afbc79744a9485b78340427bfbb1f216d19",
+    "numpy==2.5.4",
+    "packaging==26.3",
+    "pillow==13.0.0",
+    "pluggy==1.7.0",
+    "Pygments==2.21.0",
+    "pyparsing==3.3.3",
+    "pytest==9.0.3",
+    "python-dateutil==3.0.0",
+    "siderust==0.4.0",
+    "six==1.17.0",
+    "tempoch==0.4.0",
+    "tzdata==2026.5"
+  ]
+}

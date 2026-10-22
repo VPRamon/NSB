@@ -1,0 +1,46 @@
+{
+  "trials": [
+    {
+      "name": "system-python-link",
+      "result": "FAIL",
+      "scope": "uncommitted or superseded development trial; not final candidate result",
+      "reason": "System CPython 3.14 has no libpython3.14",
+      "log": "logs/history/system-python-link.log"
+    },
+    {
+      "name": "managed-python-loader",
+      "result": "FAIL",
+      "scope": "uncommitted or superseded development trial; not final candidate result",
+      "reason": "Managed CPython lib directory missing from runtime loader path",
+      "log": "logs/history/managed-python-loader.log"
+    },
+    {
+      "name": "independent-si-original",
+      "result": "FAIL",
+      "scope": "uncommitted or superseded development trial; not final candidate result",
+      "reason": "Original hc constant fails independently derived SI regression",
+      "log": "logs/history/independent-si-original.log"
+    },
+    {
+      "name": "debug-wheel-trial",
+      "result": "INTERRUPTED",
+      "scope": "uncommitted or superseded development trial; not final candidate result",
+      "reason": "76 passed before explicit interruption; replaced by complete release-wheel run",
+      "log": "logs/history/debug-wheel-trial.log"
+    },
+    {
+      "name": "policy-trial",
+      "result": "FAIL",
+      "scope": "uncommitted or superseded development trial; not final candidate result",
+      "reason": "Publication Python runner needed a single-file orchestration exception",
+      "log": "logs/history/policy-trial.log"
+    },
+    {
+      "name": "link-trial",
+      "result": "FAIL",
+      "scope": "uncommitted or superseded development trial; not final candidate result",
+      "reason": "README linked a receipt file not yet generated; fixed candidate source link",
+      "log": "logs/history/link-trial.log"
+    }
+  ]
+}

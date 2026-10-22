@@ -1,0 +1,283 @@
+{
+  "source_commit": "a2ae1274f401a56e73d87350b41d025a5fff0928",
+  "working_tree_status": "",
+  "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "cargo": "cargo 1.97.1 (c980f4866 2026-06-30)",
+  "python": "3.12.13 (main, Jul 23 2026, 14:43:28) [Clang 22.1.3 ]",
+  "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43",
+  "machine": "x86_64",
+  "packages": {
+    "nsb-py": "0.1.1",
+    "siderust": "0.4.0",
+    "tempoch": "0.4.0",
+    "maturin": "1.15.0",
+    "matplotlib": "3.10.8",
+    "pytest": "9.0.3"
+  },
+  "lockfile_sha256": "693716afa2f23b8aa749e98378f40d11feae720614c152b7ab771be60fb2d875",
+  "fixture_sha256": "2fd40ca28159740e18d061c870495ced58cc8da10c30b8ae58eaea7ffe0efd1b",
+  "results_sha256": "56422c5ee5c2f6edcd32fa07400ae35f3b4f1f66fbd161c09240742043b11404",
+  "binary_sha256": {
+    "cli": "7108caff8f064004c3dc06429da3a619891ff241d9a0c4b57a31d938c6b44011",
+    "rust_probe": "a1702b7a1e994e6fc78dcfafc98a95bb0007a3e1b4f395ee8b7935ffc74584da"
+  },
+  "siderust": "83d1ebb29ca1ae0b327d5784d13eda231d52c120",
+  "python_freeze": [
+    "contourpy==1.4.0",
+    "cycler==0.12.1",
+    "fonttools==4.67.0",
+    "iniconfig==2.3.1",
+    "kiwisolver==1.5.1",
+    "matplotlib==3.10.8",
+    "maturin==1.15.0",
+    "nsb-py @ file:///home/valles/workspace/nsb/target/publication/clean-example/target/publication/wheels/nsb_py-0.1.1-cp310-abi3-manylinux_2_35_x86_64.whl#sha256=6d7d980beb4ee312bfd5c7b6d8e28afbc79744a9485b78340427bfbb1f216d19",
+    "numpy==2.5.4",
+    "packaging==26.3",
+    "pillow==13.0.0",
+    "pluggy==1.7.0",
+    "Pygments==2.21.0",
+    "pyparsing==3.3.3",
+    "pytest==9.0.3",
+    "python-dateutil==3.0.0",
+    "siderust==0.4.0",
+    "six==1.17.0",
+    "tempoch==0.4.0",
+    "tzdata==2026.5"
+  ],
+  "source_tree": "b514177d4dc9f0c18eadac33431c5a6e68a960ff",
+  "inspected_revisions": {
+    "NSB_main": "57584ee298f25f8af7a6f169d71e87f8a59eea9a",
+    "publication_PR273": "8e0bb493bc8d6c8615032f5434f6362e9ba92f35",
+    "Siderust_runtime": "83d1ebb29ca1ae0b327d5784d13eda231d52c120",
+    "Siderust_remote_HEAD_identity_only": "b9c26689e2fe72b869ecae9c87594fca34dbc5a3",
+    "nsb_validation_scope_via_PR273": "3191bfc7597b5a2add95456aeb2ea1b906979d22",
+    "nsb2_scope_via_PR273": "bc9320db03fbff69997ce366c6e76a37339c5d00"
+  },
+  "relevant_locked_dependencies": [
+    {
+      "name": "cheby",
+      "version": "0.4.2",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "dc914ad662ae2aaf46501983306e3f11cbde64bd44ec8507200b0dc9b4469807",
+      "dependencies": [
+        "qtty"
+      ]
+    },
+    {
+      "name": "optica",
+      "version": "0.4.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "b2c4841db0aa9ffdaa2943886bf421d2f0830ade7dacc43389b920d1ed160976",
+      "dependencies": [
+        "affn",
+        "qtty",
+        "serde",
+        "thiserror"
+      ]
+    },
+    {
+      "name": "pyo3",
+      "version": "0.29.3",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "700d18fa267b73b9b521fd7e13580e2f446916f176cacee1ab63fcc8191f1655",
+      "dependencies": [
+        "chrono",
+        "libc",
+        "once_cell",
+        "portable-atomic",
+        "pyo3-build-config",
+        "pyo3-ffi",
+        "pyo3-macros"
+      ]
+    },
+    {
+      "name": "qtty",
+      "version": "0.8.6",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "272ac3ae378e838cf972bd7670b4aa35a72e299ee1ed15cf5836c341b972e87c",
+      "dependencies": [
+        "qtty-core",
+        "qtty-derive"
+      ]
+    },
+    {
+      "name": "qtty-core",
+      "version": "0.8.6",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "2d6d4300d9ea82fdafaeefd3da4c077ce44478afeaba3871c8c84046fb837fca",
+      "dependencies": [
+        "libm",
+        "qtty-derive",
+        "serde",
+        "typenum"
+      ]
+    },
+    {
+      "name": "qtty-derive",
+      "version": "0.8.6",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "cbfa4741ab3b6da0f7b9f27a76fa03796d85621173aa1f4d242255861f9b77b4",
+      "dependencies": [
+        "proc-macro2",
+        "quote",
+        "syn 2.0.119"
+      ]
+    },
+    {
+      "name": "siderust",
+      "version": "0.14.1",
+      "source": "git+https://github.com/Siderust/siderust?rev=83d1ebb29ca1ae0b327d5784d13eda231d52c120#83d1ebb29ca1ae0b327d5784d13eda231d52c120",
+      "dependencies": [
+        "affn",
+        "cheby",
+        "chrono",
+        "hashbrown 0.15.5",
+        "keplerian",
+        "optica",
+        "paste",
+        "principia",
+        "qtty",
+        "quick-xml",
+        "serde",
+        "serde_json",
+        "siderust-archive",
+        "spin",
+        "tempoch",
+        "thiserror",
+        "toml",
+        "wide"
+      ]
+    },
+    {
+      "name": "siderust-py",
+      "version": "0.4.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "7666188760e2b7e7c383c88703b0d9084ce8ca983d7a236afbcb2ac9d8bdd0c3",
+      "dependencies": [
+        "affn",
+        "pyo3",
+        "siderust"
+      ]
+    },
+    {
+      "name": "tempoch",
+      "version": "0.10.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "8c5ee225276e09e209e8e2f0dbb454f4e515cbc7b424af5760b3288db94ed1a5",
+      "dependencies": [
+        "tempoch-core"
+      ]
+    },
+    {
+      "name": "tempoch-py",
+      "version": "0.4.0",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "69a7fc495677789d2e725fda1ba55fba2ae1792645e3d7c0969eee830538f232",
+      "dependencies": [
+        "chrono",
+        "pyo3",
+        "tempoch"
+      ]
+    }
+  ],
+  "package_versions": {
+    "crates/nsb": "0.1.1",
+    "crates/nsb-cli": "0.1.1",
+    "crates/nsb-data-tools": "0.1.1"
+  },
+  "rust189": "rustc 1.89.0 (29483883e 2025-08-04)",
+  "artifact_hashes": {
+    "target/publication/extra-candidate/sdist/nsb_py-0.1.1.tar.gz": {
+      "sha256": "ff0550a0a3acaca9c82b8a312ba539902d50d0122678666733b92f833b1c71d3",
+      "bytes": 6499910
+    },
+    "target/publication/extra-candidate/wheels/nsb_py-0.1.1-cp310-abi3-linux_x86_64.whl": {
+      "sha256": "eb078af8ffbb582e9496b11616f75c5119f39b61a1d254906134a6b349547d55",
+      "bytes": 10044973
+    },
+    "Cargo.lock": {
+      "sha256": "693716afa2f23b8aa749e98378f40d11feae720614c152b7ab771be60fb2d875",
+      "bytes": 66913
+    },
+    "target/publication/installed/bin/nsb": {
+      "sha256": "a7ac84547c89cbe2685faea7ecba6279e208f7ab65d31e8cfcfbe90f65538ad0",
+      "bytes": 80663376
+    },
+    "target/publication/wheels/nsb_py-0.1.1-cp310-abi3-manylinux_2_35_x86_64.whl": {
+      "sha256": "267d2aba6e414a53aed6300f363c98b6f961893d13c9946f88f1bb01ac1ec63e",
+      "bytes": 10047456
+    }
+  },
+  "installed_extension": {
+    "path": "/home/valles/workspace/nsb/.venv/lib/python3.12/site-packages/nsb/nsb.abi3.so",
+    "sha256": "850c4ff2c12fb331ebfbc9391f3c74e8697679637f493ca5c23e1377ff0e7ab7"
+  },
+  "clean_archive_wheel_hashes": {
+    "target/publication/clean-example/target/publication/wheels/nsb_py-0.1.1-cp310-abi3-manylinux_2_35_x86_64.whl": {
+      "sha256": "6d7d980beb4ee312bfd5c7b6d8e28afbc79744a9485b78340427bfbb1f216d19",
+      "bytes": 10047502
+    }
+  },
+  "asset_manifest_sha256": "8d2fb1b86832a033115ab2aa48ac138c82ec21e5dd809f67621c664a1e87b7ad",
+  "registered_results_sha256": "56422c5ee5c2f6edcd32fa07400ae35f3b4f1f66fbd161c09240742043b11404",
+  "identical_distribution_inputs": {
+    "candidate": "a2ae1274f401a56e73d87350b41d025a5fff0928",
+    "isolated_sdist_and_msrv_receipt_source": "1a4648dfa6ca7d5900c8ab031c749838598b9590",
+    "inputs": [
+      {
+        "path": "crates/nsb",
+        "git_object": "9393810e65d166e31be86e6f4cef3cdd1b450061",
+        "identical": true
+      },
+      {
+        "path": "crates/nsb-cli",
+        "git_object": "8110f6954f24a276f51cbadad38c541db7d12777",
+        "identical": true
+      },
+      {
+        "path": "crates/nsb-data-tools",
+        "git_object": "47e0c8f2297ea87793ba50f4df31ff7478ac3eb3",
+        "identical": true
+      },
+      {
+        "path": "Cargo.lock",
+        "git_object": "efe741203a858e09d0833e9e7e3ca5bee8ce7a6d",
+        "identical": true
+      },
+      {
+        "path": "Cargo.toml",
+        "git_object": "956fee58913735de73b3523322330d387d5263af",
+        "identical": true
+      },
+      {
+        "path": "pyproject.toml",
+        "git_object": "1313bffd224a8c56c8a77ae0303f1e7d1c74cf72",
+        "identical": true
+      },
+      {
+        "path": "nsb.pyi",
+        "git_object": "f87e4720ea26d7f275bd259aeedd378451d77596",
+        "identical": true
+      },
+      {
+        "path": "LICENSE",
+        "git_object": "0ad25db4bd1d86c452db3f9602ccdbe172438f52",
+        "identical": true
+      }
+    ],
+    "meaning": "Only publication runner build-target selection and its CI command changed after the isolated distribution checks; all Rust crates and package inputs are identical."
+  },
+  "resolved_generic_atmosphere": {
+    "pressure_hpa": 740.4275497737523,
+    "pressure_formula": "1013.25 exp(-max(height_m,0)/8400)",
+    "rayleigh_scale_height_km": 8.0,
+    "mie_tau0": 0.05,
+    "mie_alpha": -1.38,
+    "mie_reference_nm": 550.0,
+    "airglow_site_scale": 1.0,
+    "meaning": "Pinned built-in planning assumptions, not measured atmosphere"
+  },
+  "sdist_lockfiles_sha256": {
+    "nsb_py-0.1.1/Cargo.lock": "693716afa2f23b8aa749e98378f40d11feae720614c152b7ab771be60fb2d875"
+  }
+}

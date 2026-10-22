@@ -1,0 +1,7 @@
+📦 Including license file `LICENSE`
+🔗 Found pyo3 bindings with abi3-py3.10 support
+📡 Using build options features, bindings from pyproject.toml
+📦 Including files matching "LICENSE"
+📦 Including files matching "crates/nsb/THIRD_PARTY_NOTICES.md"
+📦 Including files matching "crates/nsb/AIRGLOW_DATA_NOTICES.md"
+📦 Built source distribution to /home/valles/workspace/nsb/target/publication/extra-candidate/sdist/nsb_py-0.1.1.tar.gz

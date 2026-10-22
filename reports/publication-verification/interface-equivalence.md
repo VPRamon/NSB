@@ -45,3 +45,14 @@ An extended invocation is documented in
 [the example](../../examples/publication/README.md); the offline invocation is
 run in the existing Linux installed-wheel CI job, with evidence uploaded even
 on failure. This does not assert every NSB operation or platform is equivalent.
+
+## Executed candidate results
+
+All three point-interface pairs have maximum absolute/relative discrepancy
+**0 / 0** in this Linux run (19 comparisons each for Rust/CLI and Python/CLI).
+Rust/Python includes 19 point and 36 band comparisons, also **0 / 0**. This is
+observed floating-point equality for these fixtures, not a guarantee for every
+platform. Across all composition, band-partition and registered-reference checks,
+the maximum residual is **8.326672684688674e-17 photons cm^-2 ns^-1 sr^-1**
+(relative maximum 9.337936877877988e-16; consult JSON for its full stored value).
+There are 202 comparisons total; all pass the unchanged tolerances.

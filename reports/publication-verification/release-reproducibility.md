@@ -54,3 +54,30 @@ No public tag, registry publication or merge is performed.
 See [reproduction instructions](../../examples/publication/README.md) and
 [claim integration](manuscript-evidence.md). Failed release checks leave the
 release blocker **OPEN**, regardless of successful repository-source builds.
+
+## Recorded reproduction environment and artifact access
+
+Primary: Rust/Cargo **1.97.1**, Python **3.12.13**, Linux x86_64, source
+`a2ae1274f401a56e73d87350b41d025a5fff0928`, Cargo.lock SHA256
+`693716afa2f23b8aa749e98378f40d11feae720614c152b7ab771be60fb2d875`.
+Rust **1.89.0** also compiles all workspace targets/features with the same locked
+crate/package inputs. The source commit retains the existing asset and release
+guards; no Cargo manifest, lockfile or physical model was changed by this PR.
+The only scientific arithmetic change is the documented diagnostic hc correction.
+
+Use the exact Python transitive pins in `python-environment.txt` when reproducing
+the recorded environment (install those first, then run the example's `--build`).
+Select Rust 1.97.1 with rustup to reproduce the primary toolchain; the actual
+executed commands use the active toolchain recorded in the manifest. Source,
+input, archive, wheel and installed-binary hashes are in software-provenance.json.
+The wheel/sdist binaries remain generated local artifacts under `target/`; their
+hashes identify the tested distributions without committing platform binaries.
+The data/figures and verification logs are committed.
+
+The source archive was exported with `git archive <candidate>` into a fresh
+directory with no build target, then the documented `run.py --build` was executed.
+It rebuilt all native artifacts, installed its new wheel, recomputed all results
+and regenerated the figure. The CLI runs from a separate temporary directory.
+A separate source-installed CLI, fresh Python environment and isolated PEP 517
+sdist wheel were also exercised, with commands/exit codes retained. Installed
+artifacts do not need source-side scientific data files: those data are embedded.

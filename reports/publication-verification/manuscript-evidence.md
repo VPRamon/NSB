@@ -23,7 +23,7 @@ at three wavelengths and four zenith distances matched exp(-tau/cos(z)) to the
 reported floating-point precision, with absolute tolerance 2e-14; the optical
 depth is an input to this algebraic check, not an independently validated
 atmospheric model. A separate 16-case photon-energy/S10 regression uses exact SI
-h and c. It exposed and corrected a ~1.98e-14 relative typo in a private hc
+h and c and has maximum relative error 1.816422439628186e-16 (tolerance 3e-15). It exposed and corrected a ~1.98e-14 relative typo in a private hc
 constant, affecting diagnostic S10 values only. Band-integrated photon outputs
 and historical observational conclusions are unchanged.
 
@@ -36,8 +36,8 @@ radiances. All three interface pairs agreed exactly for the compared point
 totals and component radiances in the recorded Linux environment; tolerances
 were 1e-14 absolute plus 2e-12 relative in photons cm^-2 ns^-1 sr^-1. Rust and
 Python also agreed for four restricted-band integrals. Full-band and partition
-identities had a maximum absolute residual of 8.326672684688674e-17 in the initial
-measurement; the final evidence JSON is authoritative. Repeated evaluations
+identities had a maximum absolute residual of 8.326672684688674e-17 in the final candidate
+measurement; the evidence JSON records each comparison. Repeated evaluations
 were deterministic and zero F10.7 was rejected. These results cover this subset,
 not the complete API, every architecture, or absolute coordinate accuracy.
 
@@ -93,3 +93,15 @@ statements into #273, and complete references, authorship, licensing/availabilit
 and required AI-assistance disclosures. Historical Patat/DESI/LVM findings remain
 as written; protected LVM observations remain sealed. No superiority or
 independent observational accuracy follows from this engineering evidence.
+
+## Executed test summary for insertion
+
+The final source candidate is `a2ae1274f401a56e73d87350b41d025a5fff0928`.
+The workspace run passed 1,074 tests with seven existing optional diagnostics
+ignored; the installed release wheel passed 140 Python tests. An independently
+built isolated-sdist wheel passed 64 public-API checks outside the checkout.
+Format, all-target/all-feature Clippy with warnings denied and a Rust 1.89
+compatibility check passed. A fresh source-archive end-to-end build reproduced
+the registered data and figure. Ordinary Cargo archive verification and publish
+dry-run failed on the absent Siderust registry APIs; registry release readiness
+remains explicitly unestablished.

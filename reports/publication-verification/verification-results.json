@@ -1,0 +1,520 @@
+{
+  "environment": {
+    "source_commit": "a2ae1274f401a56e73d87350b41d025a5fff0928",
+    "working_tree": "",
+    "python": "3.12.13 (main, Jul 23 2026, 14:43:28) [Clang 22.1.3 ]",
+    "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43",
+    "PYO3_PYTHON": "/home/valles/workspace/nsb/.venv/bin/python",
+    "LD_LIBRARY_PATH": "/home/valles/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib"
+  },
+  "checks": [
+    {
+      "name": "format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "started_utc": "2026-10-22T20:32:22.008415+00:00",
+      "finished_utc": "2026-10-22T20:32:22.803230+00:00",
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "logs/format.log"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--locked",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "started_utc": "2026-10-22T20:32:22.803521+00:00",
+      "finished_utc": "2026-10-22T20:32:29.780817+00:00",
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "logs/clippy.log"
+    },
+    {
+      "name": "workspace-tests",
+      "command": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--all-features",
+        "--locked"
+      ],
+      "started_utc": "2026-10-22T20:32:29.781134+00:00",
+      "finished_utc": "2026-10-22T20:34:06.264691+00:00",
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "logs/workspace-tests.log"
+    },
+    {
+      "name": "photon-si-reference",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "nsb",
+        "--lib",
+        "--locked",
+        "photon_energy_to_s10_matches_si_definition",
+        "--",
+        "--nocapture"
+      ],
+      "started_utc": "2026-10-22T20:34:06.265173+00:00",
+      "finished_utc": "2026-10-22T20:34:06.397227+00:00",
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "logs/photon-si-reference.log"
+    },
+    {
+      "name": "no-default-features",
+      "command": [
+        "cargo",
+        "check",
+        "-p",
+        "nsb",
+        "--lib",
+        "--no-default-features",
+        "--locked"
+      ],
+      "started_utc": "2026-10-22T20:34:06.397738+00:00",
+      "finished_utc": "2026-10-22T20:34:06.555448+00:00",
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "logs/no-default-features.log"
+    },
+    {
+      "name": "metadata",
+      "command": [
+        "/home/valles/workspace/nsb/.venv/bin/python",
+        "scripts/check-release-metadata.py"
+      ],
+      "started_utc": "2026-10-22T20:34:06.555780+00:00",
+      "finished_utc": "2026-10-22T20:34:06.616819+00:00",
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "logs/metadata.log"
+    },
+    {
+      "name": "license-headers",
+      "command": [
+        "bash",
+        "scripts/check-license-headers.sh"
+      ],
+      "started_utc": "2026-10-22T20:34:06.617163+00:00",
+      "finished_utc": "2026-10-22T20:34:06.684212+00:00",
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "logs/license-headers.log"
+    },
+    {
+      "name": "cfg-boundaries",
+      "command": [
+        "bash",
+        "scripts/check-cfg-test-boundaries.sh"
+      ],
+      "started_utc": "2026-10-22T20:34:06.684739+00:00",
+      "finished_utc": "2026-10-22T20:34:06.941267+00:00",
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "logs/cfg-boundaries.log"
+    },
+    {
+      "name": "example",
+      "command": [
+        "/home/valles/workspace/nsb/.venv/bin/python",
+        "examples/publication/run.py",
+        "--build"
+      ],
+      "started_utc": "2026-10-22T20:34:06.941598+00:00",
+      "finished_utc": "2026-10-22T20:35:12.135260+00:00",
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "logs/example.log"
+    },
+    {
+      "name": "python-tests",
+      "command": [
+        "/home/valles/workspace/nsb/.venv/bin/python",
+        "-m",
+        "pytest",
+        "python/tests",
+        "-q"
+      ],
+      "started_utc": "2026-10-22T20:35:12.135795+00:00",
+      "finished_utc": "2026-10-22T20:35:22.477389+00:00",
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "logs/python-tests.log"
+    },
+    {
+      "name": "cargo-package",
+      "command": [
+        "cargo",
+        "package",
+        "-p",
+        "nsb",
+        "--locked"
+      ],
+      "started_utc": "2026-10-22T20:35:22.477714+00:00",
+      "finished_utc": "2026-10-22T20:35:28.640551+00:00",
+      "exit_code": 101,
+      "result": "FAIL",
+      "log": "logs/cargo-package.log",
+      "interpretation": "External release blocker #265: registry Siderust lacks LayeredAtmosphere/NormalizedPhaseTable; retain FAIL."
+    },
+    {
+      "name": "publish-dry-run",
+      "command": [
+        "cargo",
+        "publish",
+        "--manifest-path",
+        "crates/nsb/Cargo.toml",
+        "--dry-run",
+        "--locked"
+      ],
+      "started_utc": "2026-10-22T20:35:28.641007+00:00",
+      "finished_utc": "2026-10-22T20:35:33.011092+00:00",
+      "exit_code": 101,
+      "result": "FAIL",
+      "log": "logs/publish-dry-run.log",
+      "interpretation": "External release blocker #265: registry Siderust lacks LayeredAtmosphere/NormalizedPhaseTable; retain FAIL."
+    }
+  ],
+  "summary": {
+    "rust_tests_passed": 1074,
+    "rust_tests_ignored": 7,
+    "python_tests_passed": 140,
+    "isolated_wheel_tests_passed": 64,
+    "comparison_checks": 202,
+    "source_candidate": "a2ae1274f401a56e73d87350b41d025a5fff0928",
+    "release": "BLOCKED_EXTERNAL_SIDERUST_265",
+    "numerical_contracts": "PASS_WITHIN_TESTED_SCOPE",
+    "interface_subset": "PASS",
+    "scientific_example": "PASS",
+    "all_three_blockers_closed": false,
+    "publication_PR": "https://github.com/VPRamon/NSB/pull/274"
+  },
+  "isolated_distribution_checks": {
+    "environment": {
+      "source_commit": "1a4648dfa6ca7d5900c8ab031c749838598b9590",
+      "working_tree": "",
+      "python": "3.12.13 (main, Jul 23 2026, 14:43:28) [Clang 22.1.3 ]",
+      "PYO3_PYTHON": "/home/valles/workspace/nsb/.venv/bin/python",
+      "LD_LIBRARY_PATH": "/home/valles/.local/share/uv/python/cpython-3.12.13-linux-x86_64-gnu/lib"
+    },
+    "checks": [
+      {
+        "name": "candidate-sdist",
+        "command": [
+          "/home/valles/workspace/nsb/.venv/bin/python",
+          "-m",
+          "maturin",
+          "sdist",
+          "--out",
+          "/home/valles/workspace/nsb/target/publication/extra-candidate/sdist"
+        ],
+        "cwd": "/home/valles/workspace/nsb",
+        "started_utc": "2026-10-22T20:29:28.495600+00:00",
+        "finished_utc": "2026-10-22T20:29:29.100523+00:00",
+        "exit_code": 0,
+        "result": "PASS",
+        "log": "logs/isolation/candidate-sdist.log"
+      },
+      {
+        "name": "sdist-license",
+        "command": [
+          "/home/valles/workspace/nsb/.venv/bin/python",
+          "scripts/check-pypi-sdist-license.py",
+          "/home/valles/workspace/nsb/target/publication/extra-candidate/sdist/nsb_py-0.1.1.tar.gz"
+        ],
+        "cwd": "/home/valles/workspace/nsb",
+        "started_utc": "2026-10-22T20:29:29.101183+00:00",
+        "finished_utc": "2026-10-22T20:29:29.162233+00:00",
+        "exit_code": 0,
+        "result": "PASS",
+        "log": "logs/isolation/sdist-license.log"
+      },
+      {
+        "name": "isolated-sdist-wheel",
+        "command": [
+          "/home/valles/workspace/nsb/.venv/bin/python",
+          "-m",
+          "pip",
+          "wheel",
+          "--no-deps",
+          "/home/valles/workspace/nsb/target/publication/extra-candidate/sdist/nsb_py-0.1.1.tar.gz",
+          "-w",
+          "/home/valles/workspace/nsb/target/publication/extra-candidate/wheels"
+        ],
+        "cwd": "/home/valles/workspace/nsb",
+        "started_utc": "2026-10-22T20:29:29.162751+00:00",
+        "finished_utc": "2026-10-22T20:30:43.599441+00:00",
+        "exit_code": 0,
+        "result": "PASS",
+        "log": "logs/isolation/isolated-sdist-wheel.log"
+      },
+      {
+        "name": "fresh-venv",
+        "command": [
+          "uv",
+          "venv",
+          "--python",
+          "/home/valles/workspace/nsb/.venv/bin/python",
+          "/home/valles/workspace/nsb/target/publication/extra-candidate/venv"
+        ],
+        "cwd": "/home/valles/workspace/nsb",
+        "started_utc": "2026-10-22T20:30:43.600359+00:00",
+        "finished_utc": "2026-10-22T20:30:43.627815+00:00",
+        "exit_code": 0,
+        "result": "PASS",
+        "log": "logs/isolation/fresh-venv.log"
+      },
+      {
+        "name": "fresh-wheel-install",
+        "command": [
+          "uv",
+          "pip",
+          "install",
+          "--python",
+          "/home/valles/workspace/nsb/target/publication/extra-candidate/venv/bin/python",
+          "-r",
+          "examples/publication/requirements.txt",
+          "/home/valles/workspace/nsb/target/publication/extra-candidate/wheels/nsb_py-0.1.1-cp310-abi3-linux_x86_64.whl"
+        ],
+        "cwd": "/home/valles/workspace/nsb",
+        "started_utc": "2026-10-22T20:30:43.628115+00:00",
+        "finished_utc": "2026-10-22T20:30:43.788703+00:00",
+        "exit_code": 0,
+        "result": "PASS",
+        "log": "logs/isolation/fresh-wheel-install.log"
+      },
+      {
+        "name": "installed-wheel-tests",
+        "command": [
+          "/home/valles/workspace/nsb/target/publication/extra-candidate/venv/bin/python",
+          "-m",
+          "pytest",
+          "test_evaluation.py",
+          "test_band.py",
+          "test_errors.py",
+          "test_interop.py",
+          "-q"
+        ],
+        "cwd": "/home/valles/workspace/nsb/target/publication/extra-candidate/installed-tests",
+        "started_utc": "2026-10-22T20:30:43.794057+00:00",
+        "finished_utc": "2026-10-22T20:30:44.748679+00:00",
+        "exit_code": 0,
+        "result": "PASS",
+        "log": "logs/isolation/installed-wheel-tests.log"
+      },
+      {
+        "name": "installed-cli-version",
+        "command": [
+          "/home/valles/workspace/nsb/target/publication/installed/bin/nsb",
+          "--version"
+        ],
+        "cwd": "/home/valles/workspace/nsb/target/publication/extra-candidate",
+        "started_utc": "2026-10-22T20:30:44.749000+00:00",
+        "finished_utc": "2026-10-22T20:30:44.752152+00:00",
+        "exit_code": 0,
+        "result": "PASS",
+        "log": "logs/isolation/installed-cli-version.log"
+      },
+      {
+        "name": "installed-cli-point",
+        "command": [
+          "/home/valles/workspace/nsb/target/publication/installed/bin/nsb",
+          "--format",
+          "json",
+          "point",
+          "--time",
+          "2023-09-15T05:00:00Z",
+          "--lon",
+          "-70.4045",
+          "--lat",
+          "-24.6272",
+          "--height",
+          "2635",
+          "--ra",
+          "10",
+          "--dec",
+          "-20",
+          "--components",
+          "zodiacal,airglow",
+          "--airglow-model",
+          "paranal-palace-v1",
+          "--solar-radio-flux-sfu",
+          "100"
+        ],
+        "cwd": "/home/valles/workspace/nsb/target/publication/extra-candidate",
+        "started_utc": "2026-10-22T20:30:44.752292+00:00",
+        "finished_utc": "2026-10-22T20:30:45.860428+00:00",
+        "exit_code": 0,
+        "result": "PASS",
+        "log": "logs/isolation/installed-cli-point.log"
+      }
+    ]
+  },
+  "supplemental_checks": {
+    "source_commit": "1a4648dfa6ca7d5900c8ab031c749838598b9590",
+    "checks": [
+      {
+        "name": "rust189",
+        "command": [
+          "cargo",
+          "+1.89",
+          "check",
+          "--workspace",
+          "--all-targets",
+          "--all-features",
+          "--locked",
+          "--target-dir",
+          "target/publication/msrv"
+        ],
+        "started_utc": "2026-10-22T20:30:19.188582+00:00",
+        "finished_utc": "2026-10-22T20:30:19.758734+00:00",
+        "exit_code": 0,
+        "result": "PASS",
+        "log": "logs/supplemental/rust189.log"
+      },
+      {
+        "name": "tag-guard",
+        "command": [
+          "/home/valles/workspace/nsb/.venv/bin/python",
+          "scripts/check-release-metadata.py",
+          "--tag",
+          "v0.1.1"
+        ],
+        "started_utc": "2026-10-22T20:30:19.761570+00:00",
+        "finished_utc": "2026-10-22T20:30:19.838711+00:00",
+        "exit_code": 1,
+        "result": "EXPECTED_REJECTION",
+        "log": "logs/supplemental/tag-guard.log"
+      },
+      {
+        "name": "installed-cli-example",
+        "command": [
+          "/home/valles/workspace/nsb/target/publication/installed/bin/nsb",
+          "--format",
+          "json",
+          "point",
+          "--time",
+          "2023-09-15T05:00:00Z",
+          "--lon",
+          "-70.4045",
+          "--lat",
+          "-24.6272",
+          "--height",
+          "2635",
+          "--ra",
+          "10",
+          "--dec",
+          "-20",
+          "--components",
+          "zodiacal,airglow",
+          "--airglow-model",
+          "paranal-palace-v1",
+          "--solar-radio-flux-sfu",
+          "100"
+        ],
+        "started_utc": "2026-10-22T20:30:19.842968+00:00",
+        "finished_utc": "2026-10-22T20:30:21.250943+00:00",
+        "exit_code": 0,
+        "result": "PASS",
+        "log": "logs/supplemental/installed-cli-example.log"
+      }
+    ]
+  },
+  "manual_clean_checks": [
+    {
+      "name": "clean-end-to-end",
+      "command": [
+        "/home/valles/workspace/nsb/.venv/bin/python",
+        "target/publication/clean-example/examples/publication/run.py",
+        "--build"
+      ],
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "logs/clean-example.log",
+      "source_commit": "a2ae1274f401a56e73d87350b41d025a5fff0928",
+      "preparation": "git archive <source_commit> | tar -x -C <clean source directory>; initial target directory absent for clean end-to-end build"
+    },
+    {
+      "name": "clean-source-cli-install",
+      "command": [
+        "cargo",
+        "install",
+        "--path",
+        "target/publication/clean-source/crates/nsb-cli",
+        "--locked",
+        "--debug",
+        "--force",
+        "--root",
+        "/home/valles/workspace/nsb/target/publication/installed",
+        "--target-dir",
+        "/home/valles/workspace/nsb/target/publication/clean-source/target"
+      ],
+      "exit_code": 0,
+      "result": "PASS",
+      "log": "logs/clean-cli-install-candidate.log",
+      "source_commit": "1a4648dfa6ca7d5900c8ab031c749838598b9590",
+      "preparation": "git archive <source_commit> | tar -x -C <clean source directory>; initial target directory absent for clean end-to-end build"
+    }
+  ],
+  "artifact_identity_note": "Isolated sdist, MSRV and cargo-install receipts were executed at 1a4648d. All crate/package inputs are Git-object-identical to the final source candidate; the final runner/CI adds explicit --bins. The fresh end-to-end archive and primary checks use the final candidate.",
+  "evidence_only_checks": [
+    {
+      "name": "evidence-documentation-links",
+      "command": [
+        "cargo",
+        "test",
+        "-p",
+        "nsb-data-tools",
+        "--test",
+        "documentation_links",
+        "--locked"
+      ],
+      "exit_code": 0,
+      "result": "PASS",
+      "scope": "Evidence-only documentation added after candidate execution; executable sources unchanged",
+      "log": "logs/evidence-documentation-links.log"
+    },
+    {
+      "name": "evidence-format",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "result": "PASS",
+      "scope": "Evidence-only documentation added after candidate execution; executable sources unchanged",
+      "log": "logs/evidence-format.log"
+    },
+    {
+      "name": "evidence-whitespace",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "result": "PASS",
+      "scope": "Evidence-only documentation added after candidate execution; executable sources unchanged",
+      "log": "logs/evidence-whitespace.log"
+    }
+  ]
+}

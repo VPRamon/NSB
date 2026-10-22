@@ -52,3 +52,18 @@ and existing round-trip tests; that is consistency evidence.
 
 No quadrature error here is a physical uncertainty estimate. No observational
 measurements, protected LVM products, fits or recalibrations are involved.
+
+## Executed maxima for the source candidate
+
+| Contract | Cases | Maximum observed error | Result |
+| --- | ---: | --- | --- |
+| Clipped constant/linear spectra | 6 | 5.684341886080802e-14 photons cm^-2 ns^-1 sr^-1 | PASS |
+| Quadratic trapezoid error law | 4 | 0 residual versus analytic integral plus known discretization error | PASS |
+| Typed cm²/ns → m²/s radiance conversion | 1 | 0 photons m^-2 s^-1 sr^-1 | PASS |
+| Plane-parallel Beer–Lambert composition | 12 | 0 absolute transmission difference | PASS |
+| Photon density → S10 using exact SI h,c | 16 | 1.816422439628186e-16 relative | PASS |
+
+Quadratic *discretization errors themselves* are nonzero: 0.9114583333333334,
+0.22786458333333334, 0.056966145833333336 and 0.014241536458333334 in synthetic
+integrated-radiance units for 8,16,32,64 intervals. A zero error-law residual must
+not be described as zero quadrature approximation error.

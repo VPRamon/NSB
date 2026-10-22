@@ -43,3 +43,43 @@ Source candidate and evidence commits are intentionally distinct: the candidate
 contains all executable changes and registered data; the evidence commit adds
 run receipts that identify that candidate without requiring a self-referential
 Git hash. No release, merge or protected observation access is performed.
+
+## Executed candidate results
+
+Candidate: `a2ae1274f401a56e73d87350b41d025a5fff0928` (0.1.1 package versions,
+not a registry release). The evidence commit adds receipts and documentation.
+
+| Gate | Executed outcome |
+| --- | --- |
+| Format / Clippy (all targets/features, warnings denied) | PASS |
+| Workspace tests including CLI integrations and doctests | PASS: 1,074 passed; 7 existing optional/expensive tests ignored |
+| Python release-wheel tests | PASS: 140 |
+| Independently installed isolated-sdist wheel subset, outside checkout | PASS: 64 |
+| Rust 1.89 all-target/all-feature check | PASS; crate/package inputs identical to candidate |
+| No-default-feature library | PASS |
+| Analytic numeric receipt probe / exact-SI conversion | PASS: 23 analytic receipt rows plus 16 SI cases |
+| Shared fixture and registered-output comparisons | PASS: 202 comparisons across 9 scenarios |
+| Fresh-archive single-command reproduction | PASS: data, wheel, native binaries and PNG/PDF regenerated |
+| Cargo package / publish dry-run | **FAIL: confirmed external Siderust #265 blocker** |
+| Tag preflight | Correctly rejects temporary Git dependency; no tag created |
+
+[Executed commands and logs](verification-results.json),
+[software/dependency identity](software-provenance.json),
+[numeric errors](numerical-verification.json),
+[SI receipt](photon-si-reference.json),
+[interface differences](interface-equivalence.json), and
+[artifact SHA256 manifest](artifact-hashes.json) are machine-readable.
+[Engineering history](engineering-history.json) retains superseded failures and
+an explicitly interrupted debug-wheel trial; the release-wheel run is complete.
+
+Primary tests and fresh-archive reproduction use the final source candidate.
+Some isolated sdist/MSRV/install receipts use `1a4648d`; the Git object equality
+ledger in software-provenance proves **all three crate trees and package inputs
+are identical**. Only runner/CI build-target selection changed afterward. These
+identities are recorded separately rather than silently relabeling builds.
+
+The seven ignored tests retain their original reasons in the workspace log:
+release-scale planning/boundary diagnostics, optional frozen-map probing and
+expensive production asset-generation convergence diagnostics. They are not
+claimed as newly executed. Existing scientific findings and protected cohorts
+are untouched. The release blocker is **OPEN**; all three blockers are not closed.

@@ -1,0 +1,24 @@
+    Updating crates.io index
+warning: crate nsb@0.1.1 already exists on crates.io index
+   Packaging nsb v0.1.1 (/home/valles/workspace/nsb/crates/nsb)
+    Updating crates.io index
+    Packaged 189 files, 8.1MiB (6.2MiB compressed)
+   Verifying nsb v0.1.1 (/home/valles/workspace/nsb/crates/nsb)
+   Compiling nsb v0.1.1 (/home/valles/workspace/nsb/target/package/nsb-0.1.1)
+error[E0432]: unresolved imports `siderust::atmosphere::LayeredAtmosphere`, `siderust::atmosphere::NormalizedPhaseTable`
+  --> src/transport/single/mod.rs:24:28
+   |
+24 | use siderust::atmosphere::{LayeredAtmosphere, NormalizedPhaseTable};
+   |                            ^^^^^^^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^ no `NormalizedPhaseTable` in `atmosphere`
+   |                            |
+   |                            no `LayeredAtmosphere` in `atmosphere`
+
+error[E0432]: unresolved import `siderust::atmosphere::LayeredAtmosphere`
+  --> src/transport/multiple.rs:19:5
+   |
+19 | use siderust::atmosphere::LayeredAtmosphere;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no `LayeredAtmosphere` in `atmosphere`
+
+For more information about this error, try `rustc --explain E0432`.
+error: could not compile `nsb` (lib) due to 2 previous errors
+error: failed to verify package tarball

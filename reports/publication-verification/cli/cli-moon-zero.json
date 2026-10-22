@@ -1,0 +1,124 @@
+{
+  "schema_version": "nsb-cli-point-json-v1",
+  "version": {
+    "nsb_version": "0.1.1",
+    "model_version": "nsb-model-v1",
+    "siderust_version": "0.14.1",
+    "siderust_source": "git:https://github.com/Siderust/siderust@83d1ebb29ca1ae0b327d5784d13eda231d52c120",
+    "asset_manifest_schema": 1,
+    "data_assets": [
+      {
+        "path": "airglow_palace_v1.dat",
+        "schema": "nsb-airglow-palace-continuum-v1",
+        "sha256": "f03b48cce44764c05e7208e59a0c9dbbb773ffc4b32444f8157dc5ac36fd119e",
+        "calibration_status": "planning-proxy"
+      },
+      {
+        "path": "moonlight_mie_nsb_v1.dat",
+        "schema": "nsb-moonlight-mie-phase-v1",
+        "sha256": "8ac2548e2699dee1448f60d867d4c2fd5a49b4702dba63297972e81cb3cb4bbc",
+        "calibration_status": "published-model-reconstruction"
+      },
+      {
+        "path": "solar_spectrum.dat",
+        "schema": "wavelength-nm_irradiance-w-m2-nm-v1",
+        "sha256": "1cc24671052b7623752eb41dd99a84520393b2845442b8bbde217610fe5ed949",
+        "calibration_status": "generic-fallback"
+      },
+      {
+        "path": "moonlight_multiscatter_nsb_v1.dat",
+        "schema": "nsb-moonlight-multiscatter-v1",
+        "sha256": "7251dd540a7dd0a10eceda9bec12e5061a1bbc29332ac2f92b44e4684f3cc050",
+        "calibration_status": "published-model-reconstruction"
+      },
+      {
+        "path": "f107_store.json",
+        "schema": "nsb-f107-store-v1",
+        "sha256": "9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4",
+        "calibration_status": "planning-proxy"
+      },
+      {
+        "path": "starlight_nside128.compact.release.bin",
+        "schema": "nsb-healpix-starlight-binary-v1",
+        "sha256": "11479bd0b6838d06df884b76dd74575bbc42d424ec85defecf847257c0f64d7f",
+        "calibration_status": "production"
+      },
+      {
+        "path": "starlight_nside128.compact.manifest.toml",
+        "schema": "nsb-starlight-runtime-manifest-v1",
+        "sha256": "1fdaa3536520f74dd88a1ade37419234667de1cbb978b4539b4b8988b28a0cb8",
+        "calibration_status": "production"
+      },
+      {
+        "path": "airglow_palace_oxygen_v1.json",
+        "schema": "nsb-airglow-palace-oxygen-v1",
+        "sha256": "7db1b18102eea3abbbef21ed602e681fbed454deb65cc7d0743b5c465a703fc5",
+        "calibration_status": "experimental-planning-proxy"
+      }
+    ]
+  },
+  "model": {
+    "preset": "generic-clear-sky",
+    "moonlight_model": "jones-2013-spectral",
+    "starlight_model": "starlight",
+    "solar_radio_flux_sfu": 100.0,
+    "solar_activity_source": "explicit",
+    "f107_dataset_id": null,
+    "f107_snapshot_id": null,
+    "f107_checksum_sha256": null,
+    "airglow_selection": {
+      "kind": "explicit",
+      "requested_model": "paranal-palace-v1",
+      "resolved_model": "paranal-palace-v1",
+      "used_fallback": false
+    },
+    "airglow_geometry": "van_rhijn",
+    "zodiacal_model": "leinert-1998",
+    "zodiacal_extinction": "noll-2012-approximation"
+  },
+  "time_utc": "2023-09-15T05:00:00.000Z",
+  "observer": {
+    "longitude_deg": -70.4045,
+    "latitude_deg": -24.6272,
+    "height_m": 2635.0
+  },
+  "target": {
+    "ra_deg": 10.000000000000004,
+    "dec_deg": -20.00000000000001
+  },
+  "components": [
+    {
+      "name": "moon",
+      "integrated_ph_cm2_ns_sr": 0.0,
+      "b_s10_diagnostic": 0.0,
+      "v_s10_diagnostic": 0.0,
+      "relative_uncertainty": null,
+      "metadata": {
+        "calibration_status": "generic-clear-sky",
+        "provenance": "Jones+2013 wavelength-resolved lunar radiance with Siderust lunar geometry; site profile generic-clear-sky; atmosphere: Pressure estimated from observer altitude with the NSB generic barometric fallback; Rayleigh scale height and Mie parameters use the bundled clear-sky defaults.",
+        "validated_domain": "generic-clear-sky planning model; site aerosol calibration and external SkyCalc/observational validation remain explicit release gates",
+        "band_diagnostic": {
+          "convention": "monochromatic-central-wavelength-s10-proxy",
+          "b_reference_nm": 445.0,
+          "v_reference_nm": 551.0,
+          "zero_point": 27.78,
+          "interpretation": "diagnostic monochromatic S10 proxy; not a validated passband integration"
+        },
+        "solar_activity": null,
+        "airglow_geometry": null
+      }
+    }
+  ],
+  "total": {
+    "integrated_ph_cm2_ns_sr": 0.0,
+    "b_mag_arcsec2_diagnostic": 796.9116389214719,
+    "v_mag_arcsec2_diagnostic": 796.9116389214719
+  },
+  "band_diagnostic": {
+    "convention": "monochromatic-central-wavelength-s10-proxy",
+    "b_reference_nm": 445.0,
+    "v_reference_nm": 551.0,
+    "zero_point": 27.78,
+    "interpretation": "diagnostic monochromatic S10 proxy; not a validated passband integration"
+  }
+}

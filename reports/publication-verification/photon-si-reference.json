@@ -1,0 +1,21 @@
+{
+  "cases": 16,
+  "density_ph_cm2_ns_sr_nm": [
+    0,
+    1e-08,
+    0.001,
+    1
+  ],
+  "family": "photon_energy_to_s10",
+  "max_relative_error": 1.816422439628186e-16,
+  "reference": "exact SI h*c and explicit cm^-2 ns^-1 scaling / 1.28e-11 S10 convention",
+  "relative_tolerance": 3e-15,
+  "result": "PASS",
+  "units": "S10 diagnostic",
+  "wavelength_nm": [
+    300,
+    445,
+    551,
+    650
+  ]
+}

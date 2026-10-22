@@ -1,0 +1,213 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.27
+   Compiling quote v1.0.47
+   Compiling serde_core v1.0.229
+   Compiling typenum v1.20.1
+   Compiling serde v1.0.229
+   Compiling cfg-if v1.0.5
+   Compiling libm v0.2.16
+   Compiling winnow v1.0.4
+   Compiling regex-syntax v0.8.11
+   Compiling const-oid v0.10.2
+   Compiling toml_writer v1.1.3+spec-1.1.0
+   Compiling autocfg v1.5.1
+   Compiling memchr v2.8.3
+   Compiling cpufeatures v0.3.1
+   Compiling same-file v1.0.6
+   Compiling anyhow v1.0.104
+   Compiling zmij v1.0.23
+   Compiling thiserror v2.0.21
+   Compiling iana-time-zone v0.1.65
+   Compiling crossbeam-utils v0.8.23
+   Compiling serde_json v1.0.154
+   Compiling walkdir v2.5.0
+   Compiling itoa v1.0.18
+   Compiling crossbeam-epoch v0.9.21
+   Compiling zerocopy v0.8.63
+   Compiling either v1.19.0
+   Compiling crossbeam-deque v0.8.8
+   Compiling utf8parse v0.2.2
+   Compiling foldhash v0.1.5
+   Compiling toml_parser v1.1.5+spec-1.1.0
+   Compiling anstyle-parse v1.0.0
+   Compiling bytemuck v1.25.2
+   Compiling anstyle-query v1.1.5
+   Compiling colorchoice v1.0.5
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling hashbrown v0.15.5
+   Compiling anstyle v1.0.14
+   Compiling num-traits v0.2.19
+   Compiling paste v1.0.15
+   Compiling find-msvc-tools v0.1.14
+   Compiling spin v0.10.1
+   Compiling aho-corasick v1.1.5
+   Compiling rayon-core v1.13.0
+   Compiling shlex v2.0.1
+   Compiling anstream v1.0.0
+   Compiling hybrid-array v0.4.15
+   Compiling strsim v0.11.1
+   Compiling cc v1.8.0
+   Compiling clap_lex v1.1.1
+   Compiling heck v0.5.0
+   Compiling libc v0.2.190
+   Compiling safe_arch v1.2.0
+   Compiling csv-core v0.1.13
+   Compiling syn v3.0.9
+   Compiling syn v2.0.119
+   Compiling clap_builder v4.6.7
+   Compiling quick-xml v0.41.0
+   Compiling ciborium-io v0.2.2
+   Compiling block-buffer v0.12.1
+   Compiling crypto-common v0.2.2
+   Compiling wide v1.7.1
+   Compiling ryu v1.0.23
+   Compiling itertools v0.13.0
+   Compiling cast v0.3.0
+   Compiling bitflags v2.13.2
+   Compiling log v0.4.34
+   Compiling oorandom v11.1.5
+   Compiling anes v0.1.6
+   Compiling regex-automata v0.4.18
+   Compiling rayon v1.12.0
+   Compiling digest v0.11.3
+   Compiling chrono v0.4.45
+   Compiling sha2 v0.11.1
+   Compiling page_size v0.6.0
+   Compiling criterion-plot v0.8.2
+   Compiling serde_spanned v1.1.2
+   Compiling toml_datetime v1.1.2+spec-1.1.0
+   Compiling csv v1.4.0
+   Compiling toml v1.1.8+spec-1.1.0
+   Compiling alloca v0.4.0
+   Compiling serde_derive v1.0.229
+   Compiling thiserror-impl v2.0.21
+   Compiling clap_derive v4.6.7
+   Compiling regex v1.13.1
+   Compiling qtty-derive v0.8.6
+   Compiling affn-derive v0.11.0
+   Compiling zerocopy-derive v0.8.63
+   Compiling siderust-archive v0.1.5
+   Compiling clap v4.6.7
+   Compiling siderust v0.14.1 (https://github.com/Siderust/siderust?rev=83d1ebb29ca1ae0b327d5784d13eda231d52c120#83d1ebb2)
+   Compiling nsb v0.1.1 (/home/valles/workspace/nsb/target/publication/clean-example/crates/nsb)
+   Compiling qtty-core v0.8.6
+   Compiling tinytemplate v1.2.1
+   Compiling half v2.7.1
+   Compiling ciborium-ll v0.2.2
+   Compiling ciborium v0.2.2
+   Compiling criterion v0.8.2
+   Compiling qtty v0.8.6
+   Compiling affn v0.11.0
+   Compiling cheby v0.4.2
+   Compiling keplerian v0.4.0
+   Compiling optica v0.4.0
+   Compiling tempoch-core v0.10.0
+   Compiling tempoch v0.10.0
+   Compiling principia v0.6.0
+   Compiling nsb-cli v0.1.1 (/home/valles/workspace/nsb/target/publication/clean-example/crates/nsb-cli)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 14s
+📦 Including license file `LICENSE`
+🐍 Found CPython 3.12 at /home/valles/workspace/nsb/.venv/bin/python
+🔗 Found pyo3 bindings with abi3-py3.10 support
+📡 Using build options features, bindings from pyproject.toml
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.27
+   Compiling quote v1.0.47
+   Compiling serde_core v1.0.229
+   Compiling typenum v1.20.1
+   Compiling libm v0.2.16
+   Compiling serde v1.0.229
+   Compiling const-oid v0.10.2
+   Compiling cfg-if v1.0.5
+   Compiling cpufeatures v0.3.1
+   Compiling memchr v2.8.3
+   Compiling target-lexicon v0.13.5
+   Compiling autocfg v1.5.1
+   Compiling regex-syntax v0.8.11
+   Compiling anyhow v1.0.104
+   Compiling same-file v1.0.6
+   Compiling iana-time-zone v0.1.65
+   Compiling winnow v1.0.4
+   Compiling toml_writer v1.1.3+spec-1.1.0
+   Compiling walkdir v2.5.0
+   Compiling thiserror v2.0.21
+   Compiling libc v0.2.190
+   Compiling crossbeam-utils v0.8.23
+   Compiling foldhash v0.1.5
+   Compiling crossbeam-epoch v0.9.21
+   Compiling toml_parser v1.1.5+spec-1.1.0
+   Compiling heck v0.5.0
+   Compiling zmij v1.0.23
+   Compiling num-traits v0.2.19
+   Compiling hashbrown v0.15.5
+   Compiling aho-corasick v1.1.5
+   Compiling crossbeam-deque v0.8.8
+   Compiling paste v1.0.15
+   Compiling itoa v1.0.18
+   Compiling serde_json v1.0.154
+   Compiling bytemuck v1.25.2
+   Compiling spin v0.10.1
+   Compiling pyo3-build-config v0.29.3
+   Compiling rayon-core v1.13.0
+   Compiling safe_arch v1.2.0
+   Compiling once_cell v1.21.4
+   Compiling quick-xml v0.41.0
+   Compiling syn v3.0.9
+   Compiling syn v2.0.119
+   Compiling hybrid-array v0.4.15
+   Compiling csv-core v0.1.13
+   Compiling chrono v0.4.45
+   Compiling wide v1.7.1
+   Compiling block-buffer v0.12.1
+   Compiling crypto-common v0.2.2
+   Compiling ryu v1.0.23
+   Compiling either v1.19.0
+   Compiling regex-automata v0.4.18
+   Compiling log v0.4.34
+   Compiling bitflags v2.13.2
+   Compiling pyo3-ffi v0.29.3
+   Compiling pyo3 v0.29.3
+   Compiling digest v0.11.3
+   Compiling sha2 v0.11.1
+   Compiling rayon v1.12.0
+   Compiling toml_datetime v1.1.2+spec-1.1.0
+   Compiling serde_spanned v1.1.2
+   Compiling toml v1.1.8+spec-1.1.0
+   Compiling csv v1.4.0
+   Compiling serde_derive v1.0.229
+   Compiling thiserror-impl v2.0.21
+   Compiling regex v1.13.1
+   Compiling pyo3-macros-backend v0.29.3
+   Compiling siderust-archive v0.1.5
+   Compiling qtty-derive v0.8.6
+   Compiling affn-derive v0.11.0
+   Compiling siderust v0.14.1 (https://github.com/Siderust/siderust?rev=83d1ebb29ca1ae0b327d5784d13eda231d52c120#83d1ebb2)
+   Compiling nsb v0.1.1 (/home/valles/workspace/nsb/target/publication/clean-example/crates/nsb)
+   Compiling qtty-core v0.8.6
+   Compiling pyo3-macros v0.29.3
+   Compiling qtty v0.8.6
+   Compiling affn v0.11.0
+   Compiling cheby v0.4.2
+   Compiling keplerian v0.4.0
+   Compiling optica v0.4.0
+   Compiling tempoch-core v0.10.0
+   Compiling tempoch v0.10.0
+   Compiling principia v0.6.0
+   Compiling tempoch-py v0.4.0
+   Compiling siderust-py v0.4.0
+    Finished `release` profile [optimized] target(s) in 1m 05s
+📦 Including files matching "crates/nsb/THIRD_PARTY_NOTICES.md"
+📦 Including files matching "crates/nsb/AIRGLOW_DATA_NOTICES.md"
+📖 Found type stub file at nsb.pyi
+📦 Built wheel for abi3 Python ≥ 3.10 to /home/valles/workspace/nsb/target/publication/clean-example/target/publication/wheels/nsb_py-0.1.1-cp310-abi3-manylinux_2_35_x86_64.whl
+Processing ./target/publication/clean-example/target/publication/wheels/nsb_py-0.1.1-cp310-abi3-manylinux_2_35_x86_64.whl
+Installing collected packages: nsb-py
+  Attempting uninstall: nsb-py
+    Found existing installation: nsb-py 0.1.1
+    Uninstalling nsb-py-0.1.1:
+      Successfully uninstalled nsb-py-0.1.1
+Successfully installed nsb-py-0.1.1
+
+[notice] A new release of pip is available: 25.0.1 -> 26.2.2
+[notice] To update, run: /home/valles/workspace/nsb/.venv/bin/python -m pip install --upgrade pip
+PASS: 202 comparisons, 9 fixtures; max absolute 8.33e-17 photons cm^-2 ns^-1 sr^-1
