@@ -103,7 +103,7 @@ fallback.
 - Current cross-component contracts live under `docs/specifications/`.
 - Component-specific science, generation, and validation live under
   `docs/nsb_components/`.
-- Release procedures live under `docs/operations/`.
+- Release procedures live under `docs/maintainer-guide/`.
 - Documentation describes the current public contracts and supported workflows;
   active requirements belong in their authoritative specification.
 - Rust public APIs are documented in rustdoc.

@@ -155,18 +155,6 @@ if ! git cat-file -e "${BASE_SHA}:${SNAPSHOT}" 2>/dev/null; then
   exit 1
 fi
 
-# Authorized pre-0.1.0 cleanup: admit only the exact reviewed snapshot pair.
-# These hashes differ solely by ThresholdQuery's three ignored sampling APIs.
-# Snapshot equality and historical-base validation above still apply. Every
-# other pair (including later removals) goes through the normal SemVer check.
-base_snapshot_sha="$(git show "${BASE_SHA}:${SNAPSHOT}" | sha256sum | cut -d' ' -f1)"
-head_snapshot_sha="$(sha256sum "$GENERATED" | cut -d' ' -f1)"
-if [[ "$base_snapshot_sha" == "7c472ac6b5d26835bde12fa7ebdcf630ab5131b38a157ff1e039b4ca53ef03e7" &&
-      "$head_snapshot_sha" == "277b6605a13583e3685899209fc04825dbf09fb05f1989bd89ad3ffe8ea17c47" ]]; then
-  echo "public API policy: frozen (exact pre-release sampling API rebaseline)"
-  exit 0
-fi
-
 echo "SemVer gate: cargo public-api diff ${BASE_SHA}..HEAD --deny=removed --deny=changed"
 cargo "+${NIGHTLY}" public-api diff \
   "${BASE_SHA}..HEAD" \

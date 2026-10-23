@@ -150,7 +150,7 @@ methods continue to require sound interval enclosures.
 
 The maintainer authorized the default migration in the 0.1 line. Normal Rust,
 Python and CLI planning now use the same adaptive engine. Legacy step arguments
-are retained and ignored; the scanner remains only as an independent test reference.
+were removed before v0.1.0; the scanner remains only as an independent test reference.
 
 ## Time boundary
 

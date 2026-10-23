@@ -26,9 +26,9 @@ engine from **Rust**, **Python**, or the **command line**.
 
 ## Install
 
-NSB is preparing **`0.1.1`** for release. Registry installation is available
-once a version has been published to crates.io and PyPI; until then, build
-from source.
+NSB **`0.1.1`** is published. The development branch contains additional
+experimental capabilities and has a registry release blocker tracked in
+[#265](https://github.com/VPRamon/NSB/issues/265).
 
 Choose the interface that fits your workflow:
 

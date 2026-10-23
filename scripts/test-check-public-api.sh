@@ -52,17 +52,18 @@ expect_failure --base definitely-not-a-revision
 "$SCRIPT" --base "$BOOTSTRAP" >result
 grep -q freeze-bootstrap result
 "$SCRIPT" --base "$OLD" >result
-grep -q 'exact pre-release sampling API rebaseline' result
+test -f diff-called
+API_DIFF_STATUS=1 expect_failure --base "$OLD"
 # A current reviewed baseline still invokes the real SemVer path.
 git commit --allow-empty -qm 'subsequent change'
 "$SCRIPT" --base "$NEW" >result
 test -f diff-called
 API_DIFF_STATUS=1 expect_failure --base "$NEW"
-# Generated/saved snapshot drift fails before any historical exemption.
+# Generated/saved snapshot drift fails before any historical comparison.
 printf '\npub struct nsb::Unexpected;\n' >> generated
 expect_failure --base "$OLD"
 grep -q 'snapshot drift' result
-# Even a matching edited snapshot cannot broaden the pinned transition.
+# Even a matching edited snapshot cannot bypass the SemVer check.
 cp generated crates/nsb/api/public-api.txt
 API_DIFF_STATUS=1 expect_failure --base "$OLD"
 grep -q 'SemVer gate: cargo public-api diff' result

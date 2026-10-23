@@ -7,19 +7,26 @@ tag-triggered publication workflow succeeds.
 
 ### Added
 
+- Component-separated restricted-band results and single-pass evaluation in Rust
+  and Python, with explicit unsupported contributions and uncertainty semantics
+  (#271).
+- Registered Airglow calibration workflow and opt-in experimental oxygen emission
+  model; development diagnostics do not establish independent accuracy (#272).
+- Opt-in multiple-scattering transport, native spectral HEALPix boundary handling
+  and scalable numerical verification (#269, #270).
+- Scientific publication-candidate numerical/interface evidence and reproducible
+  artifact checks (#274).
+
 - Opt-in experimental native-bin Starlight single-scattering transport with
   explicit flat photon density, site/TT/UT1 geometry, bounded wavelength
   refinement, conservative HEALPix kernel subdivision and independent WGS84/MSL
   origins, with component-separated provenance; evaluator defaults remain
-  unchanged (#267).
+  unchanged (#268).
 
 - Experimental opt-in `transport::single` scalar plane-parallel reference with
   separate direct/single contributions, explicitly uncomputed higher orders,
   deterministic convergence checks and independent analytical/SciPy validation.
   Defaults and existing component calculations remain unchanged.
-- Temporarily pin Siderust layered optics and normalized phase APIs to
-  `83d1ebb29ca1ae0b327d5784d13eda231d52c120` across Rust/Python consumers.
-  Registry/PyPI releases remain blocked pending the real upstream release (#265).
 
 - Source-level Gaia XP interval-report example using checksum-pinned inputs,
   canonical parsing and covariance-aware integration, with deterministic
@@ -34,6 +41,16 @@ tag-triggered publication workflow succeeds.
   explicit errors for unsupported spectral contributions (#254).
 
 ### Changed
+
+- Simplify Airglow spherical line-of-sight geometry while preserving the physical
+  model and regression contract (#261).
+- Consolidate external observational status and validator consumer requirements;
+  preserve historical evaluated revisions and negative findings (#275).
+- Retain the compatible immutable Siderust graph: the proposed registry 0.15.0
+  upgrade conflicts with Tempoch 0.10 and siderust-py 0.4. Publication remains
+  blocked by #265 until a compatible registry graph and package builds pass.
+- Remove the historical snapshot-hash SemVer exemption. Every frozen comparison
+  now uses the regular removal/change gate (#275).
 
 - Reject unsupported NESTED spectral-map lookup and ground-level evaluation of
   top-of-atmosphere spectral products explicitly. Preserve the frozen Gaia XP

@@ -36,13 +36,10 @@ viewing geometry. Moonlight is lunar light scattered in the atmosphere.
 Integrated starlight is unresolved catalogue-star flux mapped in Galactic
 coordinates.
 
-`ALL` is the complete production-safe default. In a tree without a registered
-bundled production Starlight binary/manifest pair, it is the three-component planning
-model. When the Gaia DR3 XP-derived production pair is registered and embedded,
-`ALL` includes starlight. Experimental starlight remains excluded from `ALL`; the
-frozen Gaia DR3 release candidate is not production-embedded until #103 signs
-and the promotion workflow registers the packed runtime map. A caller-supplied
-experimental map or explicit seed can still exercise the directional component.
+`ALL` includes Zodiacal, Airglow, Moonlight and the registered compact production
+Starlight map. The exact runtime assets have conditional redistribution approval
+under #103; this is separate from observational accuracy. Experimental spectral
+maps and scattering remain opt-in and do not alter default predictions.
 A validated external override
 admits production metadata only after its map and provenance sidecar pass the
 complete fail-closed contract.
