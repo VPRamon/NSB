@@ -753,22 +753,58 @@ jobs:
 
   publish-github-release:
     name: Publish GitHub Release
-    needs: record-publication
-    # A skipped recovery branch must not suppress the successful publish path.
-    if: ${{ !cancelled() && needs.record-publication.result == 'success' }}
+    needs: [record-publication, publish-crates-io, publish-pypi, recover-pypi-sdist, recovery-validate]
+    # The explicit status function bypasses implicit success() when the
+    # unused publication/recovery branch is skipped.
+    if: >-
+      ${{
+        !cancelled() &&
+        needs.record-publication.result == 'success' &&
+        (
+          (github.event_name == 'push' &&
+           needs.publish-crates-io.result == 'success' &&
+           needs.publish-pypi.result == 'success') ||
+          (github.event_name == 'workflow_dispatch' &&
+           needs.recovery-validate.result == 'success' &&
+           (needs.recover-pypi-sdist.result == 'success' ||
+            (inputs.recovery_mode == 'github-release' &&
+             needs.recover-pypi-sdist.result == 'skipped')))
+        )
+      }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
       actions: read
     steps:
-      - name: Download built distributions for a normal release
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.recovery_tag || github.ref }}
+          fetch-depth: 0
+          lfs: false
+
+      - uses: actions/checkout@v4
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          ref: main
+          path: .release-tools
+          lfs: false
+
+      - name: Download built wheels for normal publication
         if: github.event_name == 'push'
         uses: actions/download-artifact@v4
         with:
+          pattern: wheels-*
           path: dist
           merge-multiple: true
 
-      - name: Download the original PyPI wheels for recovery
+      - name: Download built sdist for normal publication
+        if: github.event_name == 'push'
+        uses: actions/download-artifact@v4
+        with:
+          name: sdist
+          path: dist
+
+      - name: Download original published wheels for recovery
         if: github.event_name == 'workflow_dispatch'
         uses: actions/download-artifact@v4
         with:
@@ -778,36 +814,35 @@ jobs:
           path: dist
           github-token: ${{ github.token }}
 
-      - name: Download only the repaired sdist for recovery
+      - name: Download validated source distribution for recovery
         if: github.event_name == 'workflow_dispatch'
         uses: actions/download-artifact@v4
         with:
           name: recovery-sdist
           path: dist
 
-      - name: Create GitHub Release
+      - name: Verify registries and assets, then create immutable GitHub Release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.recovery_tag || github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
-          shopt -s nullglob
-          wheels=(dist/*.whl)
-          sdists=(dist/*.tar.gz)
-          if (( ${#wheels[@]} == 0 || ${#sdists[@]} == 0 )); then
-            echo "::error::Expected both wheel and source distribution artifacts"
-            exit 1
+          tool=scripts/release_assets.py
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            tool=.release-tools/scripts/release_assets.py
           fi
+          python "$tool" notes --tag "$RELEASE_TAG" --changelog CHANGELOG.md --output release-notes.md
+          python "$tool" verify --tag "$RELEASE_TAG" --dist dist --published
 
-          tag="$RELEASE_TAG"
-          if gh release view "$tag" >/dev/null 2>&1; then
-            echo "::notice::GitHub Release $tag already exists; skipping creation"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "::notice::GitHub Release $RELEASE_TAG already exists; leaving notes and assets untouched"
             exit 0
           fi
 
-          gh release create "$tag" "${wheels[@]}" "${sdists[@]}" \
+          gh release create "$RELEASE_TAG" dist/*.whl dist/*.tar.gz \
             --verify-tag \
-            --generate-notes \
-            --title "$tag"
+            --notes-file release-notes.md \
+            --title "NSB $RELEASE_TAG"
