@@ -9,8 +9,8 @@ The generic checked-in `crates/nsb-data-tools/config/starlight-production.toml`
 therefore remains a measured-only 336–650 nm configuration. A future combined
 candidate must pin its external UV artifact, photometric model,
 selection-function artifact, and evidence/checksums outside the release tree.
-Bundled Gaia-derived Starlight is absent while #103 is pending; after valid
-authorization the compact map is admitted through the production registry.
+The compact Gaia-derived map is registered with checksum-specific conditional
+approval under #103. The external training artifact remains separate.
 
 Training remains an offline maintainer operation over immutable,
 flux-calibrated reference data with disjoint holdout evidence. The runtime and

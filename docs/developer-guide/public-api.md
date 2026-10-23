@@ -27,10 +27,7 @@ and a documented empirical model-resolution contract. They do not claim
 continuous-time certification. Python exposes the same behavior; CLI `window` uses it by default.
 Explicit adaptive methods evaluate the same search. Resource/numerical failures
 return an error without a partial schedule. The independent scanner is test-only.
-The unused Rust/Python sampling parameters and redundant CLI flags have been
-removed before the first release. Snapshot and historical SemVer checks remain
-enforced, with the exact three Rust removals admitted only against the pinned
-pre-cleanup snapshot (see [API lifecycle](../../crates/nsb/api/README.md)). Inclusive band methods
+Inclusive band methods
 are additive; CLI minimum constraints use joint band discovery to avoid unsafe
 subtraction of independently contracted intervals.
 
@@ -39,7 +36,7 @@ classification for every eligible region, with no scan fallback. Certificates
 currently cover cached Starlight, the empty sum and prepared Moon-down intervals;
 active dynamic components remain unsupported by this strict contract. Native
 UTC conversion contracts inward; Python and CLI own their representation limits.
-See [scientific contracts, migration and limitations](../specifications/adaptive-search.md).
+See [search contracts and limitations](../specifications/adaptive-search.md).
 
 Most callers should prefer the intended **core API**:
 
@@ -361,13 +358,5 @@ scripts/check-public-api.sh --write
 git add crates/nsb/api/API_FROZEN crates/nsb/api/public-api.txt
 ```
 
-Breaking changes are not permitted on the 0.1.0 frozen baseline without an
-explicit release-version decision or maintainer authorization. PR #235 has an
-explicit 2026-10-13 authorization for adaptive default behavior and the mandatory
-Siderust/Tempoch public dependency migration within the 0.1 line. This exception
-does not remove signature snapshot or historical SemVer enforcement.
-
-## Related issues
-
-- [#125](https://github.com/VPRamon/NSB/issues/125) — canonical examples and
-  expanded user documentation.
+Breaking changes require an explicit release-version decision. Snapshot equality
+and historical SemVer checks remain enforced for every frozen comparison.

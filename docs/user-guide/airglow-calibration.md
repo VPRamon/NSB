@@ -93,11 +93,9 @@ training rows and source checksums, so an auditor can repeat the source checks
 with archived files. Outputs are never overwritten. Offline artifact loading
 replays the numerical fit without accessing the original files; replay alone
 cannot authenticate source bytes or scientific claims. Archive source files.
-Legacy artifacts without `measurement_sources` remain loadable; direct Rust
-`fit()` also supports in-memory requests without external file verification.
-The CLI now requires explicit mappings and rejects old unmapped requests: add
-`measurement_sources` referencing a normalized table, then re-export to obtain
-an audited source relationship. Older artifacts are not retroactively verified.
+The CLI requires `measurement_sources` mappings to checksum-pinned normalized
+tables and verifies every training row. Rust `fit()` also accepts in-memory
+observations; numerical replay alone does not authenticate external source bytes.
 
 The closed-form weighted fit is `a = sum(x*y/sigma²)/sum(x²/sigma²)`, with fixed
 physical model predictions `x` and independent continuum measurements `y`.

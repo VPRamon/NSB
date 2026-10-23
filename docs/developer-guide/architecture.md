@@ -103,7 +103,7 @@ metadata.
 
 `NsbModelConfig` selects immutable model choices when the evaluator is created.
 `PointQuery` carries per-query geometry, time, and component inputs. `ThresholdQuery`
-carries window, threshold and observing constraints; legacy sampling metadata is ignored.
+carries window, threshold and observing constraints.
 
 ### Window-search flow
 

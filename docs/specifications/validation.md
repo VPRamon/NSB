@@ -85,13 +85,12 @@ values, flux conservation, Galactic plane/pole contrast, and longitude wrapping.
 It can emit a JSON diagnostics report containing source/pixel counts, totals,
 diagnostic pass/fail values, photometry model, maturity, and output checksum.
 
-These diagnostics validate construction, not astrophysical calibration. A real
-catalogue release with reviewed redistribution terms plus independent sky
-brightness comparison is required before starlight enters defaults.
+These diagnostics validate construction, not astrophysical calibration. The registered compact production map is distinct from these experimental
+products; construction checks alone do not demonstrate observational accuracy.
 
 ## Validated external starlight
 
-The production API accepts no bundled substitute. Admission verifies SHA-256,
+Caller-supplied production overrides undergo admission that verifies SHA-256,
 manifest schema/completeness, exact header values, full Galactic HEALPix
 coverage, finite/nonnegative values, plane/pole contrast, and longitude-wrap
 continuity. If input B/V flux totals and tolerance are present together, flux
@@ -105,20 +104,45 @@ the referenced catalogue license, calibration, and comparison report.
 
 ## Bundled Starlight admission
 
-While #103 is pending, no Gaia-derived production Starlight is registered or
-shipped. An authorized four-component release uses the compact binary and v2
-sidecar with the same frozen scientific validation.
-The immutable candidate and review evidence remain in Git for reproducibility
-and are excluded from runtime packages. Authorized promotion registers the
-compact map and v2 sidecar together; the release workflow verifies that actual
-configuration and its channels before publication.
+The registered compact runtime map and sidecar are active in four-component
+defaults, with checksum-specific conditional redistribution approval under #103.
+The current decision, permitted channels and immutable previous approvals live in
+[the release-candidate bundle](../nsb_components/starlight/release-candidate/README.md).
+The bundle README and attribution are frozen approval inputs and retain historical
+pending-approval wording; the current decision controls distribution status.
+Repository-only candidate CSVs remain excluded from runtime packages. Integrity,
+redistribution approval and cross-implementation agreement do not establish
+independent observational accuracy.
 
-## Missing external campaigns
+## Independent observational evidence
 
-No cleared fixtures currently validate dark-sky totals, Jones spectral moonlight,
-twilight, low/high Galactic latitude, or CTAO-N/S site profiles against SkyCalc
-or observatory measurements. Those surfaces remain generic/planning/experimental
-in metadata. They must not be described as calibrated.
+The authoritative reports live in
+[nsb-validation](https://github.com/VPRamon/nsb-validation). Internal numerical
+regressions, synthetic solver checks and physical assumptions are separate from
+observational admission. No new campaign certifies this release candidate.
+
+- [Patat/FORS1 benchmark](https://github.com/VPRamon/nsb-validation/blob/main/reports/patat-fors1-spectral-v1/report.md):
+  103 conditionally admitted spectra on 22 nights; held-out evaluation uses 94
+  spectra on 17 nights over 365–650 nm. The evaluated NSB revision is
+  `1b2556727205694c7765ef0d254c5d1b301582ec`, not the upcoming release.
+  Relative MAE is approximately 0.361 for NSB, 0.171 for nsb2 and 0.152 for the
+  calibration-night baseline. Missing airglow lines drive substantial
+  underprediction; Starlight redistribution and component compatibility require
+  the report's explicit approximations.
+- [Oxygen development diagnostic](https://github.com/VPRamon/nsb-validation/blob/main/reports/airglow-diagnostic-v1.md):
+  newer oxygen-model scores reuse the inspected cohort and are development
+  evidence, not independent generalization or validation of the next release.
+- [DESI pilot](https://github.com/VPRamon/nsb-validation/blob/main/reports/desi-dr1-pilot-v1/report.md):
+  three independent nights, not 21 independent observations from seven bands.
+  Instrument response, diffuse calibration, spectral completeness and observable
+  equivalence prevent admitted absolute predictive accuracy.
+- [LVM admission](https://github.com/VPRamon/nsb-validation/blob/main/reports/lvm-absolute-admission-v1/report.md):
+  reconstruction/acquisition has progressed, but diffuse calibration,
+  uncertainty and complete observable equivalence still block absolute accuracy.
+
+No independent campaign establishes CTAO site calibration or complete optical
+predictive accuracy. See the [consumer contract](validation-consumer.md) for
+identifying a new campaign without relabelling historical results.
 
 ## Commands
 

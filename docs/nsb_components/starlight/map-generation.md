@@ -39,8 +39,7 @@ The first-release candidate schema is `nsb-healpix-starlight-candidate-v1`.
 It is sparse, strictly pixel-sorted, uses Galactic NESTED HEALPix indexing,
 stores integrated photon flux per pixel, and defines omitted pixels as zero
 flux and zero source counts. The combined 300–650 nm product uses this same
-contract; the pre-release reset preserves all scientific values and input/model
-identities while regenerating checksums.
+contract.
 
 Changing the map resolution, scientific policy, calibration artifact,
 source-selection contract, or input checksums creates a new candidate and
@@ -53,8 +52,8 @@ A checksum-pinned `candidate-v1` is packed to RING with the
 `nsb-healpix-starlight-v1` and `nsb-starlight-runtime-manifest-v1` with
 `schema_version = 1`. The lossless compact representation uses
 `nsb-healpix-starlight-binary-v1` with the same v1 provenance contract.
-See the [reset record](release-candidate/schema-reset-v1.md) for the checksum
-migration and the exact renewed conditional authorization.
+The [redistribution decision](release-candidate/redistribution-review-decision-v1.json)
+records the approved checksums and distribution channels.
 
 New candidate products remain outside the release registry unless they pass
 independent scientific validation, redistribution approval, and production

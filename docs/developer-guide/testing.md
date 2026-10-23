@@ -191,33 +191,6 @@ or document why the mutant is equivalent/irrelevant.
 Mutation testing is a maintainer audit. It is not currently a blocking per-PR CI
 job because full runs are long and flaky under unconstrained scope.
 
-## Audit outcome (release pass for #123)
-
-- Removed assertion-free or misnamed smoke tests (airglow polynomial no-op,
-  formula-mirroring Noll checks, duplicated geometry/default smokes).
-- Consolidated overlapping site-pressure, default-config, and API construction
-  tests; strengthened public `NsbError` diagnostics and component-mask naming.
-- Replaced absurd e2e radiance envelopes with composition + moonlit scene
-  contrast; fixed the bright-Moon case to a time with non-zero moonlight.
-- Jones spectral regression pins cover the reference fixture geometries;
-  retained the CSV as schema/tolerance manifest.
-- CLI contract coverage is split into focused suites,
-  keeping a thin `cli_smoke` binary only for the scientific-validation workflow
-  pin.
-- Introduced `.cargo/mutants.toml` and recorded the maintainer mutation workflow
-  above.
-- Mutation follow-up on the default examine set (`cargo-mutants` 27.1.0):
-  - `site_calibration` validity / identifier / uncertainty mutants that
-    survived were closed with fail-closed asset tests (25/25 caught on re-verify).
-  - `solar_activity/resolve` policy mutants: explicit/observed maturity and
-    `is_degraded_planning_input` kind-or-completeness contracts were strengthened;
-    PartialEq / provenance-fragment mutants remain excluded as low-signal.
-  - `evaluator/core` remains in the default examine set for maintainer runs; prefer
-    shard/filter flags when iterating because full three-file passes are long.
-
-Coverage floors were not lowered. The public API freeze was preserved. Scientific
-tolerances were not relaxed.
-
 ## Related documents
 
 - [Coverage policy](coverage.md)

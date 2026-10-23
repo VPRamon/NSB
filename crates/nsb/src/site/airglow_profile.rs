@@ -87,7 +87,7 @@ pub struct AirglowCalibrationRequest {
     /// Reserved evaluation night IDs (local mean solar date after subtracting 12 h).
     /// Reservation documents isolation, not independent scientific validation.
     pub reserved_nights: Vec<String>,
-    /// Offline source verification contract. Empty only for legacy/in-memory fits;
+    /// Offline source verification contract. Empty for in-memory fits;
     /// the export CLI requires at least one table and verifies every training row.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub measurement_sources: Vec<AirglowCalibrationMeasurementSource>,
@@ -165,7 +165,7 @@ impl AirglowCalibrationDefinition {
         self.evidence.site.as_str()
     }
     /// Registered reference (identity, normalized relative path, SHA-256).
-    /// Read-only projection keeps the legacy evidence schema private.
+    /// Read-only projection keeps the evidence schema private.
     pub fn reference_checksums(&self) -> impl Iterator<Item = (&str, &str, &str)> {
         self.evidence
             .references

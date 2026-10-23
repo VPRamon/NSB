@@ -2,7 +2,7 @@
 
 The Starlight map runtime is `nsb::components::starlight::StarlightMap`
 (Rust) or `nsb.StarlightMap` (Python). Its exact full-band and
-native-bin integration interface works with a legacy integrated map, the
+native-bin integration interface works with a integrated map, the
 frozen seven-bin Gaia XP v1 map, or a compatible variable-bin v2 map.
 The public API does **not** depend on catalogue identity or bin count.
 
@@ -68,7 +68,7 @@ independent.
 
 ### Frozen v1 candidate
 
-The exact legacy Gaia XP 360–570 nm JSON bytes must not change:
+The exact frozen Gaia XP 360–570 nm JSON bytes must not change:
 
 `fe331343cb9797a1d871ae798c88d2ae8865ae39358e8d82b464a91b3cf87d5f`
 
@@ -115,7 +115,7 @@ but its **TOA** native-band integrals are queried through
 `StarlightMap::integrate_band`. `NsbEvaluator::integrate_band` continues
 to reject Starlight, because adding a TOA pixel mean to a ground-level
 component total without atmospheric/instrumental transport would be
-physically misleading. The evaluator's legacy full-band `evaluate`
+physically misleading. The evaluator's full-band `evaluate`
 rejects every TOA spectral map, including one spanning 300–650 nm.
 Band coincidence alone does not provide ground-level atmospheric transport.
 
@@ -129,7 +129,7 @@ Every supplied standard deviation must be finite and nonnegative. A complete
 triplet must have total at least as large as each component; this validation
 neither assumes independence nor reconstructs a covariance model. Statistical-only
 XP products retain unavailable systematic and total uncertainty. These rules also
-apply to legacy integrated maps constructed through `StarlightMap::from_healpix`.
+apply to integrated maps constructed through `StarlightMap::from_healpix`.
 
 ## Examples
 

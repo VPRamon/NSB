@@ -55,7 +55,7 @@ pub struct StarlightSky<'a> {
     identity: String,
 }
 impl<'a> StarlightSky<'a> {
-    /// Select exactly one stored bin. Legacy integrated products, partial bins,
+    /// Select exactly one stored bin. Integrated-only products, partial bins,
     /// missing edges and bins beyond the reference 360–570 nm domain fail.
     pub fn new(
         map: &'a StarlightMap,

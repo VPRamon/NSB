@@ -41,7 +41,7 @@ the principal library crates.
 | --- | --- | --- |
 | New or modified physical NSB component | `crates/nsb/src/components/` | User component overview, maturity, validation evidence, module reference, and Rust API docs |
 | Point or window orchestration | `crates/nsb/src/evaluator/` | Architecture, performance contract, module reference, and tests |
-| New site profile or calibration | `crates/nsb/src/site.rs` | Observatory customisation, site assumptions, maturity, and validation |
+| New site profile or calibration | `crates/nsb/src/site/mod.rs` | Observatory customisation, site assumptions, maturity, and validation |
 | CLI argument, command, or output | `crates/nsb-cli/src/` | Getting started and CLI schema when machine output changes |
 | Scientific asset | `crates/nsb/data/` and its manifest | Provenance, checksum, validation, data-update runbook, and release impact |
 | Dataset command | thin `nsb-data` adapter plus typed dataset engine | Cargo manifest, versioned configuration, run manifest, validation report, and exit-code contract |

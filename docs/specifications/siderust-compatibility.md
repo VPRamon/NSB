@@ -25,6 +25,13 @@ identical.
 The workspace also uses Tempoch `0.10.0`, and both Python interoperability
 crates (`siderust-py` and `tempoch-py`) use `0.4.0`.
 
+### Registry release blocker
+
+Siderust 0.15.0 uses Tempoch 0.11/Affn 0.12, while NSB and siderust-py 0.4
+require the older time/coordinate providers. A direct upgrade produces incompatible
+type identities. Release requires compatible Python bindings, API verification,
+unpatched registry package verification and installed-wheel/sdist checks.
+
 ### Scientific update boundaries
 
 Siderust 0.14.1 supplies the typed lunar irradiance API and corrected
@@ -39,10 +46,6 @@ references.
 
 A dependency bump is not assumed to preserve radiances or observing windows:
 rerun the independent physical-boundary and planning regression suites.
-Completed migration logs, before/after snapshots and fixture-reconstruction
-notes are historical material and belong in Git history, not in this
-current compatibility policy.
-
 ### Python package versioning
 
 The Python runtime dependency named `siderust` is the Siderust Python

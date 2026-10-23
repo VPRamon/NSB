@@ -42,7 +42,7 @@ mod metadata;
 mod model;
 mod origin;
 
-/// Experimental opt-in scalar single-scattering reference; no evaluator migration.
+/// Experimental opt-in scalar single-scattering reference; evaluator defaults are unchanged.
 pub mod single;
 
 /// Experimental opt-in scalar full-sphere multiple-scattering reference.

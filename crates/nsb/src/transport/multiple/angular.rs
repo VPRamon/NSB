@@ -18,8 +18,7 @@ impl Complex {
     }
 }
 
-// Radix two for large grids; the small direct DFT preserves support for the
-// previously allowed non-power-of-two azimuth counts. Both have explicit bounds.
+// Radix two for large grids; bounded direct DFT for non-power-of-two counts.
 pub(super) fn transform(values: &mut [Complex], inverse: bool) {
     let n = values.len();
     let sign = if inverse { 1.0 } else { -1.0 };

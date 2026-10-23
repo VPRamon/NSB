@@ -61,7 +61,7 @@ a **generic/planning proxy**, not a globally calibrated site model:
 - **a measured F10.7 value does not make Airglow site-calibrated**.
 
 PALACE component scaling is referenced to 100 sfu. Automatic evaluation uses
-this resolver; when no time-valid evidence exists it uses the bundled legacy
+this resolver; when no time-valid evidence exists it uses the bundled
 planning climatology (≈129.207 sfu), which is deliberately **not** described as
 neutral for PALACE. Site calibration (#38) remains separate follow-up work.
 Effective Rayleigh/Mie airglow scattering is implemented in #114; molecular ASM
@@ -86,7 +86,7 @@ absorption is not.
    - if `forecast_issued_at` is present: `issued_at <= requested_time`
    - else if `retrieved_at` is present: `retrieved_at <= requested_time`
      (retrieval is **not** treated as issuance)
-6. Documented legacy planning climatology (`climatology_sfu` ≈ 129.207 sfu;
+6. Documented planning climatology (`climatology_sfu` ≈ 129.207 sfu;
    not neutral for PALACE, whose scaling reference is 100 sfu)
 **Incomplete months never become `msolflux`.** A 2-day / 10-day subset of a
 month must not be stamped valid for the whole month. Fall back to the official

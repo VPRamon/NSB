@@ -103,14 +103,10 @@ fallback.
 - Current cross-component contracts live under `docs/specifications/`.
 - Component-specific science, generation, and validation live under
   `docs/nsb_components/`.
-- Release procedures live under `docs/operations/`.
+- Release procedures live under `docs/maintainer-guide/`.
 - Documentation describes the current public contracts and supported workflows;
   active requirements belong in their authoritative specification.
 - Rust public APIs are documented in rustdoc.
-- Keep this tree focused on living contracts, operational procedures and
-  durable scientific provenance/validation evidence. Completed migration
-  plans, PR-specific decision narratives and one-off performance logs should
-  remain in Git/PR history instead of being maintained as current guidance.
 - Do not commit raw benchmark logs, host profiles or generated audit dumps
   under `docs/`. Keep reproducible commands and concise findings, linking to
   an immutable historical commit when old measurements matter. Preserve

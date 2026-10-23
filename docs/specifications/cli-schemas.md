@@ -1,18 +1,14 @@
 # Stable CLI schemas
 
-Status: Stable first-public-release schema contracts for the current CLI.
+Status: Stable schema contracts for the current CLI.
 Audience: CLI consumers, downstream parsers, and maintainers.
 Scope: JSON and CSV field contracts emitted by `nsb-cli`.
 Non-goals: This document does not define scientific calibration requirements or
 the Rust API.
 
-NSB 0.1.0 establishes the initial public schema baseline. Schema identifiers
-start at v1 and change only when fields are removed, renamed, retyped, or their
+Schema identifiers change when fields are removed, renamed, retyped, or their
 scientific meaning changes. Fields may be added compatibly to JSON.
-Scientific-evidence snapshots retain their original identifiers and hashes;
-third-party version identifiers remain independent. The
-[Starlight first-release reset record](../nsb_components/starlight/release-candidate/schema-reset-v1.md)
-documents one such migration and its renewed authorization.
+Scientific evidence retains its pinned identifiers and hashes independently.
 
 ## Point JSON v1
 
