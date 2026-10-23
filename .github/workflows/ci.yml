@@ -40,6 +40,15 @@ jobs:
       - name: Check Rust, Python, workspace versions and release inputs
         run: python scripts/check-release-metadata.py
 
+      - name: Test release orchestration without publishing
+        run: python -m unittest discover -s scripts/tests -p 'test_release_assets.py'
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+      - name: Lint GitHub Actions release expressions
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/publish.yml
+
   format:
     name: Format
     runs-on: ubuntu-latest
