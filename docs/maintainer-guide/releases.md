@@ -31,7 +31,9 @@ A tag rerun cannot republish immutable registry artifacts: preflight
 intentionally refuses already-published PyPI versions. Prefer
 **workflow_dispatch** on main, providing the original wheels run ID,
 validated sdist run ID, release tag and recovery mode. Both IDs must refer to
-push runs of that tag. Source ancestry and the narrow packaging-only change
+push runs of that tag. They may be the **same successful run** for
+GitHub-Release-only recovery, but must be **distinct** when recovering a
+missing sdist. Source ancestry and the narrow packaging-only change
 allowlist are verified; original wheels must match existing PyPI hashes.
 
 - **pypi-sdist** (default): the five wheels exist on PyPI, the sdist does not.
