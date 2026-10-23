@@ -101,8 +101,8 @@ def main() -> None:
 
     if args.tag is not None:
         require("siderust" not in read_toml("Cargo.toml").get("patch", {}).get("crates-io", {}),
-                "registry/PyPI release blocked: publish Siderust layered-optics APIs, "
-                "update all workspace consumers and remove the temporary Git patch first")
+                "registry/PyPI release blocked: migrate all Rust/Python consumers to a "
+                "compatible registry Siderust optics graph and remove the temporary Git patch first")
         require(re.fullmatch(r"v\d+\.\d+\.\d+", args.tag) is not None,
                 f"unexpected tag format {args.tag!r}")
         require(args.tag == f"v{version}",

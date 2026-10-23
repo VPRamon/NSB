@@ -26,9 +26,10 @@ engine from **Rust**, **Python**, or the **command line**.
 
 ## Install
 
-NSB **`0.1.1`** is published. The development branch contains additional
-experimental capabilities and has a registry release blocker tracked in
-[#265](https://github.com/VPRamon/NSB/issues/265).
+NSB **`0.2.0`** is in preparation and is **not yet publish-ready**. Registry
+publication is blocked by the upstream dependency graph tracked in
+[#265](https://github.com/VPRamon/NSB/issues/265). The latest published release
+is `0.1.1`; build the development version from this repository.
 
 Choose the interface that fits your workflow:
 
@@ -183,7 +184,7 @@ package version from that same manifest. The
 [tag-triggered release workflow](.github/workflows/publish.yml) builds and
 checks the Rust crate, Python wheels and source distribution before uploading
 anything.
-The CLI remains a source-installed workspace application in `0.1.1`.
+The CLI remains a source-installed workspace application in `0.2.0`.
 
 ## License and scientific data
 

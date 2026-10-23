@@ -6,7 +6,7 @@ binary is named `nsb`.
 ## Installation
 
 `nsb-cli` is a workspace application and is not published as a standalone
-crates.io package in `0.1.1`. From a repository checkout:
+crates.io package in `0.2.0`. From a repository checkout:
 
 ```bash
 cargo install --path crates/nsb-cli --locked

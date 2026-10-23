@@ -14,7 +14,10 @@ starlight product when one is available.
 cargo add nsb@0.1.1
 ```
 
-The minimum supported Rust version is 1.89.
+The minimum supported Rust version is 1.89. This checkout prepares `0.2.0`;
+registry publication is blocked by [#265](https://github.com/VPRamon/NSB/issues/265).
+The installation commands above and below select the published `0.1.1` release.
+Build `0.2.0` from the workspace until the registry blocker is resolved.
 
 NSB deliberately uses domain types from Siderust and tempoch at public
 boundaries instead of duplicating coordinate, atmosphere, or time semantics.
@@ -126,7 +129,7 @@ The original integrated-production map path is unchanged.
 - Validation matrix: <https://github.com/VPRamon/NSB/blob/main/docs/specifications/validation.md>
 - Python distribution: `nsb-py` on PyPI, imported as `nsb`
 - CLI: sibling workspace crate `nsb-cli` (binary name `nsb`; not separately
-  published in `0.1.1`)
+  published in `0.2.0`)
 
 The CLI owns command-line parsing, named-site lookup, and stable JSON/CSV
 rendering. Offline catalogue acquisition and scientific data-product generation

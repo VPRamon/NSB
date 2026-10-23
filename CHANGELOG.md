@@ -5,6 +5,14 @@ tag-triggered publication workflow succeeds.
 
 ## [Unreleased]
 
+## [0.2.0]
+
+Release preparation; not yet published. Registry publication remains blocked by
+[#265](https://github.com/VPRamon/NSB/issues/265). Evaluator physical defaults,
+scientific assets and historical validation evidence are unchanged by the
+dependency and release-metadata updates. New opt-in capabilities below do not
+establish independent observational accuracy.
+
 ### Added
 
 - Component-separated restricted-band results and single-pass evaluation in Rust
@@ -60,7 +68,22 @@ tag-triggered publication workflow succeeds.
   band integration, preserving existing physical models and full-band results
   (#254).
 
+### Dependencies
+
+- Update MD5 0.10.6 → 0.11.0 and TOML editing 0.23.10 → 0.25.17; share
+  Digest 0.11 with SHA-256 and the TOML 1.1 parser stack. Update ZIP 9.0.4 →
+  9.0.5, require PyO3 0.29.3, and refresh compatible transitive dependencies.
+- Remove the unused ttf-parser advisory exception; that crate is absent from
+  the dependency graph. Retain the upstream paste maintenance exception.
+- Retain one immutable Siderust 0.14.1 identity and Tempoch 0.10 for the
+  published 0.4 Python bridges. Siderust 0.15 / Tempoch 0.11 and PyO3 0.30
+  require compatible upstream bridge releases; ordinary Cargo publication
+  remains blocked. See [dependency compatibility](docs/specifications/siderust-compatibility.md).
+
 ### Fixed
+
+- Verify the separately registered experimental oxygen asset, its checksum
+  manifest and Airglow notices in release archives, alongside the main registry.
 
 - Correct the private S10 photon-energy numerator to exact SI `h*c`. The prior
   constant differed by about 1.98e-14 relative; only S10 diagnostics change at

@@ -98,9 +98,14 @@ jobs:
           import tomllib
           from pathlib import Path
 
-          manifest = tomllib.loads(Path("crates/nsb/data/manifest.toml").read_text())
+          assets = []
+          for name in ["manifest.toml", "airglow-oxygen-manifest.toml"]:
+              manifest = tomllib.loads((Path("crates/nsb/data") / name).read_text())
+              assert manifest["schema_version"] == 1, name
+              assets.extend(manifest["assets"])
+          assert len({a["path"] for a in assets}) == len(assets), "duplicate asset path"
           blocked = []
-          for asset in manifest.get("assets", []):
+          for asset in assets:
               if not asset.get("runtime_embedded", False):
                   continue
               license_text = str(asset.get("license", "")).strip()
@@ -198,15 +203,21 @@ jobs:
           archive = next(Path("target/package").glob("nsb-*.crate"))
           with tarfile.open(archive) as bundle:
               members = {m.name.split("/", 1)[1]: m for m in bundle.getmembers() if "/" in m.name}
-              registry = tomllib.loads(bundle.extractfile(members["data/manifest.toml"]).read().decode())
-              approved = {a["path"]: a for a in registry["assets"] if a.get("runtime_embedded")}
+              registries = ["data/manifest.toml", "data/airglow-oxygen-manifest.toml"]
+              assets = []
+              for path in registries:
+                  registry = tomllib.loads(bundle.extractfile(members[path]).read().decode())
+                  assert registry["schema_version"] == 1, path
+                  assets.extend(registry["assets"])
+              assert len({a["path"] for a in assets}) == len(assets), "duplicate asset path"
+              approved = {a["path"]: a for a in assets if a.get("runtime_embedded")}
               for path, asset in approved.items():
                   payload = bundle.extractfile(members["data/" + path]).read()
                   assert hashlib.sha256(payload).hexdigest() == asset["sha256"], path
               for path in members:
-                  if path.startswith("data/") and path != "data/manifest.toml":
+                  if path.startswith("data/") and path not in registries:
                       assert path[5:] in approved, f"unregistered scientific payload: {path}"
-              for path in ["LICENSE", "THIRD_PARTY_NOTICES.md", "data/manifest.toml"]:
+              for path in ["LICENSE", "THIRD_PARTY_NOTICES.md", "AIRGLOW_DATA_NOTICES.md", *registries]:
                   assert bundle.extractfile(members[path]).read() == (Path("crates/nsb") / path).read_bytes(), path
 
       - name: Verify crates.io publish dry-run
@@ -396,18 +407,27 @@ jobs:
                   for member in archive.getmembers()
                   if Path(member.name).name in forbidden
               })
-              registry = tomllib.loads(Path("crates/nsb/data/manifest.toml").read_text())
-              approved = {a["path"] for a in registry["assets"] if a.get("runtime_embedded")}
+              registries = ["manifest.toml", "airglow-oxygen-manifest.toml"]
+              assets = []
+              for name in registries:
+                  registry = tomllib.loads((Path("crates/nsb/data") / name).read_text())
+                  assert registry["schema_version"] == 1, name
+                  assets.extend(registry["assets"])
+              assert len({a["path"] for a in assets}) == len(assets), "duplicate asset path"
+              approved = {a["path"] for a in assets if a.get("runtime_embedded")}
+              found = set()
               for member in archive.getmembers():
                   if "/crates/nsb/data/" in member.name and member.isfile():
                       name = Path(member.name).name
-                      if name != "manifest.toml" and name not in approved:
+                      if name not in registries and name not in approved:
                           leaked.append(member.name)
                       if name in approved:
+                          found.add(name)
                           import hashlib
-                          asset = next(a for a in registry["assets"] if a["path"] == name)
+                          asset = next(a for a in assets if a["path"] == name)
                           assert hashlib.sha256(archive.extractfile(member).read()).hexdigest() == asset["sha256"]
-              for relative in ["LICENSE", "THIRD_PARTY_NOTICES.md", "data/manifest.toml"]:
+              assert found == approved, f"missing runtime assets: {approved - found}"
+              for relative in ["LICENSE", "THIRD_PARTY_NOTICES.md", "AIRGLOW_DATA_NOTICES.md", *("data/" + name for name in registries)]:
                   member = next(m for m in archive.getmembers() if m.name.endswith("/crates/nsb/" + relative))
                   assert archive.extractfile(member).read() == (Path("crates/nsb") / relative).read_bytes()
           if leaked:
