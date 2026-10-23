@@ -840,8 +840,20 @@ jobs:
           python "$tool" notes --tag "$RELEASE_TAG" --changelog CHANGELOG.md --output release-notes.md
           python "$tool" verify --tag "$RELEASE_TAG" --dist dist --published
 
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            echo "::notice::GitHub Release $RELEASE_TAG already exists; leaving notes and assets untouched"
+          if gh release view "$RELEASE_TAG" --json name,body,assets > existing-release.json 2>/dev/null; then
+            # Never silently accept a partial or unexpectedly modified release.
+            python - <<'PYCODE'
+          import json
+          import os
+          from pathlib import Path
+          release = json.loads(Path("existing-release.json").read_text())
+          expected = sorted((path.name, path.stat().st_size) for path in Path("dist").iterdir())
+          found = sorted((asset["name"], asset["size"]) for asset in release["assets"])
+          if (found != expected or release["name"] != f"NSB {os.environ['RELEASE_TAG']}"
+                  or release["body"].strip() != Path("release-notes.md").read_text().strip()):
+              raise SystemExit("Existing GitHub Release differs from verified notes/assets; refusing overwrite")
+          PYCODE
+            echo "::notice::Existing GitHub Release $RELEASE_TAG matches the expected files and notes"
             exit 0
           fi
 
