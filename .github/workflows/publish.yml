@@ -17,11 +17,11 @@ on:
         required: true
         type: string
       wheels_run_id:
-        description: "Original release run that successfully published the five wheels"
+        description: "Run containing five validated wheels (may equal sdist run for release-only recovery)"
         required: true
         type: string
       sdist_run_id:
-        description: "Later release run containing the validated, repaired sdist"
+        description: "Run containing validated sdist (later run required for missing-sdist recovery)"
         required: true
         type: string
 
@@ -573,12 +573,15 @@ jobs:
           RELEASE_TAG: ${{ inputs.recovery_tag }}
           WHEELS_RUN: ${{ inputs.wheels_run_id }}
           SDIST_RUN: ${{ inputs.sdist_run_id }}
+          RECOVERY_MODE: ${{ inputs.recovery_mode }}
         run: |
           set -euo pipefail
           [[ "$GITHUB_REF" == "refs/heads/main" ]] || { echo "::error::Dispatch recovery from main"; exit 1; }
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Invalid tag"; exit 1; }
           [[ "$WHEELS_RUN" =~ ^[0-9]+$ && "$SDIST_RUN" =~ ^[0-9]+$ ]] || { echo "::error::Invalid run IDs"; exit 1; }
-          [[ "$WHEELS_RUN" != "$SDIST_RUN" ]] || { echo "::error::Two distinct runs are required"; exit 1; }
+          if [[ "$RECOVERY_MODE" == "pypi-sdist" ]]; then
+            [[ "$WHEELS_RUN" != "$SDIST_RUN" ]] || { echo "::error::Missing-sdist recovery requires distinct runs"; exit 1; }
+          fi
 
           for run_id in "$WHEELS_RUN" "$SDIST_RUN"; do
             metadata="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id")"
