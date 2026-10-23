@@ -82,6 +82,9 @@ establish independent observational accuracy.
 
 ### Fixed
 
+- Verify the separately registered experimental oxygen asset, its checksum
+  manifest and Airglow notices in release archives, alongside the main registry.
+
 - Correct the private S10 photon-energy numerator to exact SI `h*c`. The prior
   constant differed by about 1.98e-14 relative; only S10 diagnostics change at
   that scale. Integrated photon radiances, model defaults and observational
