@@ -13,7 +13,7 @@ pub enum RadianceOrigin {
     TopOfAtmosphere,
     /// Emission generated inside the atmosphere (airglow).
     AtmosphericEmission,
-    /// Radiance that already includes atmospheric scattering (legacy moonlight).
+    /// Radiance that already includes atmospheric scattering (moonlight).
     PreScatteredAtmosphere,
 }
 

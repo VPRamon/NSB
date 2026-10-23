@@ -7,7 +7,7 @@ Existing production product schemas and data remain unchanged.
 The dataset configuration uses `product_band = "measured-360-570"`. The ordinary
 Rust dataset lifecycle owns acquisition, content-addressed SHA-256 verification,
 SLURM partition workers, checkpoint receipts and reconciliation. New interval
-shards have band-neutral fields; legacy calibrations and shards are rejected.
+shards have band-neutral fields; calibrations and shards with incompatible bands are rejected.
 
 The calibrated v375wi BP design matrix from the pinned GaiaXPy 2.1.4 fixture is
 integrated as a linear functional of the source coefficients, with clipped

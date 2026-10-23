@@ -2,7 +2,7 @@
 
 `nsb::transport::single::starlight` connects the checksum-validated
 `StarlightMap` to the #190 first-order transport kernel. This opt-in Rust API
-does not change evaluator, Python or CLI predictions, legacy 300–650 nm
+does not change evaluator, Python or CLI predictions, integrated 300–650 nm
 products, production admission, dependencies or scientific assets.
 
 ## Inputs and vertical datums
@@ -10,7 +10,7 @@ products, production admission, dependencies or scientific assets.
 Construct `StarlightSky::new(map, geometry, [low, high],
 WithinBinSpectrum::FlatPhotonDensity)` for one complete native bin. Iterate
 `map.bin_edges_nm().windows(2)` for unions; report no total if any bin fails.
-Partial bins, extrapolation and legacy integrated-only maps fail. Every edge
+Partial bins, extrapolation and integrated-only maps fail. Every edge
 must lie inside both 360–570 nm and the medium's wavelength domain. The existing
 loader enforces checksum, complete finite nonnegative pixels, TOA origin and
 vacuum wavelengths. Variable-width bins work; NESTED remains rejected upstream.

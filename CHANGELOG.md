@@ -97,11 +97,19 @@ tag-triggered publication workflow succeeds.
 
 ### Removed
 
+- Unused private site planning-name formatter and its self-tests; exclude the
+  standalone calibration parser from production builds and remove the module's
+  blanket dead-code suppression. Runtime calibration validation is retained.
+- Development-transition prose, obsolete API exception documentation and the
+  task-specific release audit file. API lifecycle fixtures now use synthetic
+  snapshots rather than depending on a pre-release Git commit. Scientific
+  evidence, approval records and numerical reference results are preserved.
+
 - Historical exact-snapshot authorization for removing pre-v0.1.0 sampling APIs.
   The sampling methods were already absent in published v0.1.1; this removes no
   published API. Frozen snapshot equality and historical SemVer checks remain.
 
-### Interface and migration notes
+### Interface notes
 
 - Rust/Python add `NsbEvaluator.integrate_band_components`,
   `RestrictedBandResult` and `RestrictedBandComponent`; retain scalar

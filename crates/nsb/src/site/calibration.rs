@@ -8,8 +8,6 @@
 //! later scientific review, not proof that review has happened. Site identity is
 //! a stable string so observatory-specific catalogs do not need to live here.
 
-#![allow(dead_code)]
-
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -33,13 +31,6 @@ impl CalibratedSiteId {
     /// Stable identifier used in calibration metadata.
     pub fn as_str(&self) -> &str {
         &self.id
-    }
-
-    /// Planning profile identifier conventionally associated with this site.
-    ///
-    /// Follows the `{site}-planning` naming used by application-layer presets.
-    pub fn planning_profile_name(&self) -> String {
-        format!("{}-planning", self.id)
     }
 }
 
@@ -151,6 +142,7 @@ impl SiteCalibrationAssetError {
 
 impl SiteCalibrationAsset {
     /// Parse and validate one strict TOML calibration asset.
+    #[cfg(test)]
     pub fn from_toml_str(input: &str) -> Result<Self, SiteCalibrationAssetError> {
         let asset: Self = toml::from_str(input).map_err(|error| {
             SiteCalibrationAssetError::new(format!("invalid site-calibration TOML: {error}"))
@@ -475,7 +467,6 @@ license = "Redistribution terms recorded with the reference asset"
         assert_eq!(first, second);
         assert_eq!(first.schema_version, SITE_CALIBRATION_ASSET_SCHEMA_VERSION);
         assert_eq!(first.site.as_str(), "ctao-south");
-        assert_eq!(first.site.planning_profile_name(), "ctao-south-planning");
         assert_eq!(first.references.len(), 1);
     }
 
@@ -487,7 +478,6 @@ license = "Redistribution terms recorded with the reference asset"
 
         assert_eq!(first, second);
         assert_eq!(first.site.as_str(), "ctao-north");
-        assert_eq!(first.site.planning_profile_name(), "ctao-north-planning");
     }
 
     #[test]

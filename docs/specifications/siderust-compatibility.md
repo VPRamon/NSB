@@ -25,21 +25,12 @@ identical.
 The workspace also uses Tempoch `0.10.0`, and both Python interoperability
 crates (`siderust-py` and `tempoch-py`) use `0.4.0`.
 
-### Registry 0.15.0 audit (#275)
+### Registry release blocker
 
-Siderust 0.15.0 is published and contains the optics APIs, but replacing only
-NSB's direct requirement is not a compatible migration. It introduces Tempoch
-0.11/Affn 0.12 while NSB's direct time dependency and siderust-py 0.4 retain the
-older type providers. `cargo check --workspace --all-targets --all-features
---locked` fails with incompatible time/coordinate identities. The attempted
-upgrade has therefore been deferred and the known-compatible immutable graph
-restored. This preserves truthful exported provenance and the public API.
-
-Resolving #265 still requires compatible upstream Python bindings, a reviewed
-time/coordinate migration, an API comparison against v0.1.1, ordinary unpatched
-registry package verification, installed-wheel interoperability and isolated
-sdist verification. Do not remove the negative package contract or Git-source
-exception before those requirements pass.
+Siderust 0.15.0 uses Tempoch 0.11/Affn 0.12, while NSB and siderust-py 0.4
+require the older time/coordinate providers. A direct upgrade produces incompatible
+type identities. Release requires compatible Python bindings, API verification,
+unpatched registry package verification and installed-wheel/sdist checks.
 
 ### Scientific update boundaries
 
@@ -55,10 +46,6 @@ references.
 
 A dependency bump is not assumed to preserve radiances or observing windows:
 rerun the independent physical-boundary and planning regression suites.
-Completed migration logs, before/after snapshots and fixture-reconstruction
-notes are historical material and belong in Git history, not in this
-current compatibility policy.
-
 ### Python package versioning
 
 The Python runtime dependency named `siderust` is the Siderust Python

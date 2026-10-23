@@ -343,7 +343,7 @@ fn threshold_query_empty_window_returns_no_periods() {
 }
 
 #[test]
-fn threshold_query_rejects_non_finite_threshold_and_ignores_legacy_step() {
+fn threshold_query_rejects_non_finite_threshold() {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let start = parse_obstime("2023-09-04 01:00:00");
     let end = parse_obstime("2023-09-04 02:00:00");

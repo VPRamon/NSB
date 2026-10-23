@@ -3,7 +3,7 @@
 `nsb::transport::single::single_scattering` is an opt-in scalar, elastic,
 plane-parallel reference. `cargo run -p nsb --example single_scattering` evaluates
 an anisotropic wavelength-resolved synthetic sky. Existing evaluator and component
-calculations do not call it. No default migration or empirical admission is implied.
+calculations do not call it. No change to default predictions or empirical admission is implied.
 
 The observer is at the first absolute-MSL atmospheric edge; the last edge is a
 finite TOA. The lower boundary is black/nonemitting. Supported wavelengths are

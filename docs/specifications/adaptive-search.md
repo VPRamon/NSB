@@ -163,10 +163,8 @@ certificate search engine is maintained.
 ## Public search interfaces
 
 Normal threshold methods and the explicit adaptive methods use the same search.
-The first-release API has no sampling-step parameter; adaptive resolution is
-selected internally. CLI `window` uses adaptive discovery by default. Strict
-certified methods and CLI `--certified` remain distinct because their guarantee
-differs from empirical search. The public API freeze records this reviewed
-pre-release cleanup; subsequent breaking changes still fail the SemVer gate.
+Adaptive resolution is selected internally. CLI `window` uses adaptive discovery
+by default. Strict certified methods and CLI `--certified` provide whole-interval
+guarantees under their supported enclosures.
 
 See [scientific validation](adaptive-validation.md) for evidence and reproduction.

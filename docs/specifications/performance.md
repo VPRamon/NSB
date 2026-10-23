@@ -16,7 +16,7 @@ step-free adaptive discovery. Checked Chebyshev fits guide exact integrated NSB
 probes, extrema searches and crossing refinement. Crossing brackets are at most
 0.1 seconds and export their accepted sides. Inclusive bands share the search
 for both thresholds. Numerical ambiguity or exhaustion returns an error without
-a partial schedule. Legacy sampling-step inputs were removed before v0.1.0.
+a partial schedule.
 
 This is an empirical model-resolution contract, not continuous-time proof.
 Strict certified methods use the same engine but accept only sound interval

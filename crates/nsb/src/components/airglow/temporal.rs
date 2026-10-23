@@ -57,7 +57,7 @@ pub(crate) fn palace_climatology_coordinates(
 ///
 /// PALACE selects a discrete climatology row from calendar month and local
 /// mean solar hour. Threshold scans must therefore treat these boundaries as
-/// potential discontinuities independently of the legacy astronomical-night
+/// potential discontinuities independently of the astronomical-night
 /// third boundaries.
 pub(crate) fn palace_climatology_boundaries_for_window(
     window: TimePeriod<ModifiedJulianDate>,

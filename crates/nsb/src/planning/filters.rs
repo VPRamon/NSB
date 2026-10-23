@@ -7,7 +7,7 @@ use crate::components::airglow;
 use crate::evaluator::ComponentMask;
 use siderust::time::{Interval as TimePeriod, ModifiedJulianDate};
 
-/// Additional regimes used by practical discovery only. The legacy scanner
+/// Additional regimes used by practical discovery only. The independent reference scanner
 /// retains the original windows and therefore the original grid phase.
 pub(crate) fn adaptive_threshold_windows(
     prepared: &PreparedThresholdQuery,

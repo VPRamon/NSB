@@ -168,7 +168,7 @@ impl TransportModel {
                     Err(NsbError::Unsupported(format!(
                         "transport model `{}` is a celestial top-of-atmosphere direct path; \
                          radiance origin `{}` requires a different propagation model \
-                         (airglow in-atmosphere emission or legacy pre-scattered moonlight)",
+                         (airglow in-atmosphere emission or pre-scattered moonlight)",
                         self.as_str(),
                         origin.as_str()
                     )))

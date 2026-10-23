@@ -31,7 +31,7 @@ use std::sync::Arc;
 /// [`HealpixGrid`] at the sample index; they are not stored here so they cannot
 /// drift from the geometry used for lookup.
 pub struct StarlightPixel {
-    /// Integrated photon radiance over the map's native band (300–650 nm for legacy maps).
+    /// Integrated photon radiance over the map's native band (300–650 nm for integrated maps).
     pub integrated: BandPhotonRadiance,
     /// B-reference S10 diagnostic.
     pub b_flux_s10: S10s,
@@ -215,7 +215,7 @@ impl StarlightMap {
 
     /// Band of the map's native integrated radiance, in vacuum nm.
     ///
-    /// Legacy integrated Starlight maps use the historic 300–650 nm contract.
+    /// Integrated Starlight maps use the 300–650 nm contract.
     pub fn band_nm(&self) -> [u16; 2] {
         self.spectral.as_ref().map_or([300, 650], |s| s.band_nm)
     }
@@ -358,7 +358,7 @@ impl StarlightMap {
     /// Return the stored sample nearest a Galactic direction.
     ///
     /// Spectral-map samples refer to the map's native band (see [`Self::band_nm`]),
-    /// never implicitly to the historical NSB 300–650 nm default.
+    /// never implicitly to the NSB 300–650 nm default.
     /// This is an advanced map-inspection operation. Normal NSB evaluation
     /// transforms [`crate::Target`] values and returns the shared
     /// [`crate::NsbComponent`] result contract through [`crate::NsbEvaluator`].
@@ -369,7 +369,7 @@ impl StarlightMap {
 
     /// Fallible nearest-neighbor lookup for arbitrary caller-supplied directions.
     ///
-    /// Unlike the frozen legacy pixel_at method, this never panics on an
+    /// Returns an error for an
     /// invalid direction or an out-of-range HEALPix index.
     pub fn try_pixel_at(&self, direction: CartesianDirection<Galactic>) -> Result<StarlightPixel> {
         let index = self

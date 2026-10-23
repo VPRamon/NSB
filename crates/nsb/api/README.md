@@ -1,20 +1,13 @@
 # `nsb` public API lifecycle
 
-The first-release public API lifecycle is protected by [`scripts/check-public-api.sh`](../../../scripts/check-public-api.sh)
+The public API lifecycle is protected by [`scripts/check-public-api.sh`](../../../scripts/check-public-api.sh)
 using pinned `cargo-public-api` directly (#176).
 
-The reviewed `0.1.0` surface is recorded in `public-api.txt`, and `API_FROZEN`
-activates snapshot equality plus historical SemVer checks. Before the first
-release, the ignored `ThresholdQuery::sample_step`, `DEFAULT_SAMPLE_STEP` and
-`with_sample_step` were deliberately removed, together with their Python/CLI
-counterparts. The gate admits that transition only for the exact SHA-256 pair
-of old and new snapshots, pinned in the script. It does not permit other
-removals or signature changes. Subsequent snapshot pairs use the normal
-`cargo-public-api diff --deny=removed --deny=changed` enforcement; the marker
-stays present throughout. After the first public release this historical
-transition can be retired when no supported comparison base needs it.
+`public-api.txt` records the supported surface. `API_FROZEN` activates snapshot
+equality and historical SemVer checks through
+`cargo-public-api diff --deny=removed --deny=changed`.
 
-The redesigned site-profile surface is typed: `SiteProfileTag` markers supply
+The site-profile surface is typed: `SiteProfileTag` markers supply
 compile-time identity; `SiteProfile<P>` is opaque and erases into
 `NsbModelConfig`. Public constructors (`generic_clear_sky`, `planning`) produce
 only `GenericFallback` or `PlanningPreset` maturity, so external markers cannot
@@ -51,8 +44,7 @@ closed (it is not treated as successful snapshot-only mode).
 Once the historical base is frozen:
 
 - HEAD must match `public-api.txt`;
-- `cargo public-api diff BASE..HEAD --deny=removed --deny=changed` must pass,
-  except for the exact reviewed pre-release snapshot pair above;
+- `cargo public-api diff BASE..HEAD --deny=removed --deny=changed` must pass;
 - `BASE == HEAD`, empty bases, and unresolvable bases fail closed.
 
 ## Maintainer commands

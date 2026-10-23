@@ -44,9 +44,9 @@ pub struct StarlightBrightStarSupplementProvenance {
     pub redistribution_scope: String,
     /// Complete structured, checksum-pinned build-input provenance.
     pub inputs: Vec<StarlightBrightStarInputProvenance>,
-    /// Backward-compatible textual identities derived from the structured inputs.
+    /// Textual identities derived from the structured inputs.
     pub input_catalogues: Vec<String>,
-    /// Backward-compatible terms summaries derived from the structured inputs.
+    /// Terms summaries derived from the structured inputs.
     pub license_provenance: Vec<String>,
 }
 
