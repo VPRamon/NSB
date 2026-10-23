@@ -840,7 +840,7 @@ jobs:
           python "$tool" notes --tag "$RELEASE_TAG" --changelog CHANGELOG.md --output release-notes.md
           python "$tool" verify --tag "$RELEASE_TAG" --dist dist --published
 
-          if gh release view "$RELEASE_TAG" --json name,body,assets > existing-release.json 2>/dev/null; then
+          if gh release view "$RELEASE_TAG" --json name,body,assets,isDraft,isPrerelease > existing-release.json 2>/dev/null; then
             # Never silently accept a partial or unexpectedly modified release.
             python - <<'PYCODE'
           import json
@@ -850,6 +850,7 @@ jobs:
           expected = sorted((path.name, path.stat().st_size) for path in Path("dist").iterdir())
           found = sorted((asset["name"], asset["size"]) for asset in release["assets"])
           if (found != expected or release["name"] != f"NSB {os.environ['RELEASE_TAG']}"
+                  or release["isDraft"] or release["isPrerelease"]
                   or release["body"].strip() != Path("release-notes.md").read_text().strip()):
               raise SystemExit("Existing GitHub Release differs from verified notes/assets; refusing overwrite")
           PYCODE
