@@ -46,8 +46,11 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: '1.24'
+          cache: false
       - name: Lint GitHub Actions release expressions
-        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 .github/workflows/publish.yml
+        # v1.7.7 predates GitHub's hosted macos-15-intel label; ignore only this
+        # known label diagnostic, not expression or dependency errors.
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -ignore 'label "macos-15-intel" is unknown' .github/workflows/publish.yml
 
   format:
     name: Format
