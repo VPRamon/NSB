@@ -143,7 +143,8 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn(fragment, workflow)
         self.assertNotIn("name: crates-io", workflow)
         self.assertNotIn("--generate-notes", workflow)
-        self.assertIn('if gh release view "$RELEASE_TAG"', workflow)
+        self.assertIn('if gh release view "$RELEASE_TAG" --json name,body,assets', workflow)
+        self.assertIn("Existing GitHub Release differs from verified notes/assets", workflow)
         self.assertNotIn("gh release edit", workflow)
         self.assertIn('[[ "$RECOVERY_MODE" == "pypi-sdist" ]]', workflow)
 
