@@ -1,9 +1,8 @@
 # Starlight science requirements
 
-Status: normative production contract. The current frozen combined candidate
-has machine-verifiable scientific/technical release evidence, but no
-runtime-embedded production Starlight asset is admitted while redistribution
-approval #103 is pending.
+Status: normative production contract. The compact runtime map is registered
+with checksum-specific conditional redistribution approval under #103. Technical
+and cross-implementation evidence does not certify observational accuracy.
 
 Audience: scientific reviewers, release maintainers, and authors of generation
 tools.
