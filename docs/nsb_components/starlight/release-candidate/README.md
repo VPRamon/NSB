@@ -12,8 +12,7 @@ Scientific production readiness is machine-verifiable: the exact candidate,
 technical validation, external cross-implementation validation, provenance,
 and green CI are checksum-pinned. A separate manual scientific signature is
 not required. Redistribution/licensing remains a distinct human/legal gate in
-issue #103. The current checksum-specific conditional approval is recorded in
-`redistribution-review-decision-v1.json`; historical approvals remain immutable.
+issue #103 and is not approved by this bundle.
 
 ## Files
 
@@ -149,9 +148,10 @@ through `OnceLock`; evaluators share the immutable map through `Arc`. Failure
 is cached as an error, never as substitute data. The existing build-dependent
 `ComponentMask::DEFAULT`/`ALL` includes all four components upon production
 registration. Python uses that same Rust configuration and compiled asset;
-wheels carry notices without a second data copy. The current registered pair
-is conditionally approved and active in four-component defaults. A build without
-registered production assets still rejects an explicit missing Starlight request.
+wheels carry notices without a second data copy. Prior to approval, defaults
+still contain three components and explicitly selecting missing bundled
+Starlight returns an error. This PR does not claim four-component default
+release readiness before approval.
 
 ### Equivalence and performance
 

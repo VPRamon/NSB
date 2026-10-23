@@ -108,6 +108,8 @@ The registered compact runtime map and sidecar are active in four-component
 defaults, with checksum-specific conditional redistribution approval under #103.
 The current decision, permitted channels and immutable previous approvals live in
 [the release-candidate bundle](../nsb_components/starlight/release-candidate/README.md).
+The bundle README and attribution are frozen approval inputs and retain historical
+pending-approval wording; the current decision controls distribution status.
 Repository-only candidate CSVs remain excluded from runtime packages. Integrity,
 redistribution approval and cross-implementation agreement do not establish
 independent observational accuracy.

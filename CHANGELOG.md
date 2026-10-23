@@ -95,6 +95,29 @@ tag-triggered publication workflow succeeds.
 
 - Release the Python GIL during restricted-band evaluation (#254).
 
+### Removed
+
+- Historical exact-snapshot authorization for removing pre-v0.1.0 sampling APIs.
+  The sampling methods were already absent in published v0.1.1; this removes no
+  published API. Frozen snapshot equality and historical SemVer checks remain.
+
+### Interface and migration notes
+
+- Rust/Python add `NsbEvaluator.integrate_band_components`,
+  `RestrictedBandResult` and `RestrictedBandComponent`; retain scalar
+  `integrate_band`. Unsupported spectra raise errors rather than returning zero.
+- Rust adds `site::airglow_profile` calibration definition, observation, request
+  and profile records; configuration accepts an explicit fitted profile. Python
+  exposes calibration through TOML configuration. CLI gains the
+  `nsb-airglow-calibrate` workflow. Opt-in oxygen is separate from the default
+  PALACE continuum model.
+- Experimental transport adds solver/convergence settings and result records for
+  single, multiple, projected and native-bin Starlight evaluation. These are
+  explicit library APIs; ordinary CLI/evaluator defaults do not enable them.
+- Generic spectral `StarlightMap` loading, bin/support/provenance queries and
+  optional uncertainty channels preserve legacy integrated-map input. Missing
+  uncertainty or photometry remains unavailable; no covariance is invented.
+
 ## [0.1.1] 15/10/2026
 
 ### Changed

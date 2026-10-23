@@ -216,7 +216,5 @@ wording feeds into.
 The compact binary encodes the same frozen integrated product, including every
 available uncertainty. All acknowledgements and source restrictions above
 continue to apply. Software AGPL terms do not replace Gaia/Tycho data terms.
-The compact map is shipped under the current checksum-specific conditional
-redistribution decision under #103; see the release-candidate decision for
-approved channels and conditions. The source/channel
+The compact map is not shipped while #103 is pending. The source/channel
 recommendation is in [derived-map-rights-assessment-v1.md](derived-map-rights-assessment-v1.md#7-compact-release-recommendation-2026-10-14).
