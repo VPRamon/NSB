@@ -1,6 +1,6 @@
 [package]
 name = "nsb-data-tools"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.89"
 publish = false
@@ -24,19 +24,19 @@ clap = { version = "4", features = ["derive"] }
 csv = "1"
 flate2 = "1"
 log = "0.4"
-md-5 = "0.10"
+md-5 = "0.11"
 num-complex = "0.4"
-nsb = { version = "=0.1.1", path = "../nsb" }
+nsb = { version = "=0.2.0", path = "../nsb" }
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 sha2 = "0.11"
 siderust = { version = "0.14.1" }
 toml = "1.1.2"
-toml_edit = "0.23"
+toml_edit = "0.25.17"
 tempfile = "3"
 tempoch = "0.10"
-zip = { version = "9.0.4", default-features = false, features = ["deflate"] }
+zip = { version = "9.0.5", default-features = false, features = ["deflate"] }
 
 [package.metadata.cargo-machete]
 ignored = ["md-5"]

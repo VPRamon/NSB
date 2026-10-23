@@ -3,9 +3,9 @@
 //! Typed, streaming checksums for maintainer artefacts and official inventories.
 
 use anyhow::{bail, Context, Result};
-use md5::{Digest as Md5Digest, Md5};
+use md5::{Digest, Md5};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use sha2::{Digest as Sha256Digest, Sha256};
+use sha2::Sha256;
 use std::fmt;
 use std::fs::File;
 use std::io::{BufReader, Read};
