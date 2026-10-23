@@ -8,6 +8,9 @@ Maintainers must keep software correctness separate from scientific maturity.
 Reproducing an existing snapshot does not resolve missing provenance,
 licensing, calibration or independent validation.
 
+See [release automation](releases.md) for tag publication, deployment
+records, Trusted Publishing and safe recovery.
+
 Before a release run:
 
 ```bash

@@ -40,6 +40,18 @@ jobs:
       - name: Check Rust, Python, workspace versions and release inputs
         run: python scripts/check-release-metadata.py
 
+      - name: Test release orchestration without publishing
+        run: python -m unittest discover -s scripts/tests -p 'test_release_assets.py'
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+          cache: false
+      - name: Lint GitHub Actions release expressions
+        # v1.7.7 predates GitHub's hosted macos-15-intel label; ignore only this
+        # known label diagnostic, not expression or dependency errors.
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -ignore 'label "macos-15-intel" is unknown' .github/workflows/publish.yml
+
   format:
     name: Format
     runs-on: ubuntu-latest
