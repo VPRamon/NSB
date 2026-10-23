@@ -27,7 +27,8 @@ crates (`siderust-py` and `tempoch-py`) use `0.4.0`.
 
 ### Registry release blocker
 
-Siderust 0.15.0 uses Tempoch 0.11/Affn 0.12, while NSB and siderust-py 0.4
+Registry Siderust 0.15.0 supplies the required optics APIs, but uses
+Tempoch 0.11/Affn 0.12, while NSB and siderust-py 0.4
 require the older time/coordinate providers. A registry probe with Siderust 0.15.0 and direct Tempoch 0.11.1 fails with
 13 `E0308` type errors in NSB Python adapters, including observer conversion and
 `tempoch_py::interop::period_to_datetimes_with`. The bridges still require the
