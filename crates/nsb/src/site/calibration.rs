@@ -141,16 +141,6 @@ impl SiteCalibrationAssetError {
 }
 
 impl SiteCalibrationAsset {
-    /// Parse and validate one strict TOML calibration asset.
-    #[cfg(test)]
-    pub fn from_toml_str(input: &str) -> Result<Self, SiteCalibrationAssetError> {
-        let asset: Self = toml::from_str(input).map_err(|error| {
-            SiteCalibrationAssetError::new(format!("invalid site-calibration TOML: {error}"))
-        })?;
-        asset.validate()?;
-        Ok(asset)
-    }
-
     /// Validate schema, provenance, physical ranges and internal consistency.
     pub fn validate(&self) -> Result<(), SiteCalibrationAssetError> {
         if self.schema_version != SITE_CALIBRATION_ASSET_SCHEMA_VERSION {
@@ -416,6 +406,17 @@ fn validate_nonempty_items(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    impl SiteCalibrationAsset {
+        /// Parse and validate one strict TOML calibration asset.
+        fn from_toml_str(input: &str) -> Result<Self, SiteCalibrationAssetError> {
+            let asset: Self = toml::from_str(input).map_err(|error| {
+                SiteCalibrationAssetError::new(format!("invalid site-calibration TOML: {error}"))
+            })?;
+            asset.validate()?;
+            Ok(asset)
+        }
+    }
 
     const VALID_ASSET: &str = r#"
 schema_version = 1
