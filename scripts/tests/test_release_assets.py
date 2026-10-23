@@ -143,6 +143,9 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn(fragment, workflow)
         self.assertNotIn("name: crates-io", workflow)
         self.assertNotIn("--generate-notes", workflow)
+        self.assertIn('if gh release view "$RELEASE_TAG"', workflow)
+        self.assertNotIn("gh release edit", workflow)
+        self.assertIn('[[ "$RECOVERY_MODE" == "pypi-sdist" ]]', workflow)
 
 
 if __name__ == "__main__":
