@@ -11,7 +11,7 @@ use nsb::{SIDERUST_SOURCE, SIDERUST_VERSION};
 use std::fs;
 use std::path::PathBuf;
 
-const REVISION: &str = "83d1ebb29ca1ae0b327d5784d13eda231d52c120";
+const REGISTRY: &str = "registry+https://github.com/rust-lang/crates.io-index";
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -34,7 +34,7 @@ fn declared_siderust_version(manifest: &str) -> Option<String> {
             .and_then(|value| value.split('"').next())
         {
             if !version.is_empty() {
-                return Some(version.to_string());
+                return Some(version.trim_start_matches('=').to_string());
             }
         }
 
@@ -42,7 +42,7 @@ fn declared_siderust_version(manifest: &str) -> Option<String> {
         let after = declaration.split(marker).nth(1)?;
         let version = after.split('"').next()?;
         if !version.is_empty() {
-            return Some(version.to_string());
+            return Some(version.trim_start_matches('=').to_string());
         }
     }
     None
@@ -104,25 +104,56 @@ fn siderust_provenance_matches_manifest_and_lockfile() {
         SIDERUST_VERSION, locked_version,
         "nsb::SIDERUST_VERSION must match the declared Siderust version"
     );
-    assert_eq!(
-        locked_source,
-        format!("git+https://github.com/Siderust/siderust?rev={REVISION}#{REVISION}")
-    );
+    assert_eq!(locked_source, REGISTRY);
     assert_eq!(
         SIDERUST_SOURCE,
-        format!("git:https://github.com/Siderust/siderust@{REVISION}")
+        format!("registry:crates.io/siderust@{locked_version}")
     );
     let workspace: toml::Value =
         toml::from_str(&fs::read_to_string(root.join("Cargo.toml")).unwrap()).unwrap();
-    assert_eq!(
-        workspace["patch"]["crates-io"]["siderust"]["rev"].as_str(),
-        Some(REVISION)
+    assert!(
+        workspace.get("patch").is_none(),
+        "release graph must not use patches"
     );
-    assert_eq!(
-        workspace["patch"]["crates-io"]["siderust"]["git"].as_str(),
-        Some("https://github.com/Siderust/siderust")
+    assert!(
+        workspace.get("replace").is_none(),
+        "release graph must not replace providers"
     );
     let packages: toml::Value = toml::from_str(&lockfile).unwrap();
+    let all = packages["package"].as_array().unwrap();
+    for package in all {
+        if let Some(source) = package.get("source") {
+            assert_eq!(
+                source.as_str(),
+                Some(REGISTRY),
+                "non-registry provider: {package}"
+            );
+            let checksum = package["checksum"].as_str().expect("registry checksum");
+            assert!(checksum.len() == 64 && checksum.bytes().all(|b| b.is_ascii_hexdigit()));
+        } else {
+            assert!(matches!(
+                package["name"].as_str(),
+                Some("nsb" | "nsb-cli" | "nsb-data-tools")
+            ));
+        }
+    }
+    for name in [
+        "affn",
+        "tempoch",
+        "tempoch-core",
+        "siderust-py",
+        "tempoch-py",
+        "pyo3",
+        "pyo3-ffi",
+    ] {
+        assert_eq!(
+            all.iter()
+                .filter(|p| p["name"].as_str() == Some(name))
+                .count(),
+            1,
+            "expected one shared {name} identity"
+        );
+    }
     assert_eq!(
         packages["package"]
             .as_array()

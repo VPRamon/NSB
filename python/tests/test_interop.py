@@ -18,8 +18,8 @@ def test_distribution_declares_compatible_siderust_runtime_dependency():
 
     assert len(siderust_requirements) == 1
     requirement = siderust_requirements[0].replace(" ", "")
-    assert ">=0.4.0" in requirement
-    assert "<0.5" in requirement
+    assert ">=0.5.0" in requirement
+    assert "<0.6" in requirement
     assert metadata.version("siderust") == siderust.__version__
 
 
@@ -120,12 +120,25 @@ def test_threshold_naive_datetimes_are_rejected_as_nsb_input_errors(
         nsb.ThresholdQuery(observer, direction, start, end, 1.0)
 
 
-def test_distribution_and_extension_share_tempoch_04_types(observer, direction):
+def test_distribution_and_extension_share_tempoch_05_types(observer, direction):
     import tempoch
     requirements = metadata.requires("nsb-py") or []
     requirement = next(r.replace(" ", "") for r in requirements if r.startswith("tempoch"))
-    assert ">=0.4.0" in requirement and "<0.5" in requirement
-    assert metadata.version("tempoch").startswith("0.4.")
+    assert ">=0.5.0" in requirement and "<0.6" in requirement
+    assert metadata.version("tempoch").startswith("0.5.")
     t = datetime(2026, 10, 12, 12, 34, 56, 123456, tzinfo=timezone.utc)
     query = nsb.PointQuery(observer, t, direction)
     assert abs(query.time - t) <= timedelta(microseconds=1)
+
+
+@pytest.mark.parametrize("offset_minutes", [345, -210])
+def test_period_bridge_preserves_subseconds_and_normalizes_utc(observer, direction, offset_minutes):
+    zone = timezone(timedelta(minutes=offset_minutes))
+    start = datetime(2026, 10, 24, 0, 0, 0, 123456, tzinfo=zone)
+    end = start + timedelta(seconds=2, microseconds=654321)
+    query = nsb.ThresholdQuery(observer, direction, start, end, 1.0)
+    assert query.start.tzinfo is timezone.utc
+    assert query.end.tzinfo is timezone.utc
+    assert abs(query.start - start.astimezone(timezone.utc)) <= timedelta(microseconds=1)
+    assert abs(query.end - end.astimezone(timezone.utc)) <= timedelta(microseconds=1)
+    assert abs((query.end - query.start) - (end - start)) <= timedelta(microseconds=1)

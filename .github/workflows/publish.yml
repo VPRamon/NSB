@@ -38,6 +38,9 @@ env:
 jobs:
   validate:
     name: Validate release
+    permissions:
+      contents: read
+      actions: read
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     steps:
@@ -49,6 +52,13 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
+
+      - name: Require successful CI for the exact release commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&event=push&per_page=100" > /tmp/nsb-ci-runs.json
+          python scripts/release_assets.py ci --sha "$GITHUB_SHA" --runs /tmp/nsb-ci-runs.json
 
       - name: Reject tag-push release when PyPI already contains this version
         shell: python
@@ -164,7 +174,7 @@ jobs:
 
       - name: Verify scientific assets and regression matrices before publication
         run: |
-          cargo test --workspace --all-targets --locked
+          cargo test --workspace --all-targets --all-features --locked
           cargo test --workspace --doc --all-features --locked
 
       - name: Verify crates.io package

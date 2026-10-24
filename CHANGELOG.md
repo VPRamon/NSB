@@ -7,8 +7,10 @@ tag-triggered publication workflow succeeds.
 
 ## [0.2.0]
 
-Release preparation; not yet published. Registry publication remains blocked by
-[#265](https://github.com/VPRamon/NSB/issues/265). Evaluator physical defaults,
+Release preparation; not yet published. Registry dependency compatibility is
+restored; publication still awaits resolution of the upstream
+[Python query safety issue](https://github.com/Siderust/siderust-py/issues/13)
+and maintainer approval. Evaluator physical defaults,
 scientific assets and historical validation evidence are unchanged by the
 dependency and release-metadata updates. New opt-in capabilities below do not
 establish independent observational accuracy.
@@ -54,9 +56,10 @@ establish independent observational accuracy.
   model and regression contract (#261).
 - Consolidate external observational status and validator consumer requirements;
   preserve historical evaluated revisions and negative findings (#275).
-- Retain the compatible immutable Siderust graph: the proposed registry 0.15.0
-  upgrade conflicts with Tempoch 0.10 and siderust-py 0.4. Publication remains
-  blocked by #265 until a compatible registry graph and package builds pass.
+- Replace the temporary Siderust Git graph with compatible published providers;
+  preserve canonical Python objects, UTC datetime/period handling and GIL release.
+- Require successful full main-branch CI for the exact release commit before
+  tag publication, retaining environment, Trusted Publishing and recovery guards.
 - Remove the historical snapshot-hash SemVer exemption. Every frozen comparison
   now uses the regular removal/change gate (#275).
 
@@ -68,17 +71,26 @@ establish independent observational accuracy.
   band integration, preserving existing physical models and full-band results
   (#254).
 
+### Breaking Changes
+
+- Rust callers constructing upstream domain types must migrate their own
+  Siderust/Tempoch dependencies to the coordinated 0.15.1/0.11.1 graph; older
+  provider identities cannot be mixed with NSB 0.2.0. NSB method/class names and
+  evaluator defaults are preserved. Python installations require the 0.5 runtime
+  distributions while retaining the canonical Observer/Direction classes.
+
 ### Dependencies
 
 - Update MD5 0.10.6 → 0.11.0 and TOML editing 0.23.10 → 0.25.17; share
   Digest 0.11 with SHA-256 and the TOML 1.1 parser stack. Update ZIP 9.0.4 →
-  9.0.5, require PyO3 0.29.3, and refresh compatible transitive dependencies.
+  9.0.5 and refresh compatible transitive dependencies.
 - Remove the unused ttf-parser advisory exception; that crate is absent from
   the dependency graph. Retain the upstream paste maintenance exception.
-- Retain one immutable Siderust 0.14.1 identity and Tempoch 0.10 for the
-  published 0.4 Python bridges. Siderust 0.15 / Tempoch 0.11 and PyO3 0.30
-  require compatible upstream bridge releases; ordinary Cargo publication
-  remains blocked. See [dependency compatibility](docs/specifications/siderust-compatibility.md).
+- Migrate Siderust 0.14.1 Git → registry 0.15.1, Tempoch/core 0.10 → 0.11.1,
+  Python bridges/runtime packages 0.4 → 0.5, and PyO3 0.29.3 → 0.30.1, with
+  Affn 0.12.1, Principia 0.7 and Optica 0.5. Remove the Git-source exception and
+  negative packaging workaround; retain Rust 1.89 and Python 3.10 minima.
+  See [dependency compatibility](docs/specifications/siderust-compatibility.md).
 
 ### Fixed
 

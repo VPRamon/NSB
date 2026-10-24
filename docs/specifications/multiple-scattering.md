@@ -196,9 +196,9 @@ optical prescription/center wavelengths/apparent-place astrometry differ from
 the current upstream model. Exact reproduction commands and evidence are in the
 validation report. Historical 28.1% enhancement remains a comparison datum only.
 
-Registry publication remains blocked by #265: registry Siderust 0.14.1 does not
-provide the required layered/phase APIs. Preserve Git revision
-`83d1ebb29ca1ae0b327d5784d13eda231d52c120`, dependency identity and release guards.
+The required layered/phase APIs now come from registry Siderust 0.15.1 with
+coordinated Python 0.5 bridges. See [dependency compatibility](siderust-compatibility.md)
+for the separate upstream Python safety blocker and release requirements.
 
 Refs #187, #192, #263, #265.
 
