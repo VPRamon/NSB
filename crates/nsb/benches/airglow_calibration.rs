@@ -33,7 +33,9 @@ fn benchmarks(c: &mut Criterion) {
     let window = ThresholdQuery::new(location, target, Period::new(time, end), Radiance::new(0.2))
         .with_components(ComponentMask::AIRGLOW)
         .with_target_altitude_floor(Some(Degrees::new(30.)));
-    let base = NsbModelConfig::generic_clear_sky().with_solar_radio_flux(SolarFluxUnits::new(100.));
+    let base = NsbModelConfig::generic_clear_sky()
+        .with_airglow_model(AirglowModel::ParanalPalaceV1)
+        .with_solar_radio_flux(SolarFluxUnits::new(100.));
     let configs = [
         ("continuum", base.clone()),
         (
