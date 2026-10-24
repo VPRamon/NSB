@@ -39,6 +39,9 @@ jobs:
       - name: Check Rust, Python, workspace versions and release inputs
         run: python scripts/check-release-metadata.py
 
+      - name: Check public scientific documentation
+        run: python scripts/check-product-docs.py
+
       - name: Test release orchestration without publishing
         run: python -m unittest discover -s scripts/tests -p 'test_release_*.py'
 
