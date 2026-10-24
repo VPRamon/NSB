@@ -22,7 +22,7 @@ fn invalid(message: impl Into<String>) -> NsbError {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct LegacyPixel {
+struct FixedBinPixel {
     pixel: u64,
     sources: u64,
     radiance: [f64; 7],
@@ -52,7 +52,7 @@ struct GenericPixel {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct Document {
+struct FixedBinDocument {
     schema: String,
     product_id: String,
     band_nm: [u16; 2],
@@ -78,7 +78,7 @@ struct Document {
     unmatched_xp_rows: u64,
     admitted_sources: u64,
     excluded_sources: BTreeMap<String, u64>,
-    pixels: Vec<LegacyPixel>,
+    pixels: Vec<FixedBinPixel>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -185,7 +185,7 @@ impl SpectralMap {
             serde_json::from_slice(bytes).map_err(|e| invalid(e.to_string()))?;
         match value.get("schema").and_then(serde_json::Value::as_str) {
             Some("nsb-starlight-interval-map-v1") => {
-                let d: Document =
+                let d: FixedBinDocument =
                     serde_json::from_value(value).map_err(|e| invalid(e.to_string()))?;
                 if d.schema != "nsb-starlight-interval-map-v1"
                     || d.product_id != "starlight-gaia-dr3-xp-360-570-v1"

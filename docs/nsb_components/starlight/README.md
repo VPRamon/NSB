@@ -78,7 +78,7 @@ Git/crates.io/PyPI channels named in the decision.
 - [Redistribution and attribution](licensing/README.md)
 - [Atmospheric transport](../../specifications/atmospheric-transport.md)
 
-## Historical validation evidence
+## Archived validation provenance
 
 The pinned candidate gates and validation reports are historical evidence.
 Their references to `performance-v1.json`, `documentation-wording-audit-v1.md`,
