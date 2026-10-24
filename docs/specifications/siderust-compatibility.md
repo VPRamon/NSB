@@ -25,6 +25,9 @@ Siderust requirements are `=0.15.1`: this exact provider pin keeps the exported
 scientific provenance truthful even when a downstream Cargo build resolves
 without NSB's workspace lockfile. No direct Affn or Qtty dependency is added.
 Rust 1.89 and Python 3.10 remain the supported minima; wheels retain `abi3-py310`.
+Downstream Rust applications must update their domain providers to this graph;
+0.14/0.10 type identities cannot be mixed with NSB 0.2.0. This dependency identity
+transition is documented even though the NSB public API snapshot has no drift.
 
 The root Git patch, Git-source exception and negative packaging helper are
 removed. Ordinary Cargo package verification, publish dry-run and compilation

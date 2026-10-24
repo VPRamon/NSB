@@ -71,6 +71,14 @@ establish independent observational accuracy.
   band integration, preserving existing physical models and full-band results
   (#254).
 
+### Breaking Changes
+
+- Rust callers constructing upstream domain types must migrate their own
+  Siderust/Tempoch dependencies to the coordinated 0.15.1/0.11.1 graph; older
+  provider identities cannot be mixed with NSB 0.2.0. NSB method/class names and
+  evaluator defaults are preserved. Python installations require the 0.5 runtime
+  distributions while retaining the canonical Observer/Direction classes.
+
 ### Dependencies
 
 - Update MD5 0.10.6 → 0.11.0 and TOML editing 0.23.10 → 0.25.17; share
