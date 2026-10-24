@@ -1,6 +1,6 @@
 # NSB — Observational validation
 
-[**Open the standalone notebook**](NSB_Validation.ipynb) · [Download the notebook](https://raw.githubusercontent.com/VPRamon/NSB/main/notebooks/NSB_Validation.ipynb)
+[**Open the standalone notebook**](NSB_Validation.ipynb) (to save a copy from GitHub, open the file and select **Raw**).
 
 The notebook is a self-contained, executable scientific comparison of **NSB Standard**, **experimental NSB Oxygen**, **nsb2**, and a calibration-only baseline, using the registered [Patat (2008) FORS1](https://www.eso.org/~fpatat/science/skybright/) spectra. It presents observations, model predictions, error distributions, confidence intervals, component diagnostics and limitations directly in Jupyter.
 
