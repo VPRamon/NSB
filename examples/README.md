@@ -1,7 +1,7 @@
 # Examples
 
 The runnable Rust examples live in [`crates/nsb/examples/`](../crates/nsb/examples/).
-This root directory indexes the examples and contains Python notebooks. The Rust examples are compiled by the repository CI.
+This root directory indexes the examples and contains one Python notebook. The Rust examples are compiled by the repository CI.
 
 ## Rust
 
@@ -33,14 +33,6 @@ selection, errors and units.
 The optional [continuum notebook](scientific-reproducibility.ipynb) demonstrates
 a fixed-geometry F10.7 sweep with an isolated, precisely pinned source build,
 bundled assets and one figure. Its outputs are cleared in Git.
-
-The [observational validation notebook](validation/NSB_Validation.ipynb) compares
-NSB Standard, explicitly selected experimental Oxygen, and pinned nsb2 against
-the same verified Patat FORS1 spectra. See its [setup and scientific protocol](validation/README.md)
-for single-file execution, version selection, explicit developer wheels, solar
-scenarios, paired night-cluster statistics and compatible release comparison.
-Published 0.1.1 lacks the required APIs; the notebook explains developer mode.
-Results remain development evidence.
 
 ## Command line
 
