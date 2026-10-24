@@ -26,4 +26,4 @@ observatory research belong in [nsb-validation](https://github.com/VPRamon/nsb-v
 See [PR #23](https://github.com/VPRamon/nsb-validation/pull/23) for the reproducible
 CTAO scientific benchmark. The imported framework previously present in NSB commit
 `549b643` remains available in Git history; its unique adaptation and original
-results are preserved by the companion validation audit.
+results are preserved by the [companion validation audit](https://github.com/VPRamon/nsb-validation/pull/25).
