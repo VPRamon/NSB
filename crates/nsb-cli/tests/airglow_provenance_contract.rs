@@ -270,6 +270,8 @@ fn window_csv_preserves_selected_vertical_profile_identity() {
             "--no-pre-filter",
             "--components",
             "airglow",
+            "--airglow-model",
+            "paranal-palace-v1",
             "--airglow-vertical-profile",
             path.to_str().unwrap(),
         ])
@@ -337,6 +339,8 @@ fn empty_window_csv_preserves_selected_vertical_profile_identity() {
             "--no-pre-filter",
             "--components",
             "airglow",
+            "--airglow-model",
+            "paranal-palace-v1",
             "--airglow-vertical-profile",
             path.to_str().unwrap(),
         ])
