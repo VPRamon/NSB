@@ -38,11 +38,14 @@ fixtures, runtime assets, API/user/developer documentation, compact examples,
 licensing, packaging and release automation. Keep CI results in CI artifacts;
 do not commit successful execution logs or manuscript evidence dossiers.
 
-[nsb-validation](https://github.com/VPRamon/nsb-validation) owns observational
-protocols, acquisition manifests, protected cohorts, model/baseline comparisons
-and validation reports. Preserve its frozen evidence and link to exact revisions.
-The future publication repository owns the manuscript, bibliography,
-article-specific experiments, figures, tables and detailed execution receipts.
-Until it exists, export those artifacts outside NSB with source commits and
-checksums, preserving recoverable history; do not create a repository implicitly.
-A software regression fixture remains here even if first developed for a paper.
+NSB publishes the scientific claims and limitations of the current software in
+[scientific-validation.md](../scientific-validation.md), backed by local
+numerical tests, validation fixtures and checksum-pinned evidence.
+Third-party observational datasets may have separate distribution conditions.
+Where evidence was produced externally, preserve immutable producer identities,
+input digests and the comparison protocol: do not silently relabel historical
+model evaluations as validation of a newer release.
+
+Keep manuscript-specific experiments and intermediate outputs separate from
+the product's user documentation. A numerical regression fixture stays with NSB
+whenever it protects a supported scientific behaviour.

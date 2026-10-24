@@ -8,6 +8,12 @@ evaluation and observing-window search over the production-safe composition of
 zodiacal light, airglow, scattered moonlight, and an admitted integrated
 starlight product when one is available.
 
+For scientific interpretation, consult the
+[versioned validation and limitations](https://github.com/VPRamon/NSB/blob/main/docs/scientific-validation.md).
+Correct software execution, checksum-verified assets and agreement with another
+implementation do not imply absolute observational accuracy. Automatic Airglow
+uses experimental PALACE Oxygen with a zenith-distance limit of 60°.
+
 ## Installation
 
 ```bash

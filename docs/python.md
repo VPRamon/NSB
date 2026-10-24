@@ -1,6 +1,6 @@
 # Python bindings
 
-Status: Current Python public interface for the first `0.1.x` release.
+Status: Python public interface for NSB 0.2.0.
 Audience: Python users, integrators, and binding maintainers.
 Scope: Installation, canonical upstream types, evaluation/planning, units,
 errors, and local development.
@@ -22,8 +22,8 @@ python -m pip install nsb-py
 ```
 
 The distribution declares `siderust>=0.5.1,<0.6` and `tempoch>=0.5.0,<0.6`
-as runtime dependencies, so pip installs the matching canonical upstream packages. The Rust
-crate version used internally is a separate version line; see
+as runtime dependencies, so pip installs the matching canonical upstream packages. NSB's Rust crate and Python distribution share the same NSB release version;
+upstream Siderust and Tempoch use their own versions. See
 [Siderust compatibility](specifications/siderust-compatibility.md).
 
 ## Ownership boundary
@@ -200,9 +200,8 @@ requires a sound enclosure of the whole band and fails for unsupported models.
 Ordinary Python timestamps remain timezone-aware `datetime` values, with
 inward projection checked at microsecond precision.
 
-Siderust 0.5.1 fixes the invalid Python-object-to-Rust-payload casts in free
-Star/Direction queries by retaining PyO3 borrow guards throughout dispatch
-([upstream #14](https://github.com/Siderust/siderust-py/pull/14)). Published crate
-and PyPI source artifacts contain the correction, and installed-wheel checks
-confirm method/free-function parity. NSB retains the official primitive interop
-protocol; both its Rust bridge and Python runtime requirements exclude 0.5.0.
+The supported Siderust Python runtime and Rust bridge begin at 0.5.1.
+NSB excludes the incompatible 0.5.0 bridge and validates installed-wheel
+interop in CI. For scientific use, record the installed NSB, Siderust and
+Tempoch versions and review the
+[validation and applicability guide](scientific-validation.md).

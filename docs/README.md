@@ -37,6 +37,7 @@ the same Rust evaluator and uses canonical `siderust.Observer` and
 - [Getting started](user-guide/getting-started.md)
 - [Runtime components](user-guide/components.md)
 - [NSB component guides](nsb_components/README.md)
+- [Scientific validation and limitations](scientific-validation.md)
 - [Observatory configuration and customisation](user-guide/observatory-customization.md)
 
 ### Developers
@@ -60,6 +61,7 @@ the same Rust evaluator and uses canonical `siderust.Observer` and
 
 | Document | Purpose |
 | --- | --- |
+| [Scientific validation and limitations](scientific-validation.md) | Current evidence, independent comparisons, applicable domains, and limits on accuracy claims |
 | [Scientific-model specification](specifications/scientific-model.md) | Physical quantities, query model, component composition, and window-search concepts |
 | [Atmospheric-transport specification](specifications/atmospheric-transport.md) | Generic identity/direct transport layer, Siderust ownership boundary, and current component status |
 | [Model-maturity specification](specifications/model-maturity.md) | Allowed scientific claims for every component and profile |

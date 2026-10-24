@@ -21,9 +21,8 @@ fallback. Explicit `ParanalPalaceV1` retains historical continuum behavior.
 Patat informed model development and is not an independent holdout. LVM absolute
 equivalence remains pending; neither notebook grants scientific admission.
 
-Complete experiments, dataset acquisition, manifests, bootstrap analyses and
-observatory research belong in [nsb-validation](https://github.com/VPRamon/nsb-validation).
-See [PR #23](https://github.com/VPRamon/nsb-validation/pull/23) for the reproducible
-CTAO scientific benchmark. The imported framework previously present in NSB commit
-`549b643` remains available in Git history; its unique adaptation and original
-results are preserved by the [companion validation audit](https://github.com/VPRamon/nsb-validation/pull/25).
+For a concise statement of what these experiments support—and what they do not
+support—read the [scientific validation guide](../docs/scientific-validation.md).
+The observational notebook identifies its data provenance and reproducible
+comparison protocol within the notebook itself. External datasets are not
+bundled with the software distribution.
