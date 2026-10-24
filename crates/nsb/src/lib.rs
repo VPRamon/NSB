@@ -118,7 +118,6 @@ pub const NSB_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Versioned model-composition contract used in operational metadata.
 pub const MODEL_VERSION: &str = "nsb-model-v1";
 /// Siderust package version represented by the locked dependency.
-pub const SIDERUST_VERSION: &str = "0.14.1";
+pub const SIDERUST_VERSION: &str = "0.15.1";
 /// Truthful package-source identity for the Siderust dependency.
-pub const SIDERUST_SOURCE: &str =
-    "git:https://github.com/Siderust/siderust@83d1ebb29ca1ae0b327d5784d13eda231d52c120";
+pub const SIDERUST_SOURCE: &str = "registry:crates.io/siderust@0.15.1";

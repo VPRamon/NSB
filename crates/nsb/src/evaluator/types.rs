@@ -87,10 +87,7 @@ pub(crate) fn validate_geometry(observer: Observer, target: Target) -> crate::Re
     Ok(())
 }
 
-#[cfg_attr(
-    feature = "python",
-    pyo3::pyclass(frozen, module = "nsb", skip_from_py_object)
-)]
+#[cfg_attr(feature = "python", pyo3::pyclass(frozen, module = "nsb"))]
 #[derive(Debug, Clone)]
 /// Inputs for one point evaluation.
 ///
@@ -183,10 +180,7 @@ pub struct NsbResult {
     pub band_diagnostic: BandDiagnostic,
 }
 
-#[cfg_attr(
-    feature = "python",
-    pyo3::pyclass(frozen, module = "nsb", skip_from_py_object)
-)]
+#[cfg_attr(feature = "python", pyo3::pyclass(frozen, module = "nsb"))]
 #[derive(Debug, Clone)]
 /// Immutable model choices used to construct an evaluator.
 ///
