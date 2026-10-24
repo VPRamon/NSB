@@ -328,7 +328,9 @@ mod tests {
     #[test]
     fn day_airglow_and_below_horizon_zodiacal_preserve_existing_zeros() {
         let evaluator = NsbEvaluator::new().unwrap();
-        let day = query(ComponentMask::AIRGLOW, "2023-09-15T15:00:00Z");
+        let mut day = query(ComponentMask::AIRGLOW, "2023-09-15T15:00:00Z");
+        // Daytime zero is only valid inside the selected Oxygen geometry domain.
+        day.target = crate::Target::new(150.0 * crate::DEG, -24.6275 * crate::DEG);
         assert_eq!(
             evaluator
                 .integrate_band(&day, Nanometers::new(360.0), Nanometers::new(570.0))

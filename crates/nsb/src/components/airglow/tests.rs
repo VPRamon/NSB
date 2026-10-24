@@ -504,28 +504,16 @@ fn oxygen_domain_is_validated_before_daytime_physical_zero() {
     let mut continuum = load_builtin_standard().unwrap();
     continuum.oxygen_enabled = true;
     let location = paranal();
-    let ctx = airglow_ctx(
-        location,
-        AtmosphericConditions::generic_clear_sky(location),
-    );
+    let ctx = airglow_ctx(location, AtmosphericConditions::generic_clear_sky(location));
     let daylight = t("2023-09-04T16:00:00Z");
-    let out = super::continuum::evaluate_continuum(
-        &continuum,
-        daylight,
-        Degrees::new(60.0),
-        ctx.clone(),
-    )
-    .unwrap();
+    let out =
+        super::continuum::evaluate_continuum(&continuum, daylight, Degrees::new(60.0), ctx.clone())
+            .unwrap();
     assert_eq!(out.physical_outcome, AirglowPhysicalOutcome::PhysicalZero);
     assert_eq!(out.integrated, BandPhotonRadiance::zero());
 
-    let err = super::continuum::evaluate_continuum(
-        &continuum,
-        daylight,
-        Degrees::new(15.0),
-        ctx,
-    )
-    .expect_err("out-of-domain Oxygen must not silently become daytime zero");
+    let err = super::continuum::evaluate_continuum(&continuum, daylight, Degrees::new(15.0), ctx)
+        .expect_err("out-of-domain Oxygen must not silently become daytime zero");
     assert!(
         matches!(err, crate::error::NsbError::OutOfRange(message) if message.contains("zenith distance <= 60"))
     );

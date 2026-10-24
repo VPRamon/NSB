@@ -173,6 +173,7 @@ fn starlight_map_without_manifest_is_rejected() {
 
 #[test]
 fn point_json_exposes_daytime_physical_zero() {
+    // Use a target inside Oxygen's ZD <= 60 domain even during daylight.
     let output = Command::cargo_bin("nsb")
         .unwrap()
         .args([
@@ -184,9 +185,9 @@ fn point_json_exposes_daytime_physical_zero() {
             "--site",
             "PARANAL",
             "--ra",
-            "266.41683",
+            "150",
             "--dec",
-            "-29.00781",
+            "-24.6275",
             "--components",
             "airglow",
         ])

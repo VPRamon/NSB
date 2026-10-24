@@ -222,7 +222,10 @@ fn daytime_out_of_domain_is_rejected_for_automatic_and_explicit_oxygen() {
     .unwrap();
     assert_eq!(continuum.evaluate(&query).unwrap().integrated.value(), 0.0);
     assert_eq!(
-        continuum.integrate_band(&query, lower, upper).unwrap().value(),
+        continuum
+            .integrate_band(&query, lower, upper)
+            .unwrap()
+            .value(),
         0.0
     );
 }
