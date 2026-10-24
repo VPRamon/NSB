@@ -67,6 +67,7 @@ the same Rust evaluator and uses canonical `siderust.Observer` and
 | [Model-maturity specification](specifications/model-maturity.md) | Allowed scientific claims for every component and profile |
 | [Scientific-metadata specification](specifications/scientific-metadata.md) | Provenance, maturity, uncertainty, validated domain, and diagnostic-band semantics |
 | [Validation specification](specifications/validation.md) | Evidence, tolerances, limitations, and remaining validation gaps |
+| [Validation reports index](validation/README.md) | Reproducible numerical evidence and its historical interpretation |
 | [CTAO site-profile specification](specifications/ctao-site-profiles.md) | Exact assumptions and limitations of CTAO planning presets |
 | [Jones 2013 moonlight](nsb_components/moonlight/jones2013-validation.md) | Spectral moonlight implementation and validation boundaries |
 | [CLI schema specification](specifications/cli-schemas.md) | Stable JSON and CSV output contracts |
