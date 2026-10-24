@@ -215,11 +215,17 @@ fn describe_components_does_not_fabricate_evaluation_outcome() {
 
 #[test]
 fn daytime_physical_zero_is_typed_and_distinct_from_evaluation() {
+    // At 16:00 UTC, RA=150°, Dec=-24.6275° is near Paranal zenith.
+    // Oxygen domain checks still apply in daylight.
     let result = NsbEvaluator::new()
         .unwrap()
         .evaluate(
-            &PointQuery::new(observatories::EL_PARANAL.geodetic(), day_time(), target())
-                .with_components(ComponentMask::AIRGLOW),
+            &PointQuery::new(
+                observatories::EL_PARANAL.geodetic(),
+                day_time(),
+                Target::new(150.0 * DEG, -24.6275 * DEG),
+            )
+            .with_components(ComponentMask::AIRGLOW),
         )
         .unwrap();
     let airglow = &result.components[0];

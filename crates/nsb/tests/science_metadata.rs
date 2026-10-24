@@ -429,7 +429,8 @@ fn airglow_runtime_provenance_tracks_bundled_asset_metadata() {
 fn daytime_queries_return_zero_without_false_calibration_claims() {
     let observer = observatories::EL_PARANAL.geodetic();
     let time = parse_utc("2023-09-04T16:00:00Z");
-    let target = sgr_a_star();
+    // A near-zenith daytime direction remains within Oxygen's ZD <= 60 domain.
+    let target = Target::new(150.0 * DEG, -24.6275 * DEG);
 
     for (config, expected_status) in [
         (
