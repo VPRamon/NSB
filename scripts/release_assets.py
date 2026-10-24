@@ -95,6 +95,18 @@ def verify_artifacts(directory, tag):
     return files
 
 
+def verify_ci_run(data, sha):
+    """Require completed CI on the exact main-branch commit before tagging."""
+    if re.fullmatch(r"[0-9a-f]{40}", sha) is None:
+        raise ValueError("invalid release commit SHA")
+    for run in data.get("workflow_runs", []):
+        if (run.get("head_sha") == sha and run.get("head_branch") == "main"
+                and run.get("event") == "push" and run.get("status") == "completed"
+                and run.get("conclusion") == "success"):
+            return run["html_url"]
+    raise ValueError(f"no successful main-branch CI for release commit {sha}")
+
+
 def _get_json(url):
     request = Request(url, headers={"User-Agent": "NSB-release-verifier (https://github.com/VPRamon/NSB)"})
     with urlopen(request, timeout=30) as response:
@@ -131,8 +143,13 @@ def main(argv=None):
     verify.add_argument("--tag", required=True)
     verify.add_argument("--dist", type=Path, required=True)
     verify.add_argument("--published", action="store_true")
+    ci = commands.add_parser("ci")
+    ci.add_argument("--sha", required=True)
+    ci.add_argument("--runs", type=Path, required=True)
     args = parser.parse_args(argv)
-    if args.command == "notes":
+    if args.command == "ci":
+        print(verify_ci_run(json.loads(args.runs.read_text()), args.sha))
+    elif args.command == "notes":
         args.output.write_text(extract_notes(args.changelog.read_text(encoding="utf-8"), args.tag), encoding="utf-8")
     else:
         files = verify_artifacts(args.dist, args.tag)

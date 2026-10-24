@@ -1,8 +1,11 @@
 # NSB release automation
 
 Release from a validated, immutable **vX.Y.Z** tag after registry-package
-preflight and scientific approval. Do **not** push tags while ordinary
-Cargo registry packaging is blocked by #265.
+preflight and scientific approval. The tagged commit must have successful full
+CI from main, including API, coverage, MSRV, scientific and installed-wheel gates.
+Do **not** push tags while the published siderust-py 0.5 query safety defect
+([upstream #13](https://github.com/Siderust/siderust-py/issues/13)) remains unresolved.
+Registry packaging compatibility alone does not establish release readiness.
 
 The tag-triggered workflow validates metadata, API compatibility, runtime
 scientific assets, licensing and crate packaging; builds five ABI3 wheels
@@ -50,6 +53,6 @@ concurrency group, avoiding competing release creation. Existing Releases
 are never overwritten.
 
 Offline checks: python -m unittest discover -s scripts/tests -p
-'test_release_assets.py'. CI also runs actionlint on the publish workflow.
+'test_release_*.py'. CI also runs actionlint on the publish workflow.
 Do not publish registry packages, create real Releases, or push release
 tags for regression testing.

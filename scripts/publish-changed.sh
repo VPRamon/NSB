@@ -82,6 +82,9 @@ if [[ -n "${GITHUB_REF_NAME:-}" ]]; then
     echo "error: tag $GITHUB_REF_NAME does not match $name version $version ($expected_tag)" >&2
     exit 1
   fi
+  python3 scripts/check-release-metadata.py --tag "$GITHUB_REF_NAME"
+else
+  python3 scripts/check-release-metadata.py
 fi
 
 if already_on_crates_io "$name" "$version"; then

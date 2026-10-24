@@ -42,7 +42,7 @@ covers observing-window searches, JSON/CSV output, named sites and custom
 coordinates.
 
 **Note:** `nsb-cli` is a workspace crate and is not published separately
-to crates.io in the 0.1 release line.
+to crates.io in the 0.2 release line.
 
 ### Registered Airglow calibration
 
@@ -50,3 +50,11 @@ to crates.io in the 0.1 release line.
 checksum-linked synthetic fit request and portable artifact. The example recovers
 one continuum scale without promoting scientific maturity. See
 [the complete observatory workflow](../docs/user-guide/airglow-calibration.md).
+
+`point_query` supplies the minimal evaluation path; `model_metadata` demonstrates
+explicit component/model selection and provenance. Custom observer coordinates
+use the public Siderust observer type shown in the CLI/Python quickstarts; they
+do not establish site calibration. `airglow_calibration` is an advanced synthetic
+fit/export/replay example, not an admitted observatory calibration. The generic
+global Airglow model remains unavailable: automatic selection reports its
+explicit PALACE reference fallback and applicability in component metadata.

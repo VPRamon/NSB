@@ -11,13 +11,14 @@ starlight product when one is available.
 ## Installation
 
 ```bash
-cargo add nsb@0.1.1
+cargo add nsb@0.2.0
 ```
 
 The minimum supported Rust version is 1.89. This checkout prepares `0.2.0`;
-registry publication is blocked by [#265](https://github.com/VPRamon/NSB/issues/265).
-The installation commands above and below select the published `0.1.1` release.
-Build `0.2.0` from the workspace until the registry blocker is resolved.
+the installation commands target that version after publication. The dependency
+graph uses released Siderust 0.15.1, Tempoch 0.11.1 and Python bridges 0.5.
+Publication remains subject to maintainer approval and the upstream
+[Python query safety issue](https://github.com/Siderust/siderust-py/issues/13).
 
 NSB deliberately uses domain types from Siderust and tempoch at public
 boundaries instead of duplicating coordinate, atmosphere, or time semantics.
@@ -34,7 +35,7 @@ and UTC `Time` types used at NSB's public Rust boundary.
 To build without upstream Serde support:
 
 ```toml
-nsb = { version = "0.1.1", default-features = false }
+nsb = { version = "0.2.0", default-features = false }
 ```
 
 NSB's own internal TOML/JSON data formats remain available independently
@@ -175,8 +176,6 @@ example. A conservative HEALPix subpixel path resolves the frozen Gaia angular
 case; the labelled historical comparison retains explicit astrometric differences. See the [spectral contract](https://github.com/VPRamon/NSB/blob/main/docs/specifications/starlight-transport.md)
 for the bounded numerical method and diagnostic limitations.
 
-The repository temporarily patches Siderust to immutable revision
-`83d1ebb29ca1ae0b327d5784d13eda231d52c120`, including Python interoperability.
-Registry/PyPI publication of this revision is blocked pending the upstream release
-([#265](https://github.com/VPRamon/NSB/issues/265)). This is an experimental
-physical reference, with no empirical sky-accuracy or complete transport claim.
+The transport APIs use published Siderust 0.15.1 with the coordinated Python
+0.5 bridges. This remains an experimental physical reference, with no empirical
+sky-accuracy or complete transport claim.
