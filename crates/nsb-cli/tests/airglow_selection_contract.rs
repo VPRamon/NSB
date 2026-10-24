@@ -29,7 +29,7 @@ fn point_json_exposes_automatic_airglow_fallback_structurally() {
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
     let selection = &value["model"]["airglow_selection"];
     assert_eq!(selection["kind"], "automatic");
-    assert_eq!(selection["resolved_model"], "paranal-palace-v1");
+    assert_eq!(selection["resolved_model"], "paranal-palace-oxygen-v1");
     assert_eq!(selection["used_fallback"], true);
     assert_eq!(
         selection["fallback_reason"],

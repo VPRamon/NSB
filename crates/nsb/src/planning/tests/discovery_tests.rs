@@ -303,7 +303,7 @@ fn real_adaptive_all_masks_both_moon_models_match_fine_reference() {
 
 #[test]
 fn adaptive_context_and_parallel_determinism() {
-    let evaluator = NsbEvaluator::new().unwrap();
+    let evaluator = super::test_fixtures::continuum_default_evaluator();
     let q = query(ComponentMask::ALL.bits());
     let context = evaluator.prepare_site_window_context(&q).unwrap();
     let direct = evaluator.periods_below_threshold_adaptive(&q).unwrap();
@@ -328,7 +328,7 @@ fn adaptive_context_and_parallel_determinism() {
             direct.periods
         );
     }
-    let other = NsbEvaluator::new().unwrap();
+    let other = super::test_fixtures::continuum_default_evaluator();
     assert!(other
         .periods_below_threshold_adaptive_with_context(&context, &q)
         .is_err());
@@ -344,8 +344,9 @@ fn adaptive_f107_issuance_and_local_month_regimes_are_partitioned() {
       "retrieved_at_utc":"2026-08-27T02:30:00Z",
       "records":[{"date":"2026-08-01","value_sfu":220.0,"kind":"forecast","provider":"noaa-swpc","product":"predicted-solar-cycle","retrieved_at_utc":"2026-08-27T02:30:00Z","valid_from":"2026-08-01","valid_through":"2026-08-31","cadence":"monthly"}]
     }"#).unwrap();
-    let config =
-        crate::NsbModelConfig::generic_clear_sky().with_f107_store(std::sync::Arc::new(store));
+    let config = crate::NsbModelConfig::generic_clear_sky()
+        .with_airglow_model(crate::AirglowModel::ParanalPalaceV1)
+        .with_f107_store(std::sync::Arc::new(store));
     let evaluator = NsbEvaluator::with_config(config.clone()).unwrap();
     let instant =
         |s: &str| Time::<UTC>::from_chrono(s.parse::<chrono::DateTime<chrono::Utc>>().unwrap());
@@ -430,7 +431,7 @@ fn adaptive_zodiacal_corner_cells_and_reddening_boundaries_match_fine_scan() {
     use siderust::coordinates::{
         frames::EclipticMeanJ2000, spherical::Direction, transform::TransformFrame,
     };
-    let evaluator = NsbEvaluator::new().unwrap();
+    let evaluator = super::test_fixtures::continuum_default_evaluator();
     let start = Time::<UTC>::from_chrono(
         "2026-05-04T00:00:00Z"
             .parse::<chrono::DateTime<chrono::Utc>>()
@@ -657,7 +658,9 @@ fn adaptive_airglow_configured_profile_and_outside_night_validation() {
         )
     };
     let evaluator = NsbEvaluator::with_config(
-        crate::NsbModelConfig::generic_clear_sky().with_airglow_geometry(geometry(90.0)),
+        crate::NsbModelConfig::generic_clear_sky()
+            .with_airglow_model(crate::AirglowModel::ParanalPalaceV1)
+            .with_airglow_geometry(geometry(90.0)),
     )
     .unwrap();
     let mut q = query(ComponentMask::AIRGLOW.bits());
@@ -683,7 +686,9 @@ fn adaptive_airglow_configured_profile_and_outside_night_validation() {
         "configured vertical Airglow profile",
     );
     let restricted = NsbEvaluator::with_config(
-        crate::NsbModelConfig::generic_clear_sky().with_airglow_geometry(geometry(80.0)),
+        crate::NsbModelConfig::generic_clear_sky()
+            .with_airglow_model(crate::AirglowModel::ParanalPalaceV1)
+            .with_airglow_geometry(geometry(80.0)),
     )
     .unwrap();
     q.window.start = Time::<UTC>::from_chrono(
@@ -711,6 +716,7 @@ fn adaptive_airglow_configured_profile_and_outside_night_validation() {
     // bypass the existing invalid-source error merely because radiance is zero.
     let invalid = NsbEvaluator::with_config(
         crate::NsbModelConfig::generic_clear_sky()
+            .with_airglow_model(crate::AirglowModel::ParanalPalaceV1)
             .with_solar_radio_flux(crate::units::SolarFluxUnits::new(-1.0)),
     )
     .unwrap();

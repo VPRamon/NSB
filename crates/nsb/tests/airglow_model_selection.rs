@@ -14,7 +14,8 @@ use siderust::coordinates::frames::ECEF;
 use siderust::qtty::{Degrees, Kilometers, Meters};
 use tempoch::{Time, UTC};
 
-const REFERENCE_MODEL: AirglowModel = AirglowModel::ParanalPalaceV1;
+/// Automatic policy resolves to Oxygen; explicit Oxygen must match bit-for-bit.
+const REFERENCE_MODEL: AirglowModel = AirglowModel::ParanalPalaceOxygenV1;
 
 fn observer(lon_deg: f64, lat_deg: f64, height_m: f64) -> Geodetic<ECEF> {
     Geodetic::new_raw(
@@ -32,15 +33,17 @@ fn time() -> Time<UTC> {
     )
 }
 
-fn target() -> Target {
-    Target::new(266.41683 * DEG, -29.00781 * DEG)
+fn near_zenith_target(observer: &Geodetic<ECEF>) -> Target {
+    // Automatic Oxygen requires zenith distance ≤ 60°. Point near local zenith.
+    Target::new(0.0 * DEG, observer.lat())
 }
 
 fn evaluate_airglow(config: NsbModelConfig, observer: Geodetic<ECEF>) -> NsbComponent {
     NsbEvaluator::with_config(config)
         .unwrap()
         .evaluate(
-            &PointQuery::new(observer, time(), target()).with_components(ComponentMask::AIRGLOW),
+            &PointQuery::new(observer, time(), near_zenith_target(&observer))
+                .with_components(ComponentMask::AIRGLOW),
         )
         .unwrap()
         .components
@@ -147,14 +150,15 @@ fn scientific_model_identity_is_independent_of_geometry_f107_location_and_site_m
     }
     assert_eq!(
         base_arbitrary.metadata.status,
-        ComponentCalibrationStatus::GenericClearSky
+        ComponentCalibrationStatus::Experimental
     );
     assert_eq!(
         base_paranal.metadata.status,
-        ComponentCalibrationStatus::GenericClearSky
+        ComponentCalibrationStatus::Experimental
     );
+    // CTAO planning site profile does not upgrade Oxygen beyond Experimental.
     assert_eq!(
         changed_site.metadata.status,
-        ComponentCalibrationStatus::PlanningPreset
+        ComponentCalibrationStatus::Experimental
     );
 }

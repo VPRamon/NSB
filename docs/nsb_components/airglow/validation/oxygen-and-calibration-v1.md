@@ -57,9 +57,12 @@ climatology/geometry/transmission. A rayleigh is an integrated line radiance;
 ## Implemented physical addition
 
 `AirglowModel::ParanalPalaceOxygenV1` explicitly adds oxygen to the unchanged
-continuum model. `Automatic` still resolves to `ParanalPalaceV1`.
-Python uses `PARANAL_PALACE_OXYGEN_V1`; CLI selection is
-`--airglow-model paranal-palace-oxygen-v1`.
+continuum model. As of NSB v0.2.0, `Automatic` resolves to
+`ParanalPalaceOxygenV1` as the temporary Paranal-derived planning fallback
+(release-policy default; not an independent absolute admission). Explicit
+`ParanalPalaceV1` remains available for continuum-only historical
+reproducibility. Python uses `PARANAL_PALACE_OXYGEN_V1`; CLI selection is
+`--airglow-model paranal-palace-oxygen-v1` or `paranal-palace-v1`.
 
 Vacuum wavelengths are 557.8887, 630.2046, 636.5536 and 639.35 nm. Og uses
 97 km and Or uses 250 km thin-shell geometry, source-specific solar/month/time

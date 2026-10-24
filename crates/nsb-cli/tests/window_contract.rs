@@ -38,7 +38,7 @@ fn window_json_v1_contains_audit_metadata() {
     assert_eq!(value["model"]["airglow_selection"]["kind"], "automatic");
     assert_eq!(
         value["model"]["airglow_selection"]["resolved_model"],
-        "paranal-palace-v1"
+        "paranal-palace-oxygen-v1"
     );
     assert_eq!(value["model"]["airglow_selection"]["used_fallback"], true);
     assert!(
@@ -67,7 +67,7 @@ fn window_json_v1_contains_audit_metadata() {
         .expect("airglow component metadata");
     assert_eq!(
         airglow["metadata"]["airglow_selection"]["resolved_model"],
-        "paranal-palace-v1"
+        "paranal-palace-oxygen-v1"
     );
     assert!(
         airglow["metadata"]["airglow_selection"]["physical_outcome"].is_null(),
@@ -361,7 +361,13 @@ fn joint_band_cli_millisecond_boundaries_satisfy_both_constraints() {
     use nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as Radiance;
     use nsb::{ComponentMask, NsbEvaluator, PointQuery, Target, DEG};
     use tempoch::{Time, UTC};
-    let evaluator = NsbEvaluator::new().unwrap();
+    // Pin continuum-only: this scan includes epochs where Sgr A* exceeds the
+    // Automatic Oxygen zenith-distance domain (≤60°).
+    let evaluator = NsbEvaluator::with_config(
+        nsb::NsbModelConfig::generic_clear_sky()
+            .with_airglow_model(nsb::AirglowModel::ParanalPalaceV1),
+    )
+    .unwrap();
     let observer = siderust::catalogs::observatories::EL_PARANAL.geodetic();
     use siderust::coordinates::{spherical::direction, transform::TransformFrame};
     let target: Target = direction::ICRS::new(266.41683 * DEG, -29.00781 * DEG).to_frame();
@@ -405,6 +411,8 @@ fn joint_band_cli_millisecond_boundaries_satisfy_both_constraints() {
         "-29.00781",
         "--components",
         "zodiacal,airglow",
+        "--airglow-model",
+        "paranal-palace-v1",
         "--no-pre-filter",
         "--min-nsb",
         &minimum.to_string(),

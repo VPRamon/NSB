@@ -7,8 +7,8 @@
 //! - evaluation outcome (known only after a time-dependent query).
 //!
 //! The global climatological planning model from #157 is deferred; automatic
-//! selection currently resolves to a temporary Paranal-derived planning
-//! fallback with that fallback machine-visible via typed reason enums.
+//! selection currently resolves to the temporary Paranal-derived PALACE Oxygen
+//! planning fallback with that fallback machine-visible via typed reason enums.
 
 use super::model::AirglowModel;
 use crate::error::Result;
@@ -24,9 +24,11 @@ pub enum AirglowSelection {
     /// Deterministic automatic selection policy.
     ///
     /// Until a global climatological model is admitted (#157), this resolves to
-    /// the temporary Paranal-derived planning fallback. That fallback is always
+    /// the temporary Paranal-derived PALACE Oxygen planning fallback
+    /// ([`AirglowModel::ParanalPalaceOxygenV1`]). That fallback is always
     /// reported in selection metadata and is not presented as a globally
-    /// representative scientific default.
+    /// validated climatology. Explicit [`AirglowModel::ParanalPalaceV1`] remains
+    /// available for continuum-only historical reproducibility.
     Automatic,
     /// Caller explicitly selected this scientific model.
     ///
@@ -193,13 +195,16 @@ impl ResolvedAirglowSelection {
 /// Resolve configuration selection to a concrete supported model.
 ///
 /// Explicit selections never fall back. Automatic selection is deterministic and
-/// currently admits only the temporary Paranal-derived planning fallback.
+/// currently resolves to the temporary Paranal-derived PALACE Oxygen planning
+/// fallback ([`AirglowModel::ParanalPalaceOxygenV1`]). This is a release-policy
+/// reference-model choice supported by physical completeness and retrospective
+/// Patat evidence; it is not an independent absolute observational admission.
 pub(crate) fn resolve_airglow_selection(
     selection: AirglowSelection,
 ) -> Result<ResolvedAirglowSelection> {
     match selection {
         AirglowSelection::Automatic => Ok(ResolvedAirglowSelection {
-            model: AirglowModel::ParanalPalaceV1,
+            model: AirglowModel::ParanalPalaceOxygenV1,
             selection_kind: AirglowSelectionKind::Automatic,
             requested_model: None,
             used_automatic_fallback: true,
@@ -233,9 +238,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn automatic_selection_uses_visible_temporary_fallback() {
+    fn automatic_selection_uses_visible_oxygen_planning_fallback() {
         let resolved = resolve_airglow_selection(AirglowSelection::Automatic).unwrap();
-        assert_eq!(resolved.model, AirglowModel::ParanalPalaceV1);
+        assert_eq!(resolved.model, AirglowModel::ParanalPalaceOxygenV1);
         assert!(resolved.used_automatic_fallback);
         assert_eq!(
             resolved.fallback_reason,
@@ -249,10 +254,24 @@ mod tests {
     }
 
     #[test]
-    fn explicit_paranal_selection_is_not_reported_as_fallback() {
+    fn automatic_matches_explicit_oxygen_identity() {
+        let automatic = resolve_airglow_selection(AirglowSelection::Automatic).unwrap();
+        let explicit = resolve_airglow_selection(AirglowSelection::Explicit(
+            AirglowModel::ParanalPalaceOxygenV1,
+        ))
+        .unwrap();
+        assert_eq!(automatic.model, explicit.model);
+        assert_eq!(automatic.model, AirglowModel::ParanalPalaceOxygenV1);
+        assert!(automatic.used_automatic_fallback);
+        assert!(!explicit.used_automatic_fallback);
+    }
+
+    #[test]
+    fn explicit_continuum_selection_is_not_reported_as_fallback() {
         let resolved =
             resolve_airglow_selection(AirglowSelection::Explicit(AirglowModel::ParanalPalaceV1))
                 .unwrap();
+        assert_eq!(resolved.model, AirglowModel::ParanalPalaceV1);
         assert!(!resolved.used_automatic_fallback);
         assert_eq!(resolved.fallback_reason, None);
         assert_eq!(resolved.selection_kind, AirglowSelectionKind::Explicit);

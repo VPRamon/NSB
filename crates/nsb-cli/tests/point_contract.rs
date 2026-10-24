@@ -42,7 +42,7 @@ fn default_point_json_reports_schema_versions_and_components() {
     assert_eq!(value["model"]["airglow_selection"]["kind"], "automatic");
     assert_eq!(
         value["model"]["airglow_selection"]["resolved_model"],
-        "paranal-palace-v1"
+        "paranal-palace-oxygen-v1"
     );
     assert_eq!(value["model"]["airglow_selection"]["used_fallback"], true);
     assert_eq!(
@@ -89,7 +89,7 @@ fn default_point_json_reports_schema_versions_and_components() {
     );
     assert_eq!(
         airglow["metadata"]["airglow_selection"]["resolved_model"],
-        "paranal-palace-v1"
+        "paranal-palace-oxygen-v1"
     );
     assert_eq!(
         airglow["metadata"]["airglow_selection"]["used_fallback"],

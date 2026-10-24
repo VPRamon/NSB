@@ -8,7 +8,8 @@ use crate::components::starlight::{StarlightMap, StarlightProvenance};
 use crate::site::{AtmosphericConditions, SiteProfile, SiteProfileTag};
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as Radiance;
 use crate::{
-    ComponentMask, NsbEvaluator, NsbModelConfig, StarlightProduct, Target, ThresholdQuery, DEG,
+    AirglowModel, ComponentMask, NsbEvaluator, NsbModelConfig, StarlightProduct, Target,
+    ThresholdQuery, DEG,
 };
 use chrono::{DateTime, Utc};
 use siderust::qtty::{Hectopascals, Kilometers};
@@ -90,6 +91,13 @@ fn real_starlight_certificate_reuses_the_authoritative_cached_scalar() {
     ));
 }
 
+pub(super) fn continuum_default_evaluator() -> NsbEvaluator {
+    NsbEvaluator::with_config(
+        NsbModelConfig::generic_clear_sky().with_airglow_model(AirglowModel::ParanalPalaceV1),
+    )
+    .unwrap()
+}
+
 fn evaluator(north: bool, starlight: bool) -> NsbEvaluator {
     evaluator_with_moon(north, starlight, crate::MoonlightModel::Jones2013Spectral)
 }
@@ -147,5 +155,15 @@ pub(super) fn evaluator_with_moon(
     } else {
         config
     };
-    NsbEvaluator::with_config(config.with_moonlight_model(moon)).unwrap()
+    // Planning algorithm regressions intentionally pin continuum-only Airglow:
+    // Automatic resolves to Oxygen whose zenith-distance domain is ≤60°, while
+    // these scans exercise targets that leave that domain. Explicit continuum
+    // preserves historical planning coverage without a silent Oxygen→continuum
+    // fallback in production Automatic policy.
+    NsbEvaluator::with_config(
+        config
+            .with_moonlight_model(moon)
+            .with_airglow_model(AirglowModel::ParanalPalaceV1),
+    )
+    .unwrap()
 }

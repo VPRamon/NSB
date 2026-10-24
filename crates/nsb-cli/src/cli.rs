@@ -85,13 +85,13 @@ pub enum MoonlightModelArg {
 
 #[derive(Debug, Clone, Copy, Default, ValueEnum)]
 pub enum AirglowModelArg {
-    /// Deterministic automatic selection (temporary Paranal planning fallback).
+    /// Deterministic automatic selection (temporary Paranal Oxygen planning fallback).
     #[default]
     Automatic,
-    /// Explicit Paranal-derived legacy/reference planning model.
+    /// Explicit continuum-only Paranal PALACE reference model.
     #[value(name = "paranal-palace-v1")]
     ParanalPalaceV1,
-    /// Experimental PALACE continuum plus oxygen lines (vacuum wavelength).
+    /// Explicit PALACE continuum plus oxygen lines (vacuum wavelength; Automatic default).
     #[value(name = "paranal-palace-oxygen-v1")]
     ParanalPalaceOxygenV1,
 }

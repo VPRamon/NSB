@@ -65,3 +65,7 @@ coverage_html/
 code-coverage-results.md
 coverage-gate-overall.txt
 coverage-gate-diff.txt
+
+# CTAO validation local build/results (reproduce.sh)
+/ctao/.build/
+/ctao/results/

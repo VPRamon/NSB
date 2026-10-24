@@ -107,7 +107,7 @@ fn point_results_expose_calibration_provenance_uncertainty_and_band_convention()
         .unwrap();
     assert_eq!(
         airglow.metadata.status,
-        ComponentCalibrationStatus::GenericClearSky
+        ComponentCalibrationStatus::Experimental
     );
     assert_eq!(
         airglow
@@ -116,12 +116,13 @@ fn point_results_expose_calibration_provenance_uncertainty_and_band_convention()
             .as_ref()
             .unwrap()
             .resolved_model,
-        Some(AirglowModel::ParanalPalaceV1)
+        Some(AirglowModel::ParanalPalaceOxygenV1)
     );
     assert!(airglow
         .metadata
         .provenance
         .contains("airglow_palace_v1.dat"));
+    assert!(airglow.metadata.provenance.contains("oxygen asset"));
     // Bundled scientific baseline identity is pinned and machine-checkable.
     assert!(airglow
         .metadata
@@ -223,7 +224,7 @@ fn airglow_component_metadata_reflects_site_profile_maturity() {
         .unwrap();
     assert_eq!(
         airglow.metadata.status,
-        ComponentCalibrationStatus::GenericClearSky
+        ComponentCalibrationStatus::Experimental
     );
 
     let cta_s = NsbEvaluator::with_config(
@@ -237,9 +238,10 @@ fn airglow_component_metadata_reflects_site_profile_maturity() {
         .iter()
         .find(|c| c.name == "airglow")
         .unwrap();
+    // Automatic Oxygen keeps Experimental maturity; planning site is not a promotion.
     assert_eq!(
         airglow.metadata.status,
-        ComponentCalibrationStatus::PlanningPreset
+        ComponentCalibrationStatus::Experimental
     );
 }
 
@@ -263,7 +265,7 @@ fn vertical_profile_identity_reaches_metadata_without_upgrading_maturity() {
     let airglow = result.components.first().unwrap();
     assert_eq!(
         airglow.metadata.status,
-        ComponentCalibrationStatus::GenericClearSky
+        ComponentCalibrationStatus::Experimental
     );
     assert_eq!(
         airglow
@@ -272,7 +274,7 @@ fn vertical_profile_identity_reaches_metadata_without_upgrading_maturity() {
             .as_ref()
             .unwrap()
             .resolved_model,
-        Some(AirglowModel::ParanalPalaceV1)
+        Some(AirglowModel::ParanalPalaceOxygenV1)
     );
     let geometry = airglow.metadata.airglow_geometry.as_ref().unwrap();
     assert_eq!(geometry.model, "vertical_profile");
@@ -352,7 +354,7 @@ fn generic_airglow_metadata_and_values_work_for_arbitrary_location() {
         .unwrap();
     assert_eq!(
         airglow.metadata.status,
-        ComponentCalibrationStatus::GenericClearSky
+        ComponentCalibrationStatus::Experimental
     );
     assert!(airglow.integrated.value() > 0.0);
     // Geographic genericity of the API must not be confused with global calibration.
@@ -363,7 +365,7 @@ fn generic_airglow_metadata_and_values_work_for_arbitrary_location() {
     assert!(airglow
         .metadata
         .validated_domain
-        .contains("temporary automatic fallback"));
+        .contains("EXPERIMENTAL OXYGEN EXTENSION"));
 }
 
 #[test]
@@ -419,11 +421,11 @@ fn daytime_queries_return_zero_without_false_calibration_claims() {
     for (config, expected_status) in [
         (
             nsb::NsbModelConfig::generic_clear_sky(),
-            ComponentCalibrationStatus::GenericClearSky,
+            ComponentCalibrationStatus::Experimental,
         ),
         (
             nsb::NsbModelConfig::generic_clear_sky().with_site_profile(ctao_south_planning()),
-            ComponentCalibrationStatus::PlanningPreset,
+            ComponentCalibrationStatus::Experimental,
         ),
     ] {
         let evaluator = NsbEvaluator::with_config(config).unwrap();

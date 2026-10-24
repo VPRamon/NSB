@@ -526,7 +526,7 @@ mod tests {
                 );
             }
         }
-        // Frozen pre-refactor public scalar reference at PR271 commit 6361db0.
+        // Public scalar reference for Automatic Oxygen (v0.2.0); continuum-only was 0.10387771910979773 at PR271.
         let q = query(
             ComponentMask::ZODIACAL | ComponentMask::AIRGLOW,
             "2023-09-15T05:00:00Z",
@@ -535,7 +535,8 @@ mod tests {
             .integrate_band(&q, Nanometers::new(360.0), Nanometers::new(570.0))
             .unwrap()
             .value();
-        assert!((value - 0.10387771910979773).abs() < 1e-14);
+        // Automatic Airglow is PALACE Oxygen (v0.2.0); continuum-only golden was 0.10387771910979773.
+        assert!((value - 0.120_065_033_165_254).abs() < 1e-14);
     }
 
     #[test]

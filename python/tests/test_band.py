@@ -212,7 +212,7 @@ def test_structured_matches_existing_rust_point_fixture(observer, direction, poi
         components=nsb.ComponentMask.ZODIACAL | nsb.ComponentMask.AIRGLOW,
     )
     out = nsb.NsbEvaluator().integrate_band_components(q, 300, 650)
-    expected = [0.13935338075534795, 0.11991978668126084]
+    expected = [0.13935338075534795, 0.1788348139323062]
     for component, value in zip(out.components, expected):
         assert component.integrated_photons_cm2_ns_sr == pytest.approx(value, abs=1e-12, rel=0)
     assert out.integrated_photons_cm2_ns_sr == pytest.approx(sum(expected), abs=1e-12, rel=0)

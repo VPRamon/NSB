@@ -24,6 +24,15 @@ engine from **Rust**, **Python**, or the **command line**.
   This visualizes a starlight data product, <strong>not</strong> a total NSB prediction.
 </sub></p>
 
+## Observational validation notebooks
+
+Executable notebooks live under [`notebooks/`](notebooks/README.md):
+
+- [`notebooks/NSB_Validation.ipynb`](notebooks/NSB_Validation.ipynb) — standalone Patat/FORS1 campaign
+- [`notebooks/NSB_CTAO_Validation.ipynb`](notebooks/NSB_CTAO_Validation.ipynb) — CTAO four-component package (`./ctao/reproduce.sh`)
+
+**v0.2.0 Automatic Airglow is PALACE Oxygen.** Explicit continuum-only selection remains available. This is a release-policy reference-model choice, not an independent absolute observational admission.
+
 ## Install
 
 NSB **`0.2.0`** is a release candidate using published Rust/Python dependencies.

@@ -30,7 +30,7 @@ def test_point_fixture_matches_rust_public_contract(observer, direction, evaluat
         0.13935338075534795, abs=1.0e-12
     )
     assert result.components[1].integrated_photons_cm2_ns_sr == pytest.approx(
-        0.11991978668126084, abs=1.0e-12
+        0.1788348139323062, abs=1.0e-12
     )
 
 
@@ -57,7 +57,7 @@ def test_config_component_selection_and_automatic_airglow(observer, direction, p
     assert len(result.components) == 1
     metadata = result.components[0].metadata
     assert metadata.airglow_selection_kind == "automatic"
-    assert metadata.airglow_resolved_model is not None
+    assert metadata.airglow_resolved_model == "paranal-palace-oxygen-v1"
 
 
 def test_default_components_and_embedded_starlight(observer, direction, point_time):

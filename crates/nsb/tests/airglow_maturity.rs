@@ -119,13 +119,15 @@ fn model_config_maturity_is_invariant_under_f107_geometry_and_observer_changes()
         CalibrationStatus::GenericFallback
     );
 
+    // Automatic resolves to Oxygen; component status remains Experimental
+    // (scientific maturity) even though the site profile is GenericFallback.
     assert_eq!(
         descriptor_status(generic.clone(), arbitrary_location()),
-        ComponentCalibrationStatus::GenericClearSky
+        ComponentCalibrationStatus::Experimental
     );
     assert_eq!(
         descriptor_status(generic, paranal()),
-        ComponentCalibrationStatus::GenericClearSky
+        ComponentCalibrationStatus::Experimental
     );
 }
 
@@ -140,9 +142,11 @@ fn explicit_planning_config_and_result_metadata_agree_without_calibration_promot
             CalibrationStatus::PlanningPreset
         );
         assert!(!config.is_airglow_site_calibrated());
+        // Site-profile planning maturity is preserved on the config; Automatic
+        // Oxygen keeps Experimental component maturity (not a calibration upgrade).
         assert_eq!(
             descriptor_status(config.clone(), arbitrary_location()),
-            ComponentCalibrationStatus::PlanningPreset
+            ComponentCalibrationStatus::Experimental
         );
 
         let evaluator = NsbEvaluator::with_config(config).unwrap();
@@ -159,9 +163,18 @@ fn explicit_planning_config_and_result_metadata_agree_without_calibration_promot
             .unwrap();
         assert_eq!(
             airglow.metadata.status,
-            ComponentCalibrationStatus::PlanningPreset
+            ComponentCalibrationStatus::Experimental
         );
-        assert!(airglow.metadata.provenance.contains("Paranal-derived"));
+        assert_eq!(
+            airglow
+                .metadata
+                .airglow_selection
+                .as_ref()
+                .unwrap()
+                .resolved_model,
+            Some(nsb::AirglowModel::ParanalPalaceOxygenV1)
+        );
+        assert!(airglow.metadata.provenance.contains("oxygen asset"));
         assert!(airglow
             .metadata
             .provenance

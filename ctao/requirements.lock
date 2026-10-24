@@ -1,0 +1,16 @@
+# Approximate lock for the CTAO notebook environment (Linux x86_64, Python 3.12).
+# Prefer installing via ctao/environment.yml or:
+#   uv pip install -e ".[empirical,nsb2]" nbclient nbformat
+# Then install a verified nsb_py 0.2.0 wheel.
+#
+# Pinned scientific identities verified in executed runs:
+nsb2 @ git+https://github.com/GerritRo/nsb2.git@bc9320db03fbff69997ce366c6e76a37339c5d00
+# nsb / nsb_py == 0.2.0  (wheel or source; not yet assumed on PyPI)
+numpy>=2,<3
+astropy>=6.1,<9
+matplotlib>=3.9,<4
+healpy>=1.16,<2
+siderust==0.15.1
+nbclient>=0.10
+nbformat>=5.10
+scipy>=1.11

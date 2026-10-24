@@ -15,8 +15,8 @@ use chrono::{DateTime, Duration, Utc};
 use nsb::components::starlight::StarlightMap;
 use nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use nsb::{
-    ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightProduct, Target,
-    ThresholdQuery, DEG,
+    AirglowModel, ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightProduct,
+    Target, ThresholdQuery, DEG,
 };
 use siderust::bodies::Sun as SunBody;
 use siderust::coordinates::centers::Geodetic;
@@ -42,6 +42,14 @@ struct CompositionCase {
 fn parse(s: &str) -> Time<UTC> {
     let dt = DateTime::parse_from_rfc3339(s).unwrap().with_timezone(&Utc);
     Time::<UTC>::from_chrono(dt)
+}
+
+fn continuum_evaluator() -> NsbEvaluator {
+    // Scene/threshold scans leave the Automatic Oxygen zenith-distance domain.
+    NsbEvaluator::with_config(
+        NsbModelConfig::generic_clear_sky().with_airglow_model(AirglowModel::ParanalPalaceV1),
+    )
+    .expect("continuum evaluator")
 }
 
 fn ctao_s() -> Geodetic<ECEF> {
@@ -94,7 +102,7 @@ fn ctao_s_geometry_fixture_is_distinct_from_paranal() {
 
 #[test]
 fn production_all_preserves_component_composition_and_scene_contrast() {
-    let evaluator = NsbEvaluator::new().expect("evaluator");
+    let evaluator = continuum_evaluator();
     let cases = [
         CompositionCase {
             name: "dark-time high Galactic latitude",
@@ -192,9 +200,11 @@ fn production_all_preserves_component_composition_and_scene_contrast() {
 
 #[test]
 fn explicit_starlight_with_fixture_preserves_galactic_contrast() {
-    let config = NsbModelConfig::generic_clear_sky().with_starlight_product(
-        StarlightProduct::with_experimental_map(fixture_starlight_map()),
-    );
+    let config = NsbModelConfig::generic_clear_sky()
+        .with_airglow_model(AirglowModel::ParanalPalaceV1)
+        .with_starlight_product(StarlightProduct::with_experimental_map(
+            fixture_starlight_map(),
+        ));
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
 
     let evaluate = |target| {
@@ -242,7 +252,7 @@ fn explicit_starlight_with_fixture_preserves_galactic_contrast() {
 
 #[test]
 fn threshold_windows_match_independent_sampled_curve() {
-    let evaluator = NsbEvaluator::new().expect("evaluator");
+    let evaluator = continuum_evaluator();
     let observer = ctao_s();
     let target = sgr_a_star();
     let start = parse("2023-09-05T00:00:00Z");
@@ -304,7 +314,7 @@ fn threshold_windows_match_independent_sampled_curve() {
 
 #[test]
 fn unrestrictive_threshold_windows_match_independent_observability_intervals() {
-    let evaluator = NsbEvaluator::new().expect("evaluator");
+    let evaluator = continuum_evaluator();
     let observer = ctao_s();
     let target = sgr_a_star();
     let start = parse("2023-09-04T00:00:00Z");

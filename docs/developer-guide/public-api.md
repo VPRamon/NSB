@@ -94,10 +94,12 @@ through `NsbEvaluator` results.
 Airglow separates **selection policy** (`AirglowSelection::{Automatic,
 Explicit}`) from **scientific model identity** (`AirglowModel`) and from
 **evaluation outcome** (`AirglowEvaluationOutcome`). Defaults use `Automatic`;
-until #157 admits a global climatological model, automatic policy resolves to a
-temporary Paranal-derived planning fallback with typed
+until #157 admits a global climatological model, automatic policy resolves to
+the temporary Paranal-derived **PALACE Oxygen** planning fallback
+(`ParanalPalaceOxygenV1`) with typed
 `AirglowFallbackReason::GlobalPlanningModelUnavailable` in
-`NsbComponentMetadata::airglow_selection`. Explicit `with_airglow_model` /
+`NsbComponentMetadata::airglow_selection`. Explicit continuum-only
+`ParanalPalaceV1` remains supported. Explicit `with_airglow_model` /
 `with_airglow_selection(Explicit(...))` wins and never silently switches models.
 `describe_components()` reports selection metadata only and must not invent
 `airglow_evaluation`. Both enums are `#[non_exhaustive]` so later validated
