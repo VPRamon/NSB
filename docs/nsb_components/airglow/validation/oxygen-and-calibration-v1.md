@@ -1,5 +1,38 @@
 # Experimental oxygen addition and registered continuum fits
 
+## v0.2.0 default-admission decision (NO-GO)
+
+**Retain experimental opt-in. Do not promote `ParanalPalaceOxygenV1` to
+Automatic/default Airglow for NSB v0.2.0.**
+
+Independent equivalence and admission evidence:
+[palace-oxygen-default-admission-v1](https://github.com/VPRamon/nsb-validation/blob/science/palace-oxygen-default-admission-v1/reports/palace-oxygen-default-admission-v1/report.md)
+([decision.json](https://github.com/VPRamon/nsb-validation/blob/science/palace-oxygen-default-admission-v1/reports/palace-oxygen-default-admission-v1/decision.json)).
+
+Summary of that assessment:
+
+- **H1** (numerical correctness): engineering PASS on NSB main
+  `489ff010161c17e2b33b67b7799f5c36384147d7` (line-flux conservation; Automatic
+  remains `ParanalPalaceV1`).
+- **H2** (independent observational accuracy): FAIL — no absolute oxygen-line
+  cohort admitted; LVM extraction remains development-feasibility only.
+- **H3** (out-of-sample predictive improvement): INCONCLUSIVE — Patat gains are
+  development-partition evidence, not an untouched holdout; paired superiority
+  versus matched nsb2 is not demonstrated.
+- **H4** (geographic generalization): FAIL — Paranal-trained climatology must not
+  silently become the generic default ([issue #200](https://github.com/VPRamon/NSB/issues/200)).
+
+CONDITIONAL GO with Automatic→oxygen only at Paranal was considered and rejected
+for the same site-privilege reason and because even Paranal lacks independent
+absolute confirmation. Explicit `paranal-palace-oxygen-v1` selection remains
+available for reproducibility of experimental results.
+
+Smallest next action that could reopen admission: obtain certified diffuse
+absolute oxygen-line metrology (LVM SkyW transfer receipts **or** a small
+independent flux-calibrated oxygen-line spectral set outside PALACE training and
+the Patat development cohort), then freeze and execute the oxygen-line absolute
+experiment under the published protocol.
+
 ## Scientific scope and immutable references
 
 Baseline NSB main: `1b2556727205694c7765ef0d254c5d1b301582ec`.
