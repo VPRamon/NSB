@@ -46,8 +46,22 @@ class ReleaseMetadataTests(unittest.TestCase):
         self.assertNotEqual(self.run_preflight().returncode, 0)
 
     def test_old_python_bridge_requirements_fail(self):
-        self.replace("pyproject.toml", "siderust>=0.5.0,<0.6", "siderust>=0.4.0,<0.5")
+        self.replace("pyproject.toml", "siderust>=0.5.1,<0.6", "siderust>=0.5.0,<0.6")
         self.assertNotEqual(self.run_preflight().returncode, 0)
+
+    def test_unsafe_rust_bridge_requirement_fails(self):
+        self.replace("crates/nsb/Cargo.toml", 'siderust-py = { version = "0.5.1"',
+                     'siderust-py = { version = "0.5.0"')
+        result = self.run_preflight()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("corrected registry releases", result.stderr)
+
+    def test_unsafe_locked_rust_bridge_fails(self):
+        self.replace("Cargo.lock", 'name = "siderust-py"\nversion = "0.5.1"',
+                     'name = "siderust-py"\nversion = "0.5.0"')
+        result = self.run_preflight()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("unsafe 0.5.0", result.stderr)
 
     def test_dependency_patch_fails_even_without_tag(self):
         with (self.root / "Cargo.toml").open("a") as stream:

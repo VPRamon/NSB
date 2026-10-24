@@ -18,7 +18,7 @@ def test_distribution_declares_compatible_siderust_runtime_dependency():
 
     assert len(siderust_requirements) == 1
     requirement = siderust_requirements[0].replace(" ", "")
-    assert ">=0.5.0" in requirement
+    assert ">=0.5.1" in requirement
     assert "<0.6" in requirement
     assert metadata.version("siderust") == siderust.__version__
 

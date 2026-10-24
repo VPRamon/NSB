@@ -17,8 +17,8 @@ cargo add nsb@0.2.0
 The minimum supported Rust version is 1.89. This checkout prepares `0.2.0`;
 the installation commands target that version after publication. The dependency
 graph uses released Siderust 0.15.1, Tempoch 0.11.1 and Python bridges 0.5.
-Publication remains subject to maintainer approval and the upstream
-[Python query safety issue](https://github.com/Siderust/siderust-py/issues/13).
+Publication remains subject to maintainer approval. The corrected Siderust Python
+bridge/runtime 0.5.1 is required; affected 0.5.0 is excluded.
 
 NSB deliberately uses domain types from Siderust and tempoch at public
 boundaries instead of duplicating coordinate, atmosphere, or time semantics.

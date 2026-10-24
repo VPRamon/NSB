@@ -27,8 +27,8 @@ engine from **Rust**, **Python**, or the **command line**.
 ## Install
 
 NSB **`0.2.0`** is a release candidate using published Rust/Python dependencies.
-Publication still requires maintainer approval and resolution of the upstream
-[Siderust-Python query safety issue](https://github.com/Siderust/siderust-py/issues/13).
+Publication still requires maintainer approval. The corrected Siderust Python
+bridge/runtime 0.5.1 is required; affected 0.5.0 is excluded.
 The latest published NSB release is `0.1.1`; commands targeting `0.2.0` apply
 once it is published. Build this checkout to test the candidate.
 

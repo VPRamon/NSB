@@ -3,8 +3,10 @@
 Release from a validated, immutable **vX.Y.Z** tag after registry-package
 preflight and scientific approval. The tagged commit must have successful full
 CI from main, including API, coverage, MSRV, scientific and installed-wheel gates.
-Do **not** push tags while the published siderust-py 0.5 query safety defect
-([upstream #13](https://github.com/Siderust/siderust-py/issues/13)) remains unresolved.
+Require the corrected published siderust-py and Python siderust >=0.5.1,<0.6;
+0.5.0 contains the query safety defect
+([upstream #13](https://github.com/Siderust/siderust-py/issues/13)) and is excluded
+by the Rust/Python requirements and release metadata preflight.
 Registry packaging compatibility alone does not establish release readiness.
 
 The tag-triggered workflow validates metadata, API compatibility, runtime

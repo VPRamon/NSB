@@ -18,7 +18,7 @@ classifiers = [
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Astronomy",
 ]
-dependencies = ["siderust>=0.5.0,<0.6", "tempoch>=0.5.0,<0.6"]
+dependencies = ["siderust>=0.5.1,<0.6", "tempoch>=0.5.0,<0.6"]
 
 [project.optional-dependencies]
 test = ["pytest>=8,<10"]

@@ -8,9 +8,9 @@ tag-triggered publication workflow succeeds.
 ## [0.2.0]
 
 Release preparation; not yet published. Registry dependency compatibility is
-restored; publication still awaits resolution of the upstream
-[Python query safety issue](https://github.com/Siderust/siderust-py/issues/13)
-and maintainer approval. Evaluator physical defaults,
+restored; publication still awaits maintainer approval. Require siderust-py and
+Python siderust >=0.5.1,<0.6, excluding the unsafe 0.5.0 query dispatcher
+([upstream #13](https://github.com/Siderust/siderust-py/issues/13)). Evaluator physical defaults,
 scientific assets and historical validation evidence are unchanged by the
 dependency and release-metadata updates. New opt-in capabilities below do not
 establish independent observational accuracy.

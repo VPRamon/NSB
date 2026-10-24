@@ -1,6 +1,6 @@
 # Siderust compatibility
 
-Status: Registry dependency baseline for NSB 0.2.0; upstream Python safety blocker.
+Status: Registry dependency baseline for NSB 0.2.0; corrected Python bridge 0.5.1.
 Audience: Maintainers and downstream packagers.
 Scope: Provider identities, interoperability, provenance and release requirements.
 Non-goals: Scientific admission or observational accuracy claims.
@@ -14,9 +14,9 @@ Non-goals: Scientific admission or observational accuracy claims.
 | Affn / derive | 0.12.1 / 0.12.0 | crates.io, through upstream providers |
 | Qtty / core | 0.8.6 | crates.io, through Siderust re-exports |
 | Principia / Optica / Keplerian | 0.7.0 / 0.5.0 / 0.5.1 | crates.io, through Siderust |
-| siderust-py / tempoch-py | 0.5.0 | crates.io |
+| siderust-py / tempoch-py | 0.5.1 / 0.5.0 | crates.io |
 | PyO3 / pyo3-ffi | 0.30.1 | crates.io; one linking identity |
-| Python siderust / tempoch | 0.5.0 | PyPI; supported requirements `>=0.5.0,<0.6` |
+| Python siderust / tempoch | 0.5.1 / 0.5.0 | PyPI; `siderust>=0.5.1,<0.6`, `tempoch>=0.5.0,<0.6` |
 
 The coordinated 0.5 bridges resolve the former Affn/Tempoch/PyO3 mismatch.
 Siderust 0.15.1 is the published documentation-fix patch over 0.15.0, which
@@ -51,18 +51,23 @@ preserves NSB's existing class behavior. Computational methods retain GIL releas
 and the existing error translation. No replacement wrapper classes or unsafe
 casts are introduced.
 
-**NOT READY — remaining upstream safety blocker:** published siderust-py and
-Python siderust 0.5.0 retain invalid casts from a `PyObject` header pointer to a
-Rust Star/Direction payload in `src/queries.rs`. This is reachable through public
-free query functions; a published-wheel reproduction gives different altitude
-results from the safe Direction method. See
-[upstream #13](https://github.com/Siderust/siderust-py/issues/13) for the source
-analysis, reproduction and proposed safe PyRef-guard fix. Current upstream main
-was also affected when inspected on 24 October 2026. NSB's primitive-only bridge
-does not call that dispatcher, but passing NSB tests does not establish safety of
-the runtime dependency as a whole. Corrected published distributions, source
-review and renewed interoperability checks are required before release approval.
-No upstream repository or package publication is changed by this migration.
+Published siderust-py and Python siderust **0.5.1** correct
+[upstream #13](https://github.com/Siderust/siderust-py/issues/13): 0.5.0 cast
+`PyObject` header pointers to Rust Star/Direction payload references and dropped
+the borrow guards. The correction stores `PyRef` guards in `Subject` and retains
+them throughout every query operation, without unchecked casts or clones. It also
+rejects non-finite search-window endpoints. The published crates.io source and
+PyPI sdist were compared with the merged
+[fix #14](https://github.com/Siderust/siderust-py/pull/14); installed PyPI wheels
+pass the former Direction reproduction and Star/Direction method parity checks.
+
+NSB's primitive-only official interop protocol does not call that dispatcher.
+Existing installed NSB tests cover canonical classes, UTC offsets, subsecond
+round trips, periods and invalid inputs. The Cargo requirement `0.5.1` and Python
+requirement `>=0.5.1,<0.6` exclude affected 0.5.0 even without this workspace's
+lockfile. Release preflight independently rejects a lower manifest minimum,
+unsafe locked bridge, or old Python bounds. No upstream implementation is copied
+into NSB, and no unsafe workaround is added.
 
 ## Scientific and release boundaries
 
@@ -80,8 +85,8 @@ Retain the component [Moonlight](../nsb_components/moonlight/scattering-column-c
 [Zodiacal](../nsb_components/zodiacal/noll-equation-correction.md),
 [model maturity](model-maturity.md) and [validation](validation.md) caveats.
 
-Before tagging, resolve the upstream safety blocker, review exact distribution
-sources, pass the complete CI and registry packaging gates, then obtain the
+Before tagging, review exact distribution sources, pass the complete CI and
+registry packaging gates, then obtain the
 required maintainer/scientific/redistribution approvals. The release workflow
 requires successful main-branch CI for the exact tagged commit, including coverage,
 MSRV, API, numerical and cross-platform installed-wheel checks. Existing crates.io

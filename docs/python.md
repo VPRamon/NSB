@@ -21,7 +21,7 @@ Python 3.10 or newer is supported.
 python -m pip install nsb-py
 ```
 
-The distribution declares `siderust>=0.5.0,<0.6` and `tempoch>=0.5.0,<0.6`
+The distribution declares `siderust>=0.5.1,<0.6` and `tempoch>=0.5.0,<0.6`
 as runtime dependencies, so pip installs the matching canonical upstream packages. The Rust
 crate version used internally is a separate version line; see
 [Siderust compatibility](specifications/siderust-compatibility.md).
@@ -173,7 +173,7 @@ Evaluator construction, point evaluation, and planning operations detach from th
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install -U pip "maturin>=1.9,<2" pytest
-python -m pip install "siderust>=0.5.0,<0.6"
+python -m pip install "siderust>=0.5.1,<0.6"
 maturin develop --locked
 python -m pytest python/tests
 ```
@@ -200,8 +200,9 @@ requires a sound enclosure of the whole band and fails for unsupported models.
 Ordinary Python timestamps remain timezone-aware `datetime` values, with
 inward projection checked at microsecond precision.
 
-The published Siderust 0.5.0 package has a confirmed unsafe pointer cast in its
-free Star/Direction query functions ([upstream #13](https://github.com/Siderust/siderust-py/issues/13)).
-NSB uses the primitive-only official interop protocol and does not call that
-query dispatcher. This does not make the dependency safe as a whole; NSB release
-approval remains blocked until corrected distributions are reviewed and tested.
+Siderust 0.5.1 fixes the invalid Python-object-to-Rust-payload casts in free
+Star/Direction queries by retaining PyO3 borrow guards throughout dispatch
+([upstream #14](https://github.com/Siderust/siderust-py/pull/14)). Published crate
+and PyPI source artifacts contain the correction, and installed-wheel checks
+confirm method/free-function parity. NSB retains the official primitive interop
+protocol; both its Rust bridge and Python runtime requirements exclude 0.5.0.
