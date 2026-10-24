@@ -6,8 +6,10 @@
 Automatic/default Airglow for NSB v0.2.0.**
 
 Independent equivalence and admission evidence:
-[palace-oxygen-default-admission-v1](https://github.com/VPRamon/nsb-validation/blob/science/palace-oxygen-default-admission-v1/reports/palace-oxygen-default-admission-v1/report.md)
-([decision.json](https://github.com/VPRamon/nsb-validation/blob/science/palace-oxygen-default-admission-v1/reports/palace-oxygen-default-admission-v1/decision.json)).
+[nsb-validation PR #21](https://github.com/VPRamon/nsb-validation/pull/21),
+report commit
+[`71d594f`](https://github.com/VPRamon/nsb-validation/blob/71d594f0456c10afeeba1fc718615fb5195b25c6/reports/palace-oxygen-default-admission-v1/report.md)
+([decision.json](https://github.com/VPRamon/nsb-validation/blob/71d594f0456c10afeeba1fc718615fb5195b25c6/reports/palace-oxygen-default-admission-v1/decision.json)).
 
 Summary of that assessment:
 
