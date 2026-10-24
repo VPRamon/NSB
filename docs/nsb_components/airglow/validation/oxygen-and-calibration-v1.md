@@ -35,6 +35,24 @@ independent flux-calibrated oxygen-line spectral set outside PALACE training and
 the Patat development cohort), then freeze and execute the oxygen-line absolute
 experiment under the published protocol.
 
+### Reassessment v2 (public LVM calibration exhausted)
+
+Follow-up evidence:
+[nsb-validation PR #22](https://github.com/VPRamon/nsb-validation/pull/22),
+[`4c557bf`](https://github.com/VPRamon/nsb-validation/blob/4c557bff800250ee48a690efd96b6e362b121fde/reports/palace-oxygen-reassessment-v2/report.md).
+
+Public DR20/SFrame analysis and pinned DRP
+`747bad8923d53b612a7daecf53a80f3c65262e63` show that `SKY` is a broadcast
+sky-subtraction model and `FLUX+SKY` recovers calibrated SkyW fiber flux. That
+does **not** certify absolute diffuse radiometry. Machine gate:
+`LVM_ABSOLUTE_EQUIVALENCE = PENDING_EXTERNAL_EVIDENCE` (missing measured
+`Omega_eff`/FRD, runtime/master receipts, joint covariance and full-integration
+atmosphere). Default admission remains **NO-GO**. The SDSS helpdesk inquiry is
+prepared and **not sent**
+([ready-to-send text](https://github.com/VPRamon/nsb-validation/blob/4c557bff800250ee48a690efd96b6e362b121fde/reports/palace-oxygen-reassessment-v2/lvm-inquiry-ready-to-send.md)).
+Protected LVM evaluation spectra remain sealed. Tracked in
+[#280](https://github.com/VPRamon/NSB/issues/280).
+
 ## Scientific scope and immutable references
 
 Baseline NSB main: `1b2556727205694c7765ef0d254c5d1b301582ec`.
