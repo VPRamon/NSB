@@ -14,7 +14,8 @@ use siderust::coordinates::frames::ECEF;
 use siderust::qtty::{Degrees, Kilometers, Meters};
 use tempoch::{Time, UTC};
 
-const REFERENCE_MODEL: AirglowModel = AirglowModel::ParanalPalaceV1;
+/// Automatic policy resolves to Oxygen; explicit Oxygen must match bit-for-bit.
+const REFERENCE_MODEL: AirglowModel = AirglowModel::ParanalPalaceOxygenV1;
 
 fn observer(lon_deg: f64, lat_deg: f64, height_m: f64) -> Geodetic<ECEF> {
     Geodetic::new_raw(
@@ -32,15 +33,17 @@ fn time() -> Time<UTC> {
     )
 }
 
-fn target() -> Target {
-    Target::new(266.41683 * DEG, -29.00781 * DEG)
+fn near_zenith_target(observer: &Geodetic<ECEF>) -> Target {
+    // Automatic Oxygen requires zenith distance ≤ 60°. Point near local zenith.
+    Target::new(0.0 * DEG, observer.lat())
 }
 
 fn evaluate_airglow(config: NsbModelConfig, observer: Geodetic<ECEF>) -> NsbComponent {
     NsbEvaluator::with_config(config)
         .unwrap()
         .evaluate(
-            &PointQuery::new(observer, time(), target()).with_components(ComponentMask::AIRGLOW),
+            &PointQuery::new(observer, time(), near_zenith_target(&observer))
+                .with_components(ComponentMask::AIRGLOW),
         )
         .unwrap()
         .components
@@ -124,17 +127,14 @@ fn scientific_model_identity_is_independent_of_geometry_f107_location_and_site_m
     let paranal = observer(-70.4044, -24.6275, 2_635.0);
     let base_arbitrary = evaluate_airglow(base.clone(), arbitrary);
     let base_paranal = evaluate_airglow(base, paranal);
-    let changed_geometry = evaluate_airglow(changed_geometry, arbitrary);
+    assert!(matches!(
+        NsbEvaluator::with_config(changed_geometry),
+        Err(nsb::NsbError::Unsupported(_))
+    ));
     let changed_f107 = evaluate_airglow(changed_f107, paranal);
     let changed_site = evaluate_airglow(changed_site, paranal);
 
-    for component in [
-        &base_arbitrary,
-        &base_paranal,
-        &changed_geometry,
-        &changed_f107,
-        &changed_site,
-    ] {
+    for component in [&base_arbitrary, &base_paranal, &changed_f107, &changed_site] {
         assert_eq!(
             component
                 .metadata
@@ -147,14 +147,110 @@ fn scientific_model_identity_is_independent_of_geometry_f107_location_and_site_m
     }
     assert_eq!(
         base_arbitrary.metadata.status,
-        ComponentCalibrationStatus::GenericClearSky
+        ComponentCalibrationStatus::Experimental
     );
     assert_eq!(
         base_paranal.metadata.status,
-        ComponentCalibrationStatus::GenericClearSky
+        ComponentCalibrationStatus::Experimental
     );
+    // CTAO planning site profile does not upgrade Oxygen beyond Experimental.
     assert_eq!(
         changed_site.metadata.status,
-        ComponentCalibrationStatus::PlanningPreset
+        ComponentCalibrationStatus::Experimental
     );
+}
+
+#[test]
+fn automatic_and_explicit_oxygen_require_standard_geometry() {
+    for selection in [
+        AirglowSelection::Automatic,
+        AirglowSelection::Explicit(REFERENCE_MODEL),
+    ] {
+        let config = NsbModelConfig::generic_clear_sky().with_airglow_selection(selection);
+        assert!(NsbEvaluator::with_config(config.clone()).is_ok());
+        let nonstandard = config.with_airglow_geometry(AirglowGeometryModel::VanRhijn(
+            VanRhijnConfig::new(Kilometers::new(110.0)).unwrap(),
+        ));
+        assert!(matches!(
+            NsbEvaluator::with_config(nonstandard.clone()),
+            Err(nsb::NsbError::Unsupported(_))
+        ));
+        // Custom continuum geometry remains an explicit supported capability.
+        assert!(NsbEvaluator::with_config(
+            nonstandard.with_airglow_model(AirglowModel::ParanalPalaceV1)
+        )
+        .is_ok());
+    }
+}
+
+#[test]
+fn daytime_out_of_domain_is_rejected_for_automatic_and_explicit_oxygen() {
+    use nsb::units::length::Nanometers;
+
+    let location = observer(-70.4044, -24.6275, 2635.0);
+    let daylight = Time::<UTC>::from_chrono(
+        DateTime::parse_from_rfc3339("2023-09-04T16:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc),
+    );
+    let query = PointQuery::new(location, daylight, Target::new(0.0 * DEG, location.lat()))
+        .with_components(ComponentMask::AIRGLOW);
+    let lower = Nanometers::new(300.0);
+    let upper = Nanometers::new(650.0);
+
+    for selection in [
+        AirglowSelection::Automatic,
+        AirglowSelection::Explicit(REFERENCE_MODEL),
+    ] {
+        let evaluator = NsbEvaluator::with_config(
+            NsbModelConfig::generic_clear_sky().with_airglow_selection(selection),
+        )
+        .unwrap();
+        assert!(
+            matches!(evaluator.evaluate(&query), Err(nsb::NsbError::OutOfRange(message)) if message.contains("zenith distance <= 60"))
+        );
+        assert!(
+            matches!(evaluator.integrate_band(&query, lower, upper), Err(nsb::NsbError::OutOfRange(message)) if message.contains("zenith distance <= 60"))
+        );
+    }
+
+    // The historical continuum explicitly permits high zenith distances, and
+    // a geometrically valid daytime query remains a physical zero.
+    let continuum = NsbEvaluator::with_config(
+        NsbModelConfig::generic_clear_sky().with_airglow_model(AirglowModel::ParanalPalaceV1),
+    )
+    .unwrap();
+    assert_eq!(continuum.evaluate(&query).unwrap().integrated.value(), 0.0);
+    assert_eq!(
+        continuum
+            .integrate_band(&query, lower, upper)
+            .unwrap()
+            .value(),
+        0.0
+    );
+}
+
+#[test]
+fn automatic_and_explicit_oxygen_return_identical_domain_errors() {
+    let location = observer(-70.4044, -24.6275, 2635.0);
+    let query = PointQuery::new(location, time(), Target::new(90.0 * DEG, location.lat()))
+        .with_components(ComponentMask::AIRGLOW);
+    for selection in [
+        AirglowSelection::Automatic,
+        AirglowSelection::Explicit(REFERENCE_MODEL),
+    ] {
+        let evaluator = NsbEvaluator::with_config(
+            NsbModelConfig::generic_clear_sky().with_airglow_selection(selection),
+        )
+        .unwrap();
+        assert!(
+            matches!(evaluator.evaluate(&query), Err(nsb::NsbError::OutOfRange(message)) if message.contains("zenith distance <= 60"))
+        );
+    }
+    assert!(NsbEvaluator::with_config(
+        NsbModelConfig::generic_clear_sky().with_airglow_model(AirglowModel::ParanalPalaceV1)
+    )
+    .unwrap()
+    .evaluate(&query)
+    .is_ok());
 }

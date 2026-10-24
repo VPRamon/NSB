@@ -169,8 +169,11 @@ fn runtime_uses_fit_atmosphere_scale_and_never_upgrades_trusted_maturity() {
 }
 #[test]
 fn oxygen_is_explicit_conserves_line_flux_and_does_not_scale_lines_with_continuum() {
+    // Continuum-only must be explicit: Automatic resolves to Oxygen in v0.2.0.
     let base = NsbEvaluator::with_config(
-        NsbModelConfig::generic_clear_sky().with_solar_radio_flux(SolarFluxUnits::new(100.)),
+        NsbModelConfig::generic_clear_sky()
+            .with_solar_radio_flux(SolarFluxUnits::new(100.))
+            .with_airglow_model(AirglowModel::ParanalPalaceV1),
     )
     .unwrap();
     let improved = NsbEvaluator::with_config(

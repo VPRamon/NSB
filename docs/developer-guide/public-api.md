@@ -94,10 +94,12 @@ through `NsbEvaluator` results.
 Airglow separates **selection policy** (`AirglowSelection::{Automatic,
 Explicit}`) from **scientific model identity** (`AirglowModel`) and from
 **evaluation outcome** (`AirglowEvaluationOutcome`). Defaults use `Automatic`;
-until #157 admits a global climatological model, automatic policy resolves to a
-temporary Paranal-derived planning fallback with typed
+until #157 admits a global climatological model, automatic policy resolves to
+the temporary Paranal-derived **PALACE Oxygen** planning fallback
+(`ParanalPalaceOxygenV1`) with typed
 `AirglowFallbackReason::GlobalPlanningModelUnavailable` in
-`NsbComponentMetadata::airglow_selection`. Explicit `with_airglow_model` /
+`NsbComponentMetadata::airglow_selection`. Explicit continuum-only
+`ParanalPalaceV1` remains supported. Explicit `with_airglow_model` /
 `with_airglow_selection(Explicit(...))` wins and never silently switches models.
 `describe_components()` reports selection metadata only and must not invent
 `airglow_evaluation`. Both enums are `#[non_exhaustive]` so later validated
@@ -360,3 +362,14 @@ git add crates/nsb/api/API_FROZEN crates/nsb/api/public-api.txt
 
 Breaking changes require an explicit release-version decision. Snapshot equality
 and historical SemVer checks remain enforced for every frozen comparison.
+
+### Automatic Oxygen domain and planning
+
+In v0.2.0 Automatic and explicit Oxygen enforce the same standard continuum
+geometry at evaluator construction (`NsbError::Unsupported` for other geometry).
+Oxygen remains Experimental and limited to zenith distance ≤60°. Point/band
+queries and planning evaluations outside the domain return the model's explicit
+`NsbError::OutOfRange` (Python `nsb.OutOfRangeError`, CLI failure); no implicit continuum substitution occurs.
+Restrict a scan or track to that domain, or choose `ParanalPalaceV1` explicitly
+for historical continuum coverage. Selection metadata still distinguishes
+Automatic from explicit Oxygen even when radiances are identical.

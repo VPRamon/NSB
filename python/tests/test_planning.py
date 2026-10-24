@@ -61,7 +61,7 @@ def test_certified_empty_component_sum_needs_no_sampling_configuration(observer,
     assert abs(result.periods[0][1] - end) < timedelta(microseconds=50)
 
 
-def test_rust_heavy_planning_detaches_from_python(observer, direction, evaluator):
+def test_rust_heavy_planning_detaches_from_python(observer, direction, continuum_evaluator):
     query = nsb.ThresholdQuery(
         observer,
         direction,
@@ -85,7 +85,7 @@ def test_rust_heavy_planning_detaches_from_python(observer, direction, evaluator
     sys.setswitchinterval(1000.0)
     try:
         started.set()
-        evaluator.periods_below_threshold(query)
+        continuum_evaluator.periods_below_threshold(query)
     finally:
         sys.setswitchinterval(previous)
         thread.join()
@@ -119,25 +119,34 @@ def test_adaptive_supports_both_lunar_models(observer):
         assert evaluator.periods_below_threshold_adaptive(query).periods
 
 
-def test_joint_band_checks_minimum_at_exported_datetime_boundaries(observer, direction, evaluator):
+def test_joint_band_checks_minimum_at_exported_datetime_boundaries(
+    observer, direction, continuum_evaluator
+):
     import siderust
     start = datetime(2023, 9, 4, 0, tzinfo=timezone.utc)
     end = start + timedelta(hours=6)
     target = siderust.Direction(266.41683, -29.00781)
     mask = nsb.ComponentMask.ZODIACAL | nsb.ComponentMask.AIRGLOW
-    values = [evaluator.evaluate(nsb.PointQuery(observer, start + timedelta(minutes=i * 10), target, components=mask)).integrated_photons_cm2_ns_sr for i in range(37)]
+    values = [
+        continuum_evaluator.evaluate(
+            nsb.PointQuery(observer, start + timedelta(minutes=i * 10), target, components=mask)
+        ).integrated_photons_cm2_ns_sr
+        for i in range(37)
+    ]
     values.sort()
     minimum, maximum = values[len(values)//3], values[2*len(values)//3]
     query = nsb.ThresholdQuery(observer, target, start, end, maximum, components=mask,
         sun_altitude_ceiling_deg=None, target_altitude_floor_deg=None)
-    context = evaluator.prepare_site_window_context(query)
-    out = evaluator.periods_in_band_adaptive_with_context(context, query, minimum)
-    assert out.periods == evaluator.periods_in_band_adaptive(query, minimum).periods
+    context = continuum_evaluator.prepare_site_window_context(query)
+    out = continuum_evaluator.periods_in_band_adaptive_with_context(context, query, minimum)
+    assert out.periods == continuum_evaluator.periods_in_band_adaptive(query, minimum).periods
     assert out.periods
     for a, b in out.periods:
         for i in range(101):
             t = a + (b-a) * i / 100
-            value = evaluator.evaluate(nsb.PointQuery(observer, t, target, components=mask)).integrated_photons_cm2_ns_sr
+            value = continuum_evaluator.evaluate(
+                nsb.PointQuery(observer, t, target, components=mask)
+            ).integrated_photons_cm2_ns_sr
             assert minimum <= value <= maximum
 
 

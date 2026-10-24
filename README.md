@@ -24,6 +24,27 @@ engine from **Rust**, **Python**, or the **command line**.
   This visualizes a starlight data product, <strong>not</strong> a total NSB prediction.
 </sub></p>
 
+## Airglow defaults and examples
+
+**v0.2.0 Automatic Airglow resolves to PALACE Oxygen** (`ParanalPalaceOxygenV1`).
+Oxygen remains **Experimental**, requires the standard continuum geometry and
+zenith distance **≤60°**, and raises explicit domain errors outside that range.
+Planning tracks and sky scans must stay within this domain or deliberately select
+continuum; NSB never silently substitutes it.
+
+Select historical continuum explicitly with Rust
+`config.with_airglow_model(AirglowModel::ParanalPalaceV1)`, Python
+`config.with_airglow_model(nsb.AirglowModel.PARANAL_PALACE_V1)`, or CLI
+`--airglow-model paranal-palace-v1`.
+
+See [notebooks](notebooks/README.md) for a standalone observational demonstration
+and a concise [CTAO API example](notebooks/CTAO_API_Example.ipynb).
+Complete observational experiments, datasets and scientific admission material live
+in [nsb-validation](https://github.com/VPRamon/nsb-validation), including its
+[CTAO benchmark](https://github.com/VPRamon/nsb-validation/pull/23).
+The default is a release-policy choice, not independent observational admission:
+Patat informed development and LVM absolute equivalence remains pending.
+
 ## Install
 
 NSB **`0.2.0`** is a release candidate using published Rust/Python dependencies.
@@ -84,14 +105,15 @@ target = siderust.Direction(ra_deg=266.41683, dec_deg=-29.00781)
 
 evaluator = nsb.NsbEvaluator()
 result = evaluator.evaluate(
-    nsb.PointQuery(observer, datetime(2026, 6, 18, 23, tzinfo=timezone.utc), target)
+    nsb.PointQuery(observer, datetime(2026, 6, 19, 3, tzinfo=timezone.utc), target)
 )
 print(f"NSB: {result.integrated_photons_cm2_ns_sr:.3e} ph/(cm² ns sr)")
 ```
 
 This example uses CTAO South's coordinates with the **generic clear-sky**
-model, not a site-calibrated CTAO model. Python input times must be
-timezone-aware. For component breakdowns, planning and site profiles, see the
+profile and experimental Automatic Oxygen Airglow, not a site-calibrated CTAO
+model. The chosen night-time target lies within Oxygen's zenith-distance
+≤60° domain. Python input times must be timezone-aware. For component breakdowns, planning and site profiles, see the
 [Python guide](docs/python.md).
 
 ### Rust
@@ -134,7 +156,7 @@ After installing the executable above, evaluate the same target from CTAO South:
 
 ```bash
 nsb --format table point \
-  --time 2026-06-18T23:00:00Z \
+  --time 2026-06-19T03:00:00Z \
   --site CTAO-S --site-profile cta-south \
   --ra 266.41683 --dec -29.00781
 ```

@@ -5,6 +5,7 @@ use predicates::prelude::*;
 
 #[test]
 fn default_point_json_reports_schema_versions_and_components() {
+    // Near-zenith direction at this instant: valid with Automatic Oxygen (ZD <= 60).
     let mut cmd = Command::cargo_bin("nsb").unwrap();
     let output = cmd
         .args([
@@ -18,9 +19,9 @@ fn default_point_json_reports_schema_versions_and_components() {
             "--site-profile",
             "cta-south",
             "--ra",
-            "83.0",
+            "181.8",
             "--dec",
-            "22.0",
+            "-24.6275",
         ])
         .assert()
         .success()
@@ -29,8 +30,8 @@ fn default_point_json_reports_schema_versions_and_components() {
         .clone();
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
     assert_eq!(value["schema_version"], "nsb-cli-point-json-v1");
-    assert!((value["target"]["ra_deg"].as_f64().unwrap() - 83.0).abs() < 1e-10);
-    assert!((value["target"]["dec_deg"].as_f64().unwrap() - 22.0).abs() < 1e-10);
+    assert!((value["target"]["ra_deg"].as_f64().unwrap() - 181.8).abs() < 1e-10);
+    assert!((value["target"]["dec_deg"].as_f64().unwrap() + 24.6275).abs() < 1e-10);
     assert_eq!(value["version"]["model_version"], "nsb-model-v1");
     assert_eq!(value["version"]["siderust_version"], "0.15.1");
     assert_eq!(
@@ -42,7 +43,7 @@ fn default_point_json_reports_schema_versions_and_components() {
     assert_eq!(value["model"]["airglow_selection"]["kind"], "automatic");
     assert_eq!(
         value["model"]["airglow_selection"]["resolved_model"],
-        "paranal-palace-v1"
+        "paranal-palace-oxygen-v1"
     );
     assert_eq!(value["model"]["airglow_selection"]["used_fallback"], true);
     assert_eq!(
@@ -89,7 +90,7 @@ fn default_point_json_reports_schema_versions_and_components() {
     );
     assert_eq!(
         airglow["metadata"]["airglow_selection"]["resolved_model"],
-        "paranal-palace-v1"
+        "paranal-palace-oxygen-v1"
     );
     assert_eq!(
         airglow["metadata"]["airglow_selection"]["used_fallback"],

@@ -13,7 +13,12 @@ height_m = 800.0
 reference_pressure_hpa = 920.0
 "#;
 
-fn run_airglow(site_args: &[&str], profile: Option<&str>) -> serde_json::Value {
+fn run_airglow(
+    site_args: &[&str],
+    profile: Option<&str>,
+    // Near-zenith ICRS Dec matching the site latitude so Automatic Oxygen (ZD≤60°) evaluates.
+    dec_deg: &str,
+) -> serde_json::Value {
     let mut args = vec![
         "--format",
         "json",
@@ -24,11 +29,13 @@ fn run_airglow(site_args: &[&str], profile: Option<&str>) -> serde_json::Value {
     args.extend_from_slice(site_args);
     args.extend([
         "--ra",
-        "266.41683",
+        "0.0",
         "--dec",
-        "-29.00781",
+        dec_deg,
         "--components",
         "airglow",
+        "--solar-radio-flux-sfu",
+        "100",
     ]);
     if let Some(profile) = profile {
         args.extend(["--site-profile", profile]);
@@ -45,59 +52,81 @@ fn run_airglow(site_args: &[&str], profile: Option<&str>) -> serde_json::Value {
     serde_json::from_slice(&output).unwrap()
 }
 
-fn assert_generic_airglow(value: &serde_json::Value) {
-    assert_eq!(value["model"]["preset"], "generic-clear-sky");
+fn assert_automatic_oxygen_airglow(value: &serde_json::Value, preset: &str) {
+    assert_eq!(value["model"]["preset"], preset);
+    assert_eq!(
+        value["model"]["airglow_selection"]["resolved_model"],
+        "paranal-palace-oxygen-v1"
+    );
+    // Automatic Oxygen keeps Experimental scientific maturity (not a calibration upgrade).
     assert_eq!(
         value["components"][0]["metadata"]["calibration_status"],
-        "generic-clear-sky"
+        "experimental"
     );
     let provenance = value["components"][0]["metadata"]["provenance"]
         .as_str()
         .unwrap();
-    assert!(provenance.contains("PALACE v1.0"));
-    assert!(provenance.contains("Cerro Paranal"));
+    assert!(provenance.contains("PALACE"));
     assert!(provenance.contains("site_calibrated false"));
 }
 
 #[test]
-fn paranal_observatory_alone_remains_generic_airglow() {
-    assert_generic_airglow(&run_airglow(&["--site", "PARANAL"], None));
+fn paranal_observatory_alone_uses_automatic_oxygen() {
+    assert_automatic_oxygen_airglow(
+        &run_airglow(&["--site", "PARANAL"], None, "-24.6275"),
+        "generic-clear-sky",
+    );
 }
 
 #[test]
-fn custom_observatory_defaults_to_generic_airglow() {
+fn custom_observatory_defaults_to_automatic_oxygen() {
     let directory = tempdir().unwrap();
     let catalog = directory.path().join("observatories.toml");
     fs::write(&catalog, CUSTOM_CATALOG).unwrap();
 
-    assert_generic_airglow(&run_airglow(
-        &[
-            "--site",
-            "Airglow Test Observatory",
-            "--observatory-catalog",
-            catalog.to_str().unwrap(),
-        ],
-        None,
-    ));
+    assert_automatic_oxygen_airglow(
+        &run_airglow(
+            &[
+                "--site",
+                "Airglow Test Observatory",
+                "--observatory-catalog",
+                catalog.to_str().unwrap(),
+            ],
+            None,
+            "41.9",
+        ),
+        "generic-clear-sky",
+    );
 }
 
 #[test]
 fn ctao_observatory_identity_does_not_select_planning_profile() {
-    assert_generic_airglow(&run_airglow(&["--site", "CTAO-N"], None));
-    assert_generic_airglow(&run_airglow(&["--site", "CTAO-S"], None));
+    assert_automatic_oxygen_airglow(
+        &run_airglow(&["--site", "CTAO-N"], None, "28.7619"),
+        "generic-clear-sky",
+    );
+    assert_automatic_oxygen_airglow(
+        &run_airglow(&["--site", "CTAO-S"], None, "-24.6834"),
+        "generic-clear-sky",
+    );
 }
 
 #[test]
-fn explicit_ctao_profiles_are_planning_only() {
-    for (site, profile, preset) in [
-        ("CTAO-N", "cta-north", "ctao-north-planning"),
-        ("CTAO-S", "cta-south", "ctao-south-planning"),
+fn explicit_ctao_profiles_remain_planning_site_with_experimental_oxygen() {
+    for (site, profile, preset, dec) in [
+        ("CTAO-N", "cta-north", "ctao-north-planning", "28.7619"),
+        ("CTAO-S", "cta-south", "ctao-south-planning", "-24.6834"),
     ] {
-        let value = run_airglow(&["--site", site], Some(profile));
+        let value = run_airglow(&["--site", site], Some(profile), dec);
         assert_eq!(value["model"]["preset"], preset);
+        // Site profile is planning; Automatic Oxygen component maturity stays Experimental.
         assert_eq!(
             value["components"][0]["metadata"]["calibration_status"],
-            "planning-preset"
+            "experimental"
+        );
+        assert_eq!(
+            value["model"]["airglow_selection"]["resolved_model"],
+            "paranal-palace-oxygen-v1"
         );
         assert!(value["components"][0]["metadata"]["provenance"]
             .as_str()

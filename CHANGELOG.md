@@ -10,18 +10,28 @@ tag-triggered publication workflow succeeds.
 Release preparation; not yet published. Registry dependency compatibility is
 restored; publication still awaits maintainer approval. Require siderust-py and
 Python siderust >=0.5.1,<0.6, excluding the unsafe 0.5.0 query dispatcher
-([upstream #13](https://github.com/Siderust/siderust-py/issues/13)). Evaluator physical defaults,
-scientific assets and historical validation evidence are unchanged by the
-dependency and release-metadata updates. New opt-in capabilities below do not
-establish independent observational accuracy.
+([upstream #13](https://github.com/Siderust/siderust-py/issues/13)).
+
+### Changed
+
+- **Automatic Airglow resolves to PALACE Oxygen** (`ParanalPalaceOxygenV1`) as the
+  v0.2.0 reference planning fallback until a global climatological model (#157)
+  is admitted. This is a release-policy choice supported by physical completeness
+  and favorable retrospective Patat/FORS1 development evidence; it is **not** an
+  independent absolute observational admission. Explicit continuum-only
+  `ParanalPalaceV1` remains fully supported. Automatic Oxygen inherits the
+  experimental Oxygen domain (including zenith distance ≤ 60°). Scientific
+  maturity metadata remains Experimental for Oxygen.
 
 ### Added
 
 - Component-separated restricted-band results and single-pass evaluation in Rust
   and Python, with explicit unsupported contributions and uncertainty semantics
   (#271).
-- Registered Airglow calibration workflow and opt-in experimental oxygen emission
-  model; development diagnostics do not establish independent accuracy (#272).
+- Registered Airglow calibration workflow and PALACE oxygen emission model;
+  development diagnostics do not establish independent accuracy (#272).
+- Standalone observational demonstration and focused CTAO public-API example
+  under `notebooks/`; complete experiments remain in `nsb-validation`.
 - Opt-in multiple-scattering transport, native spectral HEALPix boundary handling
   and scalable numerical verification (#269, #270).
 - Scientific publication-candidate numerical/interface evidence and reproducible

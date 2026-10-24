@@ -30,6 +30,14 @@ fn parse(input: &str) -> Time<UTC> {
     )
 }
 
+fn continuum_default_evaluator() -> NsbEvaluator {
+    NsbEvaluator::with_config(
+        crate::NsbModelConfig::generic_clear_sky()
+            .with_airglow_model(crate::AirglowModel::ParanalPalaceV1),
+    )
+    .unwrap()
+}
+
 fn tt_time(time: Time<UTC>) -> ModifiedJulianDate {
     ModifiedJulianDate::from(time.to::<siderust::time::TT>().to::<tempoch::MJD>())
 }
@@ -142,7 +150,7 @@ fn assert_periods_match_within_seconds(
 
 #[test]
 fn threshold_airglow_splits_palace_hour_boundaries_for_coarse_scans() {
-    let evaluator = NsbEvaluator::new().unwrap();
+    let evaluator = continuum_default_evaluator();
     let mut query = threshold_query(
         paranal(),
         target_sgr_a(),
@@ -171,7 +179,7 @@ fn threshold_airglow_splits_palace_hour_boundaries_for_coarse_scans() {
 }
 #[test]
 fn authoritative_threshold_search_matches_scan_oracle_for_representative_window() {
-    let evaluator = NsbEvaluator::new().unwrap();
+    let evaluator = continuum_default_evaluator();
     let start = parse("2023-09-04T02:00:00Z");
     let end = Time::<UTC>::from_chrono(start.to_chrono().unwrap() + Duration::hours(4));
     let query = ThresholdQuery::new(
@@ -192,7 +200,7 @@ fn authoritative_threshold_search_matches_scan_oracle_for_representative_window(
 
 #[test]
 fn authoritative_search_matches_exact_scan_across_components_and_year_boundary() {
-    let evaluator = NsbEvaluator::new().unwrap();
+    let evaluator = continuum_default_evaluator();
     for (fixture, start, hours, target, components, threshold) in [
         (
             "all-sgr-a",
@@ -264,7 +272,7 @@ fn authoritative_search_matches_exact_scan_across_components_and_year_boundary()
 
 #[test]
 fn moon_rise_and_set_threshold_boundaries_match_exact_scan() {
-    let evaluator = NsbEvaluator::new().unwrap();
+    let evaluator = continuum_default_evaluator();
     let start = parse("2026-01-14T00:00:00Z");
     let end = Time::<UTC>::from_chrono(start.to_chrono().unwrap() + Duration::hours(72));
     let query = ThresholdQuery::new(
@@ -285,7 +293,7 @@ fn moon_rise_and_set_threshold_boundaries_match_exact_scan() {
 
 #[test]
 fn reusable_site_context_matches_independent_queries_for_multiple_targets() {
-    let evaluator = NsbEvaluator::new().unwrap();
+    let evaluator = continuum_default_evaluator();
     let first = threshold_query(
         paranal(),
         target_sgr_a(),
@@ -314,7 +322,7 @@ fn reusable_site_context_matches_independent_queries_for_multiple_targets() {
 
 #[test]
 fn one_site_context_serves_max_and_min_threshold_queries() {
-    let evaluator = NsbEvaluator::new().unwrap();
+    let evaluator = continuum_default_evaluator();
     let max_query = threshold_query(
         paranal(),
         target_sgr_a(),
@@ -343,7 +351,7 @@ fn one_site_context_serves_max_and_min_threshold_queries() {
 
 #[test]
 fn exact_search_output_is_deterministic_across_rayon_parallelism() {
-    let evaluator = NsbEvaluator::new().unwrap();
+    let evaluator = continuum_default_evaluator();
     let query = threshold_query(
         paranal(),
         Target::new(83.6331 * crate::DEG, 22.0145 * crate::DEG),
@@ -372,8 +380,8 @@ fn exact_search_output_is_deterministic_across_rayon_parallelism() {
 
 #[test]
 fn site_context_rejects_another_evaluator_or_incompatible_site_state() {
-    let evaluator = NsbEvaluator::new().unwrap();
-    let other = NsbEvaluator::new().unwrap();
+    let evaluator = continuum_default_evaluator();
+    let other = continuum_default_evaluator();
     let query = threshold_query(
         paranal(),
         target_sgr_a(),
@@ -404,7 +412,7 @@ fn site_context_rejects_another_evaluator_or_incompatible_site_state() {
 
 #[test]
 fn target_visibility_matches_precise_altitude_scan_across_regimes() {
-    let evaluator = NsbEvaluator::new().unwrap();
+    let evaluator = continuum_default_evaluator();
     for (observer, target, floor) in [
         (paranal(), target_sgr_a(), 20.0),
         (paranal(), polar_target(), 20.0),
@@ -450,7 +458,7 @@ fn target_visibility_matches_precise_altitude_scan_across_regimes() {
 
 #[test]
 fn grazing_target_excursion_between_four_hour_samples_is_not_pruned() {
-    let evaluator = NsbEvaluator::new().unwrap();
+    let evaluator = continuum_default_evaluator();
     let observer = Geodetic::new_raw(
         Degrees::new(-70.3147),
         Degrees::new(-24.6834),
@@ -545,8 +553,7 @@ fn siderust_moon_events_preserve_short_grazing_visibility() {
     .with_components(ComponentMask::MOON)
     .with_sun_altitude_ceiling(None)
     .with_target_altitude_floor(None);
-    let context = NsbEvaluator::new()
-        .unwrap()
+    let context = continuum_default_evaluator()
         .prepare_site_window_context(&query)
         .unwrap();
     assert_eq!(context.moon_visible_periods.as_deref().unwrap(), precise);
@@ -554,7 +561,7 @@ fn siderust_moon_events_preserve_short_grazing_visibility() {
 
 #[test]
 fn empty_visibility_candidates_produce_no_periods() {
-    let evaluator = NsbEvaluator::new().unwrap();
+    let evaluator = continuum_default_evaluator();
     let query = threshold_query(
         paranal(),
         polar_target(),
@@ -568,7 +575,7 @@ fn empty_visibility_candidates_produce_no_periods() {
 
 #[test]
 fn threshold_airglow_context_matches_exact_point_airglow() {
-    let evaluator = NsbEvaluator::new().unwrap();
+    let evaluator = continuum_default_evaluator();
     let observer = paranal();
     let target = target_sgr_a();
     let query = threshold_query(
@@ -595,7 +602,7 @@ fn threshold_airglow_context_matches_exact_point_airglow() {
 
 #[test]
 fn threshold_airglow_context_matches_continuous_high_latitude_night() {
-    let evaluator = NsbEvaluator::new().unwrap();
+    let evaluator = continuum_default_evaluator();
     let observer = high_arctic();
     let target = polar_target();
     let query = threshold_query(
@@ -622,7 +629,7 @@ fn threshold_airglow_context_matches_continuous_high_latitude_night() {
 
 #[test]
 fn threshold_moon_context_skips_only_moon_down_samples() {
-    let evaluator = NsbEvaluator::new().unwrap();
+    let evaluator = continuum_default_evaluator();
     let observer = paranal();
     let target = target_sgr_a();
     let query = threshold_query(
@@ -667,7 +674,7 @@ fn threshold_moon_context_skips_only_moon_down_samples() {
 
 #[test]
 fn split_precision_partitions_keep_distinct_edges_and_interval_order() {
-    let evaluator = NsbEvaluator::new().unwrap();
+    let evaluator = continuum_default_evaluator();
     let start = parse("2026-01-01T00:00:00Z");
     let query = ThresholdQuery::new(
         paranal(),
@@ -706,7 +713,7 @@ fn split_precision_partitions_keep_distinct_edges_and_interval_order() {
 #[test]
 fn target_eligibility_uses_the_upstream_frame_transformation() {
     use siderust::coordinates::transform::TransformFrame;
-    let evaluator = NsbEvaluator::new().unwrap();
+    let evaluator = continuum_default_evaluator();
     let start = parse("2026-01-01T00:00:00Z");
     let target = target_sgr_a();
     let query = ThresholdQuery::new(
@@ -733,7 +740,7 @@ fn target_eligibility_uses_the_upstream_frame_transformation() {
 
 #[test]
 fn native_search_can_partition_a_window_starting_in_a_leap_second() {
-    let evaluator = NsbEvaluator::new().unwrap();
+    let evaluator = continuum_default_evaluator();
     let start = parse("2016-12-31T23:59:60Z");
     let query = ThresholdQuery::new(
         paranal(),
@@ -756,7 +763,7 @@ fn native_search_can_partition_a_window_starting_in_a_leap_second() {
 
 #[test]
 fn invalid_geometry_and_filters_fail_before_eligibility_can_hide_them() {
-    let evaluator = NsbEvaluator::new().unwrap();
+    let evaluator = continuum_default_evaluator();
     let query = threshold_query(
         paranal(),
         target_sgr_a(),

@@ -19,3 +19,9 @@ No complete experimental map is needed by normal tests.
 
 - `airglow_calibration`: runnable synthetic continuum fit, export and strict replay;
   see `docs/user-guide/airglow-calibration.md` for independent-input requirements.
+
+Automatic Airglow is Experimental PALACE Oxygen in v0.2.0 (ZD ≤60°).
+The point example demonstrates that default; broad planning windows, continuum
+calibration and continuum timing examples deliberately select `ParanalPalaceV1`.
+Custom geometry comparisons also hold the continuum model fixed. No example
+uses silent Oxygen-to-continuum fallback.

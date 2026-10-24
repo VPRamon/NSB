@@ -4,7 +4,9 @@
 use chrono::{DateTime, Utc};
 use nsb::site::airglow_profile::{AirglowCalibrationProfile, AirglowCalibrationRequest};
 use nsb::site::{AtmosphericConditions, SiteProfile, SiteProfileTag};
-use nsb::{ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, SolarFluxUnits, Target};
+use nsb::{
+    AirglowModel, ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, SolarFluxUnits, Target,
+};
 use siderust::checksum::{sha256, to_hex};
 use siderust::coordinates::centers::Geodetic;
 use siderust::qtty::{Degrees, Hectopascals, Kilometers, Meters, Nanometers};
@@ -40,6 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )?;
         let evaluator = NsbEvaluator::with_config(
             NsbModelConfig::generic_clear_sky()
+                .with_airglow_model(AirglowModel::ParanalPalaceV1)
                 .with_site_profile(profile)
                 .with_solar_radio_flux(SolarFluxUnits::new(observation.solar_flux_sfu)),
         )?;

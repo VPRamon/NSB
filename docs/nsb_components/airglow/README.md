@@ -50,18 +50,22 @@ re-exports `AirglowModel` and `AirglowSelection` for normal configuration.
 Required behavior:
 
 - **Explicit wins.** An explicit selection never silently switches to another
-  model. The first-release `AirglowModel` enum contains only admitted models
-  (`ParanalPalaceV1`). Future climatology (#157) adds a new
+  model. Supported identities include continuum-only `ParanalPalaceV1` and
+  Oxygen-enabled `ParanalPalaceOxygenV1`. Future climatology (#157) adds a new
   `#[non_exhaustive]` variant when scientifically ready — no speculative public
   placeholder is frozen.
 - **Automatic is deterministic.** `generic_clear_sky()`, `Default`, and
-  `NsbEvaluator::new` use `AirglowSelection::Automatic`.
-- **Automatic is not “Paranal is the global scientific default.”** Until a
-  global climatological planning model is admitted (#157 deferred), automatic
-  policy resolves to a **temporary Paranal-derived planning fallback**. That
-  fallback is machine-visible via `used_automatic_fallback` and typed
+  `NsbEvaluator::new` use `AirglowSelection::Automatic`, which resolves to
+  **`ParanalPalaceOxygenV1`** as of v0.2.0.
+- **Automatic is not a globally validated climatology.** Until #157 admits a
+  global climatological planning model, automatic policy is a **temporary
+  Paranal-derived PALACE Oxygen planning fallback**. That fallback is
+  machine-visible via `used_automatic_fallback` and typed
   `AirglowFallbackReason::GlobalPlanningModelUnavailable`
-  (`as_str()` → `global-planning-model-unavailable`).
+  (`as_str()` → `global-planning-model-unavailable`). Explicit continuum-only
+  selection remains available. The default change is a release-policy
+  reference-model choice, not an independent absolute observational admission.
+  Oxygen domain limits (including zenith ≤ 60°) apply to Automatic.
 - **Invalid inputs never become physical zero.** Altitude / F10.7 / scale are
   validated **before** astronomical-night gating. Outside night with valid
   inputs yields `AirglowPhysicalOutcome::PhysicalZero` with
@@ -218,9 +222,12 @@ let config = NsbModelConfig::generic_clear_sky().with_airglow_geometry(
 
 Evaluation still goes through `NsbEvaluator`; the geometry types are not a
 second direct component-evaluation API. A persisted profile can be selected in
-the CLI with `--airglow-vertical-profile profile.toml`. No network access is
-used to resolve or evaluate it. Selecting either geometry leaves the selected
-site profile and its calibration status unchanged.
+the CLI with `--airglow-model paranal-palace-v1 --airglow-vertical-profile profile.toml`.
+Automatic/explicit Oxygen require the standard continuum geometry and reject
+vertical profiles or custom Van Rhijn heights at evaluator construction.
+No network access is used to resolve or evaluate the explicit continuum
+profile. Choosing continuum geometry leaves the site profile and its
+calibration status unchanged.
 
 ### Why no bundled broadband VER profile
 

@@ -8,7 +8,7 @@ use nsb::components::airglow::{
     AirglowGeometryModel, AirglowWavelengthApplicability, ValidatedZenithDomain,
     VerticalEmissionProfile, VerticalEmissionProfileDefinition,
 };
-use nsb::{ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, Target, DEG};
+use nsb::{AirglowModel, ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, Target, DEG};
 use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
@@ -52,10 +52,12 @@ fn target() -> Target {
 
 fn bench_airglow_evaluation(c: &mut Criterion) {
     let observer: Geodetic<ECEF> = observatories::EL_PARANAL.geodetic();
-    let van = NsbEvaluator::new().unwrap();
+    // Compare geometry at fixed continuum physics; Oxygen requires standard geometry.
+    let continuum =
+        NsbModelConfig::generic_clear_sky().with_airglow_model(AirglowModel::ParanalPalaceV1);
+    let van = NsbEvaluator::with_config(continuum.clone()).unwrap();
     let vertical = NsbEvaluator::with_config(
-        NsbModelConfig::generic_clear_sky()
-            .with_airglow_geometry(AirglowGeometryModel::VerticalProfile(profile())),
+        continuum.with_airglow_geometry(AirglowGeometryModel::VerticalProfile(profile())),
     )
     .unwrap();
     let query =

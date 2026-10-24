@@ -30,7 +30,7 @@ def test_point_fixture_matches_rust_public_contract(observer, direction, evaluat
         0.13935338075534795, abs=1.0e-12
     )
     assert result.components[1].integrated_photons_cm2_ns_sr == pytest.approx(
-        0.11991978668126084, abs=1.0e-12
+        0.1788348139323062, abs=1.0e-12
     )
 
 
@@ -57,7 +57,7 @@ def test_config_component_selection_and_automatic_airglow(observer, direction, p
     assert len(result.components) == 1
     metadata = result.components[0].metadata
     assert metadata.airglow_selection_kind == "automatic"
-    assert metadata.airglow_resolved_model is not None
+    assert metadata.airglow_resolved_model == "paranal-palace-oxygen-v1"
 
 
 def test_default_components_and_embedded_starlight(observer, direction, point_time):
@@ -70,3 +70,27 @@ def test_default_components_and_embedded_starlight(observer, direction, point_ti
     assert result.integrated_photons_cm2_ns_sr == pytest.approx(
         sum(c.integrated_photons_cm2_ns_sr for c in result.components), rel=1e-12
     )
+
+
+def test_automatic_and_explicit_oxygen_identity_and_domain(observer, direction, point_time):
+    import siderust
+
+    config = nsb.NsbModelConfig.generic_clear_sky().with_solar_radio_flux_sfu(100)
+    auto = nsb.NsbEvaluator(config)
+    oxygen = nsb.NsbEvaluator(config.with_airglow_model(nsb.AirglowModel.PARANAL_PALACE_OXYGEN_V1))
+    continuum = nsb.NsbEvaluator(config.with_airglow_model(nsb.AirglowModel.PARANAL_PALACE_V1))
+    query = nsb.PointQuery(observer, point_time, direction, components=nsb.ComponentMask.AIRGLOW)
+    assert auto.integrate_band(query, 300, 650) == oxygen.integrate_band(query, 300, 650)
+    assert auto.evaluate(query).components[0].metadata.airglow_selection_kind == "automatic"
+    assert oxygen.evaluate(query).components[0].metadata.airglow_selection_kind == "explicit"
+    outside = siderust.Direction(ra_deg=90, dec_deg=-24.6275)
+    query = nsb.PointQuery(observer, point_time, outside, components=nsb.ComponentMask.AIRGLOW)
+    for evaluator in (auto, oxygen):
+        with pytest.raises(nsb.OutOfRangeError, match="zenith distance <= 60"):
+            evaluator.integrate_band(query, 300, 650)
+        with pytest.raises(nsb.OutOfRangeError, match="zenith distance <= 60"):
+            evaluator.periods_below_threshold(nsb.ThresholdQuery(
+                observer, outside, point_time, point_time.replace(hour=2), 1e6,
+                components=nsb.ComponentMask.AIRGLOW,
+                sun_altitude_ceiling_deg=None, target_altitude_floor_deg=None))
+    assert continuum.integrate_band(query, 300, 650) > 0

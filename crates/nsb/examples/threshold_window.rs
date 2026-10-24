@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 use chrono::{DateTime, Utc};
 use nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
-use nsb::{ComponentMask, NsbEvaluator, Target, ThresholdQuery, DEG};
+use nsb::{AirglowModel, ComponentMask, NsbEvaluator, NsbModelConfig, Target, ThresholdQuery, DEG};
 use siderust::catalogs::observatories;
 use tempoch::{Period, Time, UTC};
 
@@ -18,9 +18,13 @@ fn main() -> nsb::Result<()> {
     )
     .with_components(ComponentMask::ZODIACAL | ComponentMask::AIRGLOW);
 
+    // This long track leaves Oxygen's ZD <=60° domain; choose continuum explicitly.
     // Practical adaptive discovery has a documented physical-model resolution
     // assumption. Use periods_below_threshold_certified for strict certificates.
-    let result = NsbEvaluator::new()?.periods_below_threshold(&query)?;
+    let result = NsbEvaluator::with_config(
+        NsbModelConfig::generic_clear_sky().with_airglow_model(AirglowModel::ParanalPalaceV1),
+    )?
+    .periods_below_threshold(&query)?;
 
     println!(
         "threshold = {:.6e} ph/(cm² ns sr)",

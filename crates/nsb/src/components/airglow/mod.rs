@@ -13,14 +13,17 @@
 //! ([`AirglowSelection::Explicit`]). Explicit selection always wins and never
 //! silently switches models. Automatic selection is deterministic; until the
 //! global climatological model (#157) is admitted it resolves to the temporary
-//! Paranal-derived planning fallback with that fallback visible in
+//! Paranal-derived **PALACE Oxygen** planning fallback
+//! ([`AirglowModel::ParanalPalaceOxygenV1`]) with that fallback visible in
 //! [`AirglowSelectionMetadata`] via [`AirglowFallbackReason`].
 //!
-//! The bundled PALACE v1.0 Paranal unresolved-continuum product remains a
-//! supported explicit reference model and the temporary automatic
-//! fallback. It is not intrinsically the generic global scientific contract.
-//! Future climatology adds a new [`AirglowModel`] variant when admitted — the
-//! enum is `#[non_exhaustive]` so no speculative public placeholder is frozen.
+//! Explicit [`AirglowModel::ParanalPalaceV1`] (continuum-only) remains fully
+//! supported for historical reproducibility and does not silently add Oxygen.
+//! Automatic Oxygen is a release-policy reference-model choice; it is not a
+//! globally validated climatology and does not by itself constitute independent
+//! absolute observational admission. Future climatology adds a new
+//! [`AirglowModel`] variant when admitted — the enum is `#[non_exhaustive]` so
+//! no speculative public placeholder is frozen.
 //!
 //! # Outcome semantics
 //!

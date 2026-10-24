@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 //! Repeated warm-evaluator restricted-band timing; no observed-sky comparison.
 use nsb::units::length::Nanometers;
-use nsb::{ComponentMask, NsbEvaluator, PointQuery, Target, DEG};
+use nsb::{AirglowModel, ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, Target, DEG};
 use std::hint::black_box;
 use std::time::Instant;
 
@@ -17,7 +17,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .with_components(ComponentMask::ZODIACAL | ComponentMask::AIRGLOW);
     let start = Instant::now();
-    let evaluator = NsbEvaluator::new()?;
+    let evaluator = NsbEvaluator::with_config(
+        NsbModelConfig::generic_clear_sky().with_airglow_model(AirglowModel::ParanalPalaceV1),
+    )?;
     let construction_seconds = start.elapsed().as_secs_f64();
     for edges in [
         vec![360.0, 570.0],

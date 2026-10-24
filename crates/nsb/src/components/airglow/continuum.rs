@@ -52,7 +52,7 @@ pub(crate) fn evaluate_continuum(
     altitude: Degrees,
     ctx: AirglowEvaluationContext,
 ) -> Result<AirglowOutputs> {
-    validate_airglow_inputs(altitude, &ctx)?;
+    validate_airglow_inputs(altitude, &ctx, continuum.oxygen_enabled)?;
     let Some(phase) = night_phase(time, ctx.location) else {
         return Ok(AirglowOutputs::zero(
             AirglowPhysicalZeroReason::OutsideAstronomicalNight,
@@ -64,6 +64,7 @@ pub(crate) fn evaluate_continuum(
 pub(crate) fn validate_airglow_inputs(
     altitude: Degrees,
     ctx: &AirglowEvaluationContext,
+    oxygen_enabled: bool,
 ) -> Result<()> {
     let alt = altitude.value();
     if !alt.is_finite() || alt <= -90.0 {
@@ -80,6 +81,10 @@ pub(crate) fn validate_airglow_inputs(
         return Err(NsbError::OutOfRange(
             "airglow scale must be finite and non-negative".into(),
         ));
+    }
+    // Selection-specific domain restrictions precede the daytime-zero shortcut.
+    if oxygen_enabled {
+        super::oxygen::validated_zenith_distance(altitude)?;
     }
     Ok(())
 }
@@ -184,7 +189,7 @@ pub(crate) fn evaluate_integrated_continuum_with_night_phase(
     ctx: AirglowEvaluationContext,
     phase: AirglowNightPhase,
 ) -> Result<BandPhotonRadiance> {
-    validate_airglow_inputs(altitude, &ctx)?;
+    validate_airglow_inputs(altitude, &ctx, continuum.oxygen_enabled)?;
     Ok(
         evaluate_continuum_with_night_phase_validated(continuum, time, altitude, ctx, phase)?
             .integrated,
@@ -194,8 +199,9 @@ pub(crate) fn evaluate_integrated_continuum_with_night_phase(
 pub(crate) fn validate_integrated_continuum_inputs(
     altitude: Degrees,
     ctx: &AirglowEvaluationContext,
+    oxygen_enabled: bool,
 ) -> Result<()> {
-    validate_airglow_inputs(altitude, ctx)
+    validate_airglow_inputs(altitude, ctx, oxygen_enabled)
 }
 
 #[cfg(test)]
@@ -209,7 +215,7 @@ pub(crate) mod test_support {
         ctx: AirglowEvaluationContext,
         phase: AirglowNightPhase,
     ) -> Result<AirglowOutputs> {
-        validate_airglow_inputs(altitude, &ctx)?;
+        validate_airglow_inputs(altitude, &ctx, continuum.oxygen_enabled)?;
         super::evaluate_continuum_with_night_phase_validated(continuum, time, altitude, ctx, phase)
     }
 }

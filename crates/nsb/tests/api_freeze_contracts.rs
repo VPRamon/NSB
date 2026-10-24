@@ -134,7 +134,7 @@ fn automatic_airglow_fallback_is_machine_visible() {
     assert!(selection.used_automatic_fallback);
     assert_eq!(
         selection.resolved_model,
-        Some(AirglowModel::ParanalPalaceV1)
+        Some(AirglowModel::ParanalPalaceOxygenV1)
     );
     assert_eq!(
         selection.fallback_reason,
@@ -155,7 +155,12 @@ fn automatic_airglow_fallback_is_machine_visible() {
 fn first_release_airglow_model_contains_only_supported_variants() {
     // Speculative unimplemented variants must not be frozen; #157 adds models later.
     assert_eq!(AirglowModel::ParanalPalaceV1.as_str(), "paranal-palace-v1");
+    assert_eq!(
+        AirglowModel::ParanalPalaceOxygenV1.as_str(),
+        "paranal-palace-oxygen-v1"
+    );
     let _ = AirglowModel::ParanalPalaceV1;
+    let _ = AirglowModel::ParanalPalaceOxygenV1;
 }
 
 #[test]
@@ -200,7 +205,7 @@ fn describe_components_does_not_fabricate_evaluation_outcome() {
     assert!(selection.used_automatic_fallback);
     assert_eq!(
         selection.resolved_model,
-        Some(AirglowModel::ParanalPalaceV1)
+        Some(AirglowModel::ParanalPalaceOxygenV1)
     );
     assert!(
         airglow.metadata.airglow_evaluation.is_none(),
@@ -210,11 +215,17 @@ fn describe_components_does_not_fabricate_evaluation_outcome() {
 
 #[test]
 fn daytime_physical_zero_is_typed_and_distinct_from_evaluation() {
+    // At 16:00 UTC, RA=150°, Dec=-24.6275° is near Paranal zenith.
+    // Oxygen domain checks still apply in daylight.
     let result = NsbEvaluator::new()
         .unwrap()
         .evaluate(
-            &PointQuery::new(observatories::EL_PARANAL.geodetic(), day_time(), target())
-                .with_components(ComponentMask::AIRGLOW),
+            &PointQuery::new(
+                observatories::EL_PARANAL.geodetic(),
+                day_time(),
+                Target::new(150.0 * DEG, -24.6275 * DEG),
+            )
+            .with_components(ComponentMask::AIRGLOW),
         )
         .unwrap();
     let airglow = &result.components[0];

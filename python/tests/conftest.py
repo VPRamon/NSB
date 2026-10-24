@@ -24,5 +24,19 @@ def evaluator():
 
 
 @pytest.fixture
+def continuum_evaluator():
+    """Explicit continuum-only Airglow for high-ZD planning regressions.
+
+    Automatic resolves to Oxygen (ZD ≤ 60°). Scans that leave that domain must
+    select continuum explicitly rather than relying on a silent fallback.
+    """
+    return nsb.NsbEvaluator(
+        nsb.NsbModelConfig.generic_clear_sky().with_airglow_model(
+            nsb.AirglowModel.PARANAL_PALACE_V1
+        )
+    )
+
+
+@pytest.fixture
 def point_time():
     return datetime(2023, 9, 4, 1, 48, tzinfo=timezone.utc)

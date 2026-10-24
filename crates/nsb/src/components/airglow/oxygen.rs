@@ -54,6 +54,18 @@ fn data() -> &'static Oxygen {
         d
     })
 }
+/// Enforce the Oxygen zenith-distance domain, including outside astronomical night.
+/// Daytime physical zero is only valid for geometrically supported queries.
+pub(crate) fn validated_zenith_distance(altitude: Degrees) -> Result<Degrees> {
+    let zenith = Degrees::new(90. - altitude.value());
+    if !(0. ..=60.).contains(&zenith.value()) {
+        return Err(NsbError::OutOfRange(
+            "experimental PALACE oxygen requires zenith distance <= 60 degrees".into(),
+        ));
+    }
+    Ok(zenith)
+}
+
 /// Conservative sum of family residual sigma; no independence assumed.
 pub(crate) fn integrate(
     time: Time<UTC>,
@@ -64,12 +76,7 @@ pub(crate) fn integrate(
     lower: f64,
     upper: f64,
 ) -> Result<(f64, f64)> {
-    let zenith = Degrees::new(90. - altitude.value());
-    if !(0. ..=60.).contains(&zenith.value()) {
-        return Err(NsbError::OutOfRange(
-            "experimental PALACE oxygen requires zenith distance <= 60 degrees".into(),
-        ));
-    }
+    let zenith = validated_zenith_distance(altitude)?;
     let (month, bin) = palace_climatology_coordinates(time, location)
         .ok_or_else(|| NsbError::Unsupported("time outside PALACE domain".into()))?;
     let d = data();

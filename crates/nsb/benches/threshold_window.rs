@@ -9,8 +9,8 @@ use nsb::components::starlight::StarlightProvenance;
 use nsb::site::{AtmosphericConditions, SiteProfile, SiteProfileTag};
 use nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use nsb::{
-    ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightProduct, Target,
-    ThresholdQuery, DEG,
+    AirglowModel, ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightProduct,
+    Target, ThresholdQuery, DEG,
 };
 use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
@@ -102,14 +102,16 @@ fn ctao_south_planning_config() -> NsbModelConfig {
     impl SiteProfileTag for CtaSouth {
         const NAME: &'static str = "ctao-south-planning";
     }
-    NsbModelConfig::generic_clear_sky().with_site_profile(
-        SiteProfile::<CtaSouth>::planning(
-            Kilometers::new(2.1),
-            AtmosphericConditions::paranal_average(),
-            "CTAO-South planning preset (bench helper)",
+    NsbModelConfig::generic_clear_sky()
+        .with_airglow_model(AirglowModel::ParanalPalaceV1)
+        .with_site_profile(
+            SiteProfile::<CtaSouth>::planning(
+                Kilometers::new(2.1),
+                AtmosphericConditions::paranal_average(),
+                "CTAO-South planning preset (bench helper)",
+            )
+            .unwrap(),
         )
-        .unwrap(),
-    )
 }
 
 fn north_pole_target() -> Target {
@@ -191,7 +193,11 @@ fn bench_window_duration_components(c: &mut Criterion) {
 }
 
 fn bench_physical_regimes(c: &mut Criterion) {
-    let evaluator = NsbEvaluator::new().expect("evaluator");
+    // Broad planning windows leave the Oxygen ZD <=60° domain.
+    let evaluator = NsbEvaluator::with_config(
+        NsbModelConfig::generic_clear_sky().with_airglow_model(AirglowModel::ParanalPalaceV1),
+    )
+    .expect("continuum planning evaluator");
     let cases = [
         window_case(
             "moon_down",
@@ -265,7 +271,11 @@ fn bench_physical_regimes(c: &mut Criterion) {
 }
 
 fn bench_regression_workloads(c: &mut Criterion) {
-    let evaluator = NsbEvaluator::new().expect("evaluator");
+    // Broad planning windows leave the Oxygen ZD <=60° domain.
+    let evaluator = NsbEvaluator::with_config(
+        NsbModelConfig::generic_clear_sky().with_airglow_model(AirglowModel::ParanalPalaceV1),
+    )
+    .expect("continuum planning evaluator");
     let mut cases = [
         window_case(
             "1d",
@@ -411,7 +421,11 @@ fn window_case(
 }
 
 fn smoke_test() {
-    let evaluator = NsbEvaluator::new().expect("evaluator");
+    // Broad planning windows leave the Oxygen ZD <=60° domain.
+    let evaluator = NsbEvaluator::with_config(
+        NsbModelConfig::generic_clear_sky().with_airglow_model(AirglowModel::ParanalPalaceV1),
+    )
+    .expect("continuum planning evaluator");
     let start = parse("2023-09-04T00:00:00Z");
     let end = Time::<UTC>::from_chrono(start.to_chrono().unwrap() + chrono::Duration::hours(2));
     let query = ThresholdQuery::new(
