@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Vallés Puig, Ramon
+# Tests execute definitions from the distributed notebook, never a companion module.
+import ast
 import io
 import json
 import sys
@@ -14,11 +16,72 @@ import pytest
 from astropy.constants import c, h
 from nbclient import NotebookClient
 
-from nsb_observational import data
-from nsb_observational.experiment import Config, analyze, prepare, synthetic
-from nsb_observational.report import seal, verify
-from nsb_observational.runtime import capabilities, source_identity
-from nsb_observational.statistics import align, baseline, errors, scores
+NOTEBOOK = Path(__file__).resolve().parents[1] / "NSB_Validation.ipynb"
+nb = nbformat.read(NOTEBOOK, as_version=4)
+namespace = {
+    "__name__": "notebook_test",
+    "MODE": "synthetic",
+    "RUNTIME": "developer",
+    "DEPENDENCIES": {
+        "numpy": "2.5.4",
+        "astropy": "8.0.2",
+        "matplotlib": "3.11.2",
+        "siderust": "0.5.1",
+        "tempoch": "0.5.0",
+    },
+    "NSB2_COMMIT": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+}
+# Import statements and definitions are safe to load without installing/running models.
+# Retain literal constants needed by numerical functions; execution cells stay excluded.
+definition_tags = {
+    "runtime",
+    "acquisition",
+    "measurement",
+    "solar",
+    "synthetic",
+    "source_spectra",
+    "models",
+    "statistics",
+    "records",
+}
+for cell in nb.cells:
+    if cell.cell_type != "code":
+        continue
+    tags = set(cell.metadata.get("tags", []))
+    tree = ast.parse(cell.source)
+    if tags in ({"setup"}, {"configuration"}, {"imports"}):
+        nodes = [n for n in tree.body if isinstance(n, (ast.Import, ast.ImportFrom))]
+    elif tags & definition_tags:
+        nodes = []
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+                nodes.append(node)
+            elif isinstance(node, ast.Assign):
+                try:
+                    ast.literal_eval(node.value)
+                    nodes.append(node)
+                except (ValueError, TypeError):
+                    if tags & {"acquisition", "synthetic"}:
+                        nodes.append(node)
+    else:
+        continue
+    exec(
+        compile(ast.Module(body=nodes, type_ignores=[]), "<notebook definitions>", "exec"),
+        namespace,
+    )
+data = runtime = SimpleNamespace(**namespace)
+synthetic = namespace["synthetic"]
+align = namespace["align"]
+baseline = namespace["baseline"]
+errors = namespace["errors"]
+scores = namespace["scores"]
+capabilities = namespace["capabilities"]
+Models = namespace["Models"]
+make_record = namespace["make_record"]
+compare_records = namespace["compare_records"]
+save_record = namespace["save_record"]
+load_record = namespace["load_record"]
+verify_wheel = namespace["verify_wheel"]
 
 
 def test_photon_conversion_independent_astropy():
@@ -175,17 +238,8 @@ def test_baseline_and_cluster_statistics():
         scores(y, {"a": y}, [1] * 6)
 
 
-def test_missing_predictions_invalidate_whole_scenario():
-    state = prepare(Config())
-    state["predictions"]["native"]["nsb2"].pop()
-    analyze(state)
-    assert "native" not in state["metrics"]
-    assert "matched" in state["metrics"]
-    assert "INVALID" in state["availability"]["native"]
-
-
-def test_model_capability_and_source_identity():
-    with pytest.raises(RuntimeError, match="source build"):
+def test_model_capability():
+    with pytest.raises(RuntimeError, match="source build|developer mode"):
         capabilities(SimpleNamespace())
     capabilities(
         SimpleNamespace(
@@ -193,8 +247,6 @@ def test_model_capability_and_source_identity():
             NsbEvaluator=SimpleNamespace(integrate_band_components=True),
         )
     )
-    with pytest.raises(ValueError, match="full exact"):
-        source_identity(".", "main")
 
 
 def test_unverified_solar_never_substituted(tmp_path):
@@ -204,78 +256,9 @@ def test_unverified_solar_never_substituted(tmp_path):
         data.solar_windows(p, [])
 
 
-def test_manifest_integrity_and_inventory(tmp_path):
-    path = tmp_path / "run"
-    path.mkdir()
-    (path / "file.json").write_text("{}")
-    seal(path, {"test": True})
-    verify(path)
-    with pytest.raises(FileExistsError):
-        seal(path, {})
-    (path / "extra").write_text("extra")
-    with pytest.raises(ValueError, match="inventory"):
-        verify(path)
-    (path / "extra").unlink()
-    (path / "file.json").write_text("changed")
-    with pytest.raises(ValueError, match="checksum"):
-        verify(path)
-
-
-def test_notebook_schema_and_offline_execution(tmp_path, monkeypatch):
-    notebook = Path(__file__).resolve().parents[1] / "nsb-vs-nsb2.ipynb"
-    nb = nbformat.read(notebook, as_version=4)
-    nbformat.validate(nb)
-    assert all(
-        not c.get("outputs") and c.get("execution_count") is None
-        for c in nb.cells
-        if c.cell_type == "code"
-    )
-    # Use this exact locked interpreter in a temporary kernel registration.
-    kernels = tmp_path / "jupyter" / "kernels" / "validation-test"
-    kernels.mkdir(parents=True)
-    (kernels / "kernel.json").write_text(
-        json.dumps(
-            {
-                "argv": [sys.executable, "-m", "ipykernel_launcher", "-f", "{connection_file}"],
-                "display_name": "test",
-                "language": "python",
-            }
-        )
-    )
-    monkeypatch.setenv("JUPYTER_PATH", str(tmp_path / "jupyter"))
-    monkeypatch.setenv("NSB_VALIDATION_MODE", "offline")
-    monkeypatch.setenv("NSB_VALIDATION_OUTPUT", str(tmp_path / "results"))
-    # Forbid scientific HTTP use in kernel. IPC sockets remain available to Jupyter.
-    nb.cells.insert(
-        0,
-        nbformat.v4.new_code_cell(
-            "import urllib.request\ndef no_network(*a, **k): raise AssertionError('offline network access')\nurllib.request.urlopen=no_network"
-        ),
-    )
-    NotebookClient(
-        nb,
-        timeout=180,
-        kernel_name="validation-test",
-        resources={"metadata": {"path": str(tmp_path)}},
-    ).execute()
-    runs = list((tmp_path / "results").glob("run-*"))
-    assert len(runs) == 1
-    verify(runs[0])
-    assert len(list((runs[0] / "figures").glob("*.png"))) >= 8
-    admission = json.loads((runs[0] / "admission.json").read_text())
-    assert not admission["independent_validation"] and not admission["experiment_complete"]
-    assert "SYNTHETIC" in admission["classification"]
-    assert all(
-        (runs[0] / p).exists()
-        for p in ("report.md", "report.html", "predictions.json", "metrics.json")
-    )
-
-
 def test_nsb2_template_source_uses_public_resolver(monkeypatch):
     """A spectral-coordinate array is not itself a wavelength spectrum."""
     from astropy.coordinates import EarthLocation
-
-    from nsb_observational.models import Models
 
     model = Models.__new__(Models)
     model.site = EarthLocation.from_geodetic(-70 * u.deg, -24 * u.deg, 2600 * u.m)
@@ -304,95 +287,217 @@ def test_nsb2_template_source_uses_public_resolver(monkeypatch):
     assert len(called) == 1
 
 
-def test_receipt_verifies_imported_native_and_rejects_tampering(tmp_path, monkeypatch):
-    import zipfile
+def test_notebook_single_file_offline(tmp_path, monkeypatch):
+    import shutil
 
-    from nsb_observational import runtime
+    copy = tmp_path / "NSB_Validation.ipynb"
+    shutil.copyfile(NOTEBOOK, copy)
+    book = nbformat.read(copy, as_version=4)
+    nbformat.validate(book)
+    assert all(
+        not c.get("outputs") and c.get("execution_count") is None
+        for c in book.cells
+        if c.cell_type == "code"
+    )
+    assert "nsb_observational" not in copy.read_text()
+    kernels = tmp_path / "jupyter/kernels/validation-test"
+    kernels.mkdir(parents=True)
+    (kernels / "kernel.json").write_text(
+        json.dumps(
+            {
+                "argv": [sys.executable, "-m", "ipykernel_launcher", "-f", "{connection_file}"],
+                "display_name": "test",
+                "language": "python",
+            }
+        )
+    )
+    monkeypatch.setenv("JUPYTER_PATH", str(tmp_path / "jupyter"))
+    monkeypatch.setenv("NSB_VALIDATION_MODE", "synthetic")
+    monkeypatch.setenv("NSB_VALIDATION_INSTALL", "0")
+    monkeypatch.setenv("NSB_VALIDATION_OUTPUT", str(tmp_path / "results"))
+    book.cells.insert(
+        0,
+        nbformat.v4.new_code_cell(
+            "import urllib.request, subprocess\n"
+            "def forbidden(*a, **k): raise AssertionError('offline network/install')\n"
+            "urllib.request.urlopen = forbidden\nsubprocess.run = forbidden"
+        ),
+    )
+    # No checkout, relative module or editable package is reachable from cwd.
+    NotebookClient(
+        book,
+        timeout=240,
+        kernel_name="validation-test",
+        resources={"metadata": {"path": str(tmp_path)}},
+    ).execute()
+    records = list((tmp_path / "results").glob("*.json"))
+    assert len(records) == 1
+    record = load_record(records[0])
+    assert record["mode"] == "synthetic" and not record["complete"]
+    assert "SYNTHETIC" in record["classification"]
+    assert not record["independent_validation"]
+    assert set(record["metrics"]) == {"native", "matched"}
+    assert len(list((tmp_path / "results").glob("*.png"))) == 3
+    assert (
+        sum(
+            out.output_type == "display_data" and "image/png" in out.data
+            for cell in book.cells
+            if cell.cell_type == "code"
+            for out in cell.outputs
+        )
+        >= 4
+    )
+
+
+def comparison_fixture():
+    rows, predictions, _ = synthetic()
+    return {
+        "schema": 1,
+        "mode": "observational",
+        "complete": True,
+        "protocol": {"name": "TEST ONLY", "scenarios": ["native", "matched"]},
+        "observations": [{k: v for k, v in r.items() if k not in ("wave", "energy")} for r in rows],
+        "predictions": predictions,
+    }
+
+
+def test_version_comparison_paired_and_incompatible(tmp_path):
+    import copy
+
+    # This is a simulated record, explicitly not evidence from two real releases.
+    previous = comparison_fixture()
+    namespace.update(REPETITIONS=2000, SEED=182)
+    result = compare_records(previous, copy.deepcopy(previous))
+    for scenario in result.values():
+        for score in scenario.values():
+            assert score["relative_mae_difference"] == 0
+            assert score["relative_mae_ci95"] == [0, 0]
+    current = copy.deepcopy(previous)
+    for row in current["predictions"]["matched"]["NSB Oxygen"]:
+        row["total"] *= 0.8
+    diff = compare_records(previous, current)["matched"]["NSB Oxygen"]
+    assert diff["relative_mae_difference"] > 0
+    assert diff["relative_mae_ci95"][0] > 0
+    for mutation in (
+        lambda r: r["protocol"].update(band_nm=[300, 650]),
+        lambda r: r["observations"][0].update(split="evaluation"),
+        lambda r: r["observations"][0].update(observed=99),
+        lambda r: r.update(mode="synthetic"),
+        lambda r: r.update(complete=False),
+    ):
+        changed = copy.deepcopy(previous)
+        mutation(changed)
+        with pytest.raises(ValueError):
+            compare_records(previous, changed)
+    path = save_record(previous, tmp_path)
+    assert load_record(path) == previous
+    path.write_text("{}")
+    with pytest.raises(ValueError, match="SHA-256"):
+        load_record(path)
+
+
+def test_cluster_bootstrap_independent_unequal_night_oracle():
+    # Unequal cluster sizes distinguish whole-night from per-spectrum resampling,
+    # and equal-spectrum estimand from equal-night averaging.
+    y = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+    p = y + np.array([0.1, 0.1, 0.5, 0.9, 0.9, 0.9])
+    nights = np.array([1, 1, 2, 3, 3, 3])
+    result = scores(y, {"a": p, "b": y}, nights)
+    random = np.random.default_rng(182)
+    samples = []
+    for _ in range(2000):
+        selected = random.choice([1, 2, 3], size=3, replace=True)
+        sample = [j for night in selected for j in range(len(y)) if nights[j] == night]
+        samples.append(np.mean(abs(p[sample] - y[sample]) / y[sample]))
+    expected = np.quantile(samples, [0.025, 0.975])
+    assert result["models"]["a"]["relative_mae_ci95"] == pytest.approx(expected)
+    assert result["paired"]["a_minus_b"]["relative_mae_ci95"] == pytest.approx(expected)
+
+
+def test_wheel_identity_and_tampering(tmp_path, monkeypatch):
+    import zipfile
 
     root = tmp_path / "site-packages"
     (root / "nsb").mkdir(parents=True)
-    native = root / "nsb" / "nsb.abi3.so"
-    wrapper = root / "nsb" / "__init__.py"
+    native = root / "nsb/nsb.abi3.so"
+    wrapper = root / "nsb/__init__.py"
     native.write_bytes(b"native-fixture")
     wrapper.write_bytes(b"wrapper-fixture")
-    wheel = tmp_path / "nsb.whl"
+    wheel = tmp_path / "fixture.whl"
     with zipfile.ZipFile(wheel, "w") as archive:
         archive.write(native, "nsb/nsb.abi3.so")
         archive.write(wrapper, "nsb/__init__.py")
-    info = dict(
-        mode="source",
-        commit="a" * 40,
-        source_clean=True,
-        wheel=str(wheel),
-        wheel_sha256=data.sha256(wheel),
-        installed_files=runtime.wheel_files(wheel),
-        version="test",
+    monkeypatch.setitem(
+        sys.modules,
+        "nsb",
+        SimpleNamespace(
+            __file__=str(wrapper),
+            AirglowModel=SimpleNamespace(PARANAL_PALACE_V1=1, PARANAL_PALACE_OXYGEN_V1=2),
+            NsbEvaluator=SimpleNamespace(integrate_band_components=True),
+        ),
     )
-    receipt = tmp_path / "receipt.json"
-    receipt.write_text(json.dumps(info))
-    module = SimpleNamespace(
-        __file__=str(wrapper),
-        AirglowModel=SimpleNamespace(PARANAL_PALACE_V1=1, PARANAL_PALACE_OXYGEN_V1=2),
-        NsbEvaluator=SimpleNamespace(integrate_band_components=True),
-    )
-    monkeypatch.setitem(sys.modules, "nsb", module)
     monkeypatch.setitem(sys.modules, "nsb.nsb", SimpleNamespace(__file__=str(native)))
     monkeypatch.setattr(
-        runtime.metadata,
+        namespace["metadata"],
         "distribution",
-        lambda name: SimpleNamespace(locate_file=lambda name: root / name),
+        lambda name: SimpleNamespace(version="test", locate_file=lambda name: root / name),
     )
-    monkeypatch.setattr(runtime.metadata, "version", lambda name: "test")
-    verified = runtime.verify_runtime(receipt, mode="source", commit="a" * 40)
-    assert verified["native_extension_sha256"]["nsb.abi3.so"] == data.sha256(native)
+    digest = data.sha256(wheel)
+    assert verify_wheel(wheel, digest, "test")["wheel_sha256"] == digest
     native.write_bytes(b"changed")
-    with pytest.raises(ValueError, match="differs from built wheel"):
-        runtime.verify_runtime(receipt, mode="source", commit="a" * 40)
-    with pytest.raises(ValueError, match="mode"):
-        runtime.verify_runtime(receipt, mode="published", package_version="test")
+    with pytest.raises(ValueError, match="differs from selected wheel"):
+        verify_wheel(wheel, digest, "test")
 
 
-def test_source_receipt_requires_clean_exact_head(tmp_path):
-    import subprocess
-
-    from nsb_observational.runtime import command
-
-    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
-    (tmp_path / "Cargo.lock").write_text(
-        'version = 3\n[[package]]\nname = "tempoch"\nversion = "0.11.1"\n'
+def test_missing_model_invalidates_whole_scenario(monkeypatch):
+    rows, predictions, _ = synthetic()
+    predictions["native"]["nsb2"].pop()
+    selected = np.array([i for i, r in enumerate(rows) if r["split"] == "evaluation"])
+    context = dict(namespace)
+    context.update(
+        rows=rows,
+        predictions=predictions,
+        evaluation=selected,
+        y=np.array([rows[i]["observed"] for i in selected]),
+        provenance={},
+        availability={"native": "available", "matched": "available"},
+        metrics={},
+        REPETITIONS=2000,
+        SEED=182,
+        PRACTICAL_MARGIN=0.10,
+        LABEL="SYNTHETIC",
     )
-    subprocess.run(["git", "-C", str(tmp_path), "add", "Cargo.lock"], check=True)
-    subprocess.run(
-        [
-            "git",
-            "-C",
-            str(tmp_path),
-            "-c",
-            "user.name=Fixture",
-            "-c",
-            "user.email=fixture@example.invalid",
-            "commit",
-            "-qm",
-            "fixture",
-        ],
-        check=True,
-    )
-    commit = command("git", "rev-parse", "HEAD", cwd=tmp_path)
-    assert source_identity(tmp_path, commit)["rust_providers"]["tempoch"] == "0.11.1"
-    (tmp_path / "untracked").write_text("dirty")
-    with pytest.raises(ValueError, match="clean"):
-        source_identity(tmp_path, commit)
+    context["display"] = lambda *args: None
+    cell = next(c for c in nb.cells if c.metadata.get("tags") == ["analyze"])
+    exec(compile(cell.source, "<notebook analyze>", "exec"), context)
+    assert "native" not in context["metrics"]
+    assert "matched" in context["metrics"]
+    assert "INVALID" in context["availability"]["native"]
 
 
-def test_manifest_digest_and_symlink_rejection(tmp_path):
-    (tmp_path / "data.json").write_text("{}")
-    seal(tmp_path, {})
-    original = (tmp_path / "manifest.json").read_bytes()
-    (tmp_path / "manifest.json").write_text("{}")
-    with pytest.raises(ValueError, match="Manifest checksum"):
-        verify(tmp_path)
-    (tmp_path / "manifest.json").write_bytes(original)
-    (tmp_path / "data.json").unlink()
-    (tmp_path / "data.json").symlink_to(tmp_path / "manifest.json")
-    with pytest.raises(ValueError, match="Symlink"):
-        verify(tmp_path)
+def test_complete_centered_solar_window(tmp_path, monkeypatch):
+    from datetime import date, timedelta
+
+    center = date(2000, 4, 9)
+    dates = [center + timedelta(days=i) for i in range(-13, 14)]
+    source = tmp_path / "solar.txt"
+    source.write_text("\n".join(f"{day:%Y%m%d} {90 + i}" for i, day in enumerate(dates)))
+    monkeypatch.setitem(namespace, "SOLAR_SHA", data.sha256(source))
+    mjd = namespace["Time"](center.isoformat()).mjd
+    assert data.solar_windows(source, [{"id": "test", "mjd": mjd}])["test"] == 103
+    source.write_text("\n".join(f"{day:%Y%m%d} {90 + i}" for i, day in enumerate(dates[1:])))
+    monkeypatch.setitem(namespace, "SOLAR_SHA", data.sha256(source))
+    with pytest.raises(ValueError, match="Incomplete centered"):
+        data.solar_windows(source, [{"id": "test", "mjd": mjd}])
+
+
+def test_scientific_signature_tracks_executed_algorithms():
+    signature = namespace["scientific_signature"]
+    sources = [cell.source for cell in nb.cells if cell.cell_type == "code"]
+    expected = signature(sources)
+    assert signature(["%matplotlib inline", *sources]) == expected
+    # A subsequent interactive override must change compatibility, even if
+    # the notebook on disk and manually assigned protocol name are unchanged.
+    assert signature([*sources, "def measured_radiance(*args): return 0"]) != expected
+    with pytest.raises(ValueError, match="Run all"):
+        signature([])

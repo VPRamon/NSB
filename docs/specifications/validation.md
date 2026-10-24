@@ -29,11 +29,12 @@ observations, and sanity envelopes. A broad envelope is not external validation.
 
 ## Public observational notebook
 
-The [NSB versus nsb2 notebook](../../examples/validation/nsb-vs-nsb2.ipynb)
+The [NSB versus nsb2 notebook](../../examples/validation/NSB_Validation.ipynb)
 implements the registered Patat 365–650 nm comparison with explicit continuum
 and experimental Oxygen selection. Its [protocol and setup](../../examples/validation/README.md)
 include verified public data, source/wheel identity, matched measured F10.7, paired
-night-cluster statistics, component diagnostics and checksummed reports. Ordinary
+night-cluster statistics, component diagnostics and checksummed result records.
+All execution logic lives in the single notebook; no companion package is required. Ordinary
 CI executes synthetic fixtures only; the real campaign is manually triggered.
 Patat remains previously examined development evidence, not an independent Oxygen
 holdout or a change to scientific admission/defaults.
