@@ -1,0 +1,17 @@
+{
+  "cohort_identity_sha256": "3efdd3a0f3af19bfbc7615864f928b33fe22bcdbd6c67568fe317c059d44a1d6",
+  "serialization": "sorted filename order, id:integer_MJD_night:split joined with LF, no final LF",
+  "observations": 103,
+  "nights": 22,
+  "evaluation_observations": 94,
+  "evaluation_nights": 17,
+  "calibration_nights": [
+    51643,
+    51725,
+    51761,
+    51785,
+    52847
+  ],
+  "historical_observations_sha256": "83e22386ed166dbc49d9428d064f8816a968e69d935792cb0d96ec7366336532",
+  "provenance": "Factual protocol registration from Patat benchmark, nsb-validation PR 16. No private program code or observation data redistributed."
+}

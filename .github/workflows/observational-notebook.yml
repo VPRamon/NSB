@@ -1,0 +1,82 @@
+name: Observational notebook
+
+on:
+  pull_request:
+    paths:
+      - 'examples/validation/**'
+      - '.github/workflows/observational-notebook.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'examples/validation/**'
+      - '.github/workflows/observational-notebook.yml'
+  workflow_dispatch:
+    inputs:
+      nsb_commit:
+        description: 'Full clean NSB Git commit for a new development experiment'
+        required: true
+        default: 'f5e1d22689ed417c0dcf9df72da54365c30f5bd5'
+
+permissions:
+  contents: read
+
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.0'
+      - run: uv sync --locked --python 3.12
+        working-directory: examples/validation
+      - run: uv run --no-sync pytest -q
+        working-directory: examples/validation
+
+  patat:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.12.0'
+      - uses: dtolnay/rust-toolchain@stable
+      - run: uv sync --locked --python 3.12 --extra models
+        working-directory: examples/validation
+      - name: Explicit clean source checkout and verified Maturin wheel
+        working-directory: examples/validation
+        env:
+          SELECTED_COMMIT: ${{ inputs.nsb_commit }}
+        run: |
+          [[ "$SELECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          git clone https://github.com/VPRamon/NSB.git "$RUNNER_TEMP/nsb-source"
+          git -C "$RUNNER_TEMP/nsb-source" checkout --detach "$SELECTED_COMMIT"
+          uv run --no-sync nsb-validation-runtime source \
+            --source "$RUNNER_TEMP/nsb-source" --commit "$SELECTED_COMMIT" \
+            --wheel-dir "$RUNNER_TEMP/nsb-wheels" --receipt "$RUNNER_TEMP/nsb.receipt.json"
+      - name: Execute real-data notebook
+        working-directory: examples/validation
+        env:
+          NSB_VALIDATION_MODE: current
+          NSB_VALIDATION_COMMIT: ${{ inputs.nsb_commit }}
+          NSB_VALIDATION_RECEIPT: ${{ runner.temp }}/nsb.receipt.json
+          NSB_VALIDATION_CACHE: ${{ runner.temp }}/observations
+          NSB_VALIDATION_OUTPUT: ${{ runner.temp }}/validation-results
+        run: |
+          uv run --no-sync python - <<'PY'
+          import nbformat
+          from nbclient import NotebookClient
+          nb = nbformat.read('nsb-vs-nsb2.ipynb', as_version=4)
+          NotebookClient(nb, timeout=1800, kernel_name='python3').execute()
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: patat-development-report
+          path: |
+            ${{ runner.temp }}/validation-results
+            ${{ runner.temp }}/nsb.receipt.json
+            ${{ runner.temp }}/nsb-wheels
+          if-no-files-found: warn

@@ -27,6 +27,17 @@ observations, and sanity envelopes. A broad envelope is not external validation.
 | Solar spectrum | pinned NSB Planck-model specification using IAU nominal solar values and exact SI constants | W m^-2 nm^-1, 300–650 nm | exact regeneration; input/output checksums and redistribution terms; 351-point grid and exact anchors; integral/B-V regression; Zodiacal/Jones impact bounds | Implementation, provenance, licensing, or scientific-impact regression |
 | CTAO-N/S | explicit assumptions only | atmosphere and airglow profile | none | Data limitation |
 
+## Public observational notebook
+
+The [NSB versus nsb2 notebook](../../examples/validation/nsb-vs-nsb2.ipynb)
+implements the registered Patat 365–650 nm comparison with explicit continuum
+and experimental Oxygen selection. Its [protocol and setup](../../examples/validation/README.md)
+include verified public data, source/wheel identity, matched measured F10.7, paired
+night-cluster statistics, component diagnostics and checksummed reports. Ordinary
+CI executes synthetic fixtures only; the real campaign is manually triggered.
+Patat remains previously examined development evidence, not an independent Oxygen
+holdout or a change to scientific admission/defaults.
+
 ## Threshold Window Contract
 
 Threshold-window search uses prepared physical intervals to reduce repeated

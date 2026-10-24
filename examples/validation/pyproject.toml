@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nsb-observational-notebook"
+version = "0.1.0"
+description = "Public, development-only Patat observational comparison notebook"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "numpy>=2,<3", "astropy>=6.1,<9", "matplotlib>=3.9,<4",
+  "markdown>=3.7,<4", "nbformat>=5.10,<6", "nbclient>=0.10,<1", "ipykernel>=6,<8",
+  "pytest>=8,<9", "maturin==1.15.0", "siderust==0.5.1", "tempoch==0.5.0",
+]
+
+[project.optional-dependencies]
+models = ["nsb2 @ git+https://github.com/GerritRo/nsb2.git@bc9320db03fbff69997ce366c6e76a37339c5d00"]
+
+[project.scripts]
+nsb-validation-runtime = "nsb_observational.runtime:main"
+nsb-observational = "nsb_observational.experiment:main"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nsb_observational"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B"]
