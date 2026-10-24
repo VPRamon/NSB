@@ -6,13 +6,7 @@ use tempoch_py::interop::period_to_datetimes_with;
 
 use crate::{NsbComponent, NsbComponentMetadata, NsbResult, ThresholdQueryResult};
 
-#[pyclass(
-    name = "NsbComponentMetadata",
-    frozen,
-    module = "nsb",
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "NsbComponentMetadata", frozen, module = "nsb", get_all)]
 #[derive(Clone)]
 pub(in crate::python) struct PyNsbComponentMetadata {
     status: String,
@@ -62,13 +56,7 @@ impl From<NsbComponentMetadata> for PyNsbComponentMetadata {
     }
 }
 
-#[pyclass(
-    name = "NsbComponent",
-    frozen,
-    module = "nsb",
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "NsbComponent", frozen, module = "nsb", get_all)]
 #[derive(Clone)]
 pub(in crate::python) struct PyNsbComponent {
     name: String,
@@ -104,13 +92,7 @@ impl From<NsbComponent> for PyNsbComponent {
     }
 }
 
-#[pyclass(
-    name = "NsbResult",
-    frozen,
-    module = "nsb",
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "NsbResult", frozen, module = "nsb", get_all)]
 pub(in crate::python) struct PyNsbResult {
     integrated_photons_cm2_ns_sr: f64,
     b_mag_per_arcsec2: f64,
@@ -129,12 +111,7 @@ impl From<NsbResult> for PyNsbResult {
     }
 }
 
-#[pyclass(
-    name = "ThresholdQueryResult",
-    frozen,
-    module = "nsb",
-    skip_from_py_object
-)]
+#[pyclass(name = "ThresholdQueryResult", frozen, module = "nsb")]
 pub(in crate::python) struct PyThresholdQueryResult {
     threshold_photons_cm2_ns_sr: f64,
     periods: Vec<Period<UTC>>,
@@ -363,13 +340,7 @@ mod tests {
     }
 }
 
-#[pyclass(
-    name = "RestrictedBandComponent",
-    frozen,
-    module = "nsb",
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "RestrictedBandComponent", frozen, module = "nsb", get_all)]
 #[derive(Clone)]
 pub(in crate::python) struct PyRestrictedBandComponent {
     name: String,
@@ -379,13 +350,7 @@ pub(in crate::python) struct PyRestrictedBandComponent {
     metadata: PyNsbComponentMetadata,
 }
 
-#[pyclass(
-    name = "RestrictedBandResult",
-    frozen,
-    module = "nsb",
-    get_all,
-    skip_from_py_object
-)]
+#[pyclass(name = "RestrictedBandResult", frozen, module = "nsb", get_all)]
 pub(in crate::python) struct PyRestrictedBandResult {
     lower_nm: f64,
     upper_nm: f64,

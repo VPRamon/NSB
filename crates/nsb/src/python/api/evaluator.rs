@@ -9,12 +9,7 @@ use crate::{NsbEvaluator, NsbModelConfig, PointQuery, SiteWindowContext, Thresho
 use super::errors::to_py_err;
 use super::results::{PyNsbResult, PyThresholdQueryResult};
 
-#[pyclass(
-    name = "SiteWindowContext",
-    frozen,
-    module = "nsb",
-    skip_from_py_object
-)]
+#[pyclass(name = "SiteWindowContext", frozen, module = "nsb")]
 pub(in crate::python) struct PySiteWindowContext {
     // Detached Rust work needs an owned handle to reusable prepared state.
     inner: Arc<SiteWindowContext>,

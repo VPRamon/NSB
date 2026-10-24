@@ -75,7 +75,7 @@ def main() -> None:
     require(python["build-system"]["requires"] == ["maturin==1.15.0"],
             "PEP 517 builds must use the tested Maturin version")
     deps = set(project["dependencies"])
-    require({"siderust>=0.4.0,<0.5", "tempoch>=0.4.0,<0.5"} <= deps,
+    require({"siderust>=0.5.1,<0.6", "tempoch>=0.5.0,<0.6"} <= deps,
             "Python must include the supported Siderust/Tempoch runtime dependencies")
     notices = maturin.get("include", [])
     require(any(isinstance(item, dict)
@@ -99,10 +99,38 @@ def main() -> None:
     require("v[0-9]*" in (ROOT / ".github/workflows/publish.yml").read_text(),
             "tag-triggered release workflow is missing")
 
+    workspace = read_toml("Cargo.toml")
+    require(not workspace.get("patch") and not workspace.get("replace"),
+            "release dependencies must not use workspace patches or replacements")
+    registry = "registry+https://github.com/rust-lang/crates.io-index"
+    for package in lockfile["package"]:
+        if package["name"] in {"nsb", "nsb-cli", "nsb-data-tools"}:
+            require("source" not in package, "workspace packages must be local")
+        else:
+            require(package.get("source") == registry,
+                    f"{package['name']} must use the published crates.io registry")
+            require(re.fullmatch(r"[0-9a-f]{64}", package.get("checksum", "")) is not None,
+                    f"{package['name']} needs a registry checksum")
+    for name in ("siderust", "affn", "tempoch", "tempoch-core", "siderust-py",
+                 "tempoch-py", "pyo3", "pyo3-ffi"):
+        require(sum(p["name"] == name for p in lockfile["package"]) == 1,
+                f"expected exactly one {name} provider identity")
+    core_manifest = read_toml("crates/nsb/Cargo.toml")
+    siderust = core_manifest["dependencies"]["siderust"]
+    locked_siderust = next(p for p in lockfile["package"] if p["name"] == "siderust")
+    require(siderust.get("version") == "=" + locked_siderust["version"]
+            and set(siderust).isdisjoint({"git", "path", "branch", "rev", "tag"}),
+            "Siderust must pin the registry release represented by public provenance")
+
+    bridge = core_manifest["dependencies"]["siderust-py"]
+    require(bridge.get("version") == "0.5.1"
+            and set(bridge).isdisjoint({"git", "path", "branch", "rev", "tag"}),
+            "siderust-py must require corrected registry releases >=0.5.1,<0.6")
+    locked_bridge = next(p for p in lockfile["package"] if p["name"] == "siderust-py")
+    require(re.fullmatch(r"0\.5\.[1-9]\d*", locked_bridge["version"]) is not None,
+            "locked siderust-py must exclude the unsafe 0.5.0 release")
+
     if args.tag is not None:
-        require("siderust" not in read_toml("Cargo.toml").get("patch", {}).get("crates-io", {}),
-                "registry/PyPI release blocked: migrate all Rust/Python consumers to a "
-                "compatible registry Siderust optics graph and remove the temporary Git patch first")
         require(re.fullmatch(r"v\d+\.\d+\.\d+", args.tag) is not None,
                 f"unexpected tag format {args.tag!r}")
         require(args.tag == f"v{version}",

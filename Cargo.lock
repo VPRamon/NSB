@@ -10,9 +10,9 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "affn"
-version = "0.11.0"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c92c8eb95d800244fc4d8d01951bb0984f482189b65cfaa28219553ba6487304"
+checksum = "f936458443dd39e400016641c0a64afa3054305c7e2399aa217fd7a34157f7d4"
 dependencies = [
  "affn-derive",
  "qtty",
@@ -21,9 +21,9 @@ dependencies = [
 
 [[package]]
 name = "affn-derive"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22c0ace8749730770c7df1e9eb5aaf4bd59aeebcd00e8f1d0f3787eaec7a9f8a"
+checksum = "167a4b6fa3749c5a3b77c33061dc4ad2fcd84e38954c1db519a6be2c46381929"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -950,9 +950,9 @@ dependencies = [
 
 [[package]]
 name = "keplerian"
-version = "0.4.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "014a70f1d26f6e578f86359804a5f5979a39c32e652076c60b8b6d6a10c822c0"
+checksum = "d4f1ed8ec359b9424d8aac68f271df06827db6e29ad21a7aaa3d71f5ee0e2952"
 dependencies = [
  "affn",
  "qtty",
@@ -1158,9 +1158,9 @@ checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 
 [[package]]
 name = "optica"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2c4841db0aa9ffdaa2943886bf421d2f0830ade7dacc43389b920d1ed160976"
+checksum = "a2cbe980af7d937a838a9923d492557048e716e9fe62498b34df90b8d2807183"
 dependencies = [
  "affn",
  "qtty",
@@ -1243,9 +1243,9 @@ dependencies = [
 
 [[package]]
 name = "principia"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39eda2432ad097a3ee975e06f3f26c85b006efce4d91cf5519ba1073f57488d3"
+checksum = "42318c6e145a507961861eb368926f58cbdf411242bf5424949ca5fb0efc9105"
 dependencies = [
  "affn",
  "qtty",
@@ -1264,9 +1264,9 @@ dependencies = [
 
 [[package]]
 name = "pyo3"
-version = "0.29.3"
+version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "700d18fa267b73b9b521fd7e13580e2f446916f176cacee1ab63fcc8191f1655"
+checksum = "229ca13b8a15bb0d1487b81ab975bfcd97513416499a8312011b6036e42e0de4"
 dependencies = [
  "chrono",
  "libc",
@@ -1279,18 +1279,18 @@ dependencies = [
 
 [[package]]
 name = "pyo3-build-config"
-version = "0.29.3"
+version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b3fc0c4d08f6bb10e71fe39dfb9e2f59c6eb6854e22ec8092f50c69a4499adb"
+checksum = "70130e2b6dd1ee589a8788026a429561ca5c40fa7a2fa7914c2282eddae24700"
 dependencies = [
  "target-lexicon",
 ]
 
 [[package]]
 name = "pyo3-ffi"
-version = "0.29.3"
+version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfc0b8e19df29aad7086cf977bb0c2a2f143e30567eb113e9cf72b62ca698330"
+checksum = "5e7ff73c555c286d212d4ce7e5fbda845a973c4f61bd5f160f5f2c3c2a04d1c4"
 dependencies = [
  "libc",
  "pyo3-build-config",
@@ -1298,26 +1298,26 @@ dependencies = [
 
 [[package]]
 name = "pyo3-macros"
-version = "0.29.3"
+version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6100e8a4b5eba53afaa5ed078364851a0b2499c553a44c31026b929049b49dc6"
+checksum = "c46d2e5862c7bb8207e3b639f713dda3c499933444784154c11d013c5a691b60"
 dependencies = [
  "proc-macro2",
  "pyo3-macros-backend",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.9",
 ]
 
 [[package]]
 name = "pyo3-macros-backend"
-version = "0.29.3"
+version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6143877a16e82b5a727b7127ff4cd86858a24a28d745d72f43e6f227c7b1bdb3"
+checksum = "38b89f066f2ae72a2aef52d1537ca2fcd104440ebfadee06e97aa90738a25b9b"
 dependencies = [
  "heck",
  "proc-macro2",
  "quote",
- "syn 2.0.119",
+ "syn 3.0.9",
 ]
 
 [[package]]
@@ -1729,8 +1729,9 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
 name = "siderust"
-version = "0.14.1"
-source = "git+https://github.com/Siderust/siderust?rev=83d1ebb29ca1ae0b327d5784d13eda231d52c120#83d1ebb29ca1ae0b327d5784d13eda231d52c120"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c8eb538a70c4401b340d0a809cf070370aac955e737c0819425fc269f792324"
 dependencies = [
  "affn",
  "cheby",
@@ -1770,9 +1771,9 @@ dependencies = [
 
 [[package]]
 name = "siderust-py"
-version = "0.4.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7666188760e2b7e7c383c88703b0d9084ce8ca983d7a236afbcb2ac9d8bdd0c3"
+checksum = "b47f33e87d499ebc31a41f7cfd9c90725d8b23dbc5b01c327e1a63a3e548beb0"
 dependencies = [
  "affn",
  "pyo3",
@@ -1894,18 +1895,18 @@ dependencies = [
 
 [[package]]
 name = "tempoch"
-version = "0.10.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c5ee225276e09e209e8e2f0dbb454f4e515cbc7b424af5760b3288db94ed1a5"
+checksum = "b1c36619f1a58eb7e7a3e23c6c884a620b05ce2d1345a2d1d053e45e82d4f1bf"
 dependencies = [
  "tempoch-core",
 ]
 
 [[package]]
 name = "tempoch-core"
-version = "0.10.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8feac6430d091604aee6cc36f539b4698c720273ce3dd2afdbfdb02410256369"
+checksum = "576b8bfbe12559d58f7954ae5a89a1d2cc1d0428a69fd07d1230df4b25e79dca"
 dependencies = [
  "affn",
  "chrono",
@@ -1915,9 +1916,9 @@ dependencies = [
 
 [[package]]
 name = "tempoch-py"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69a7fc495677789d2e725fda1ba55fba2ae1792645e3d7c0969eee830538f232"
+checksum = "84d46272a3b58618f7ad1fee3cd42b048c2f819c481e109fd265b85fb06453b9"
 dependencies = [
  "chrono",
  "pyo3",

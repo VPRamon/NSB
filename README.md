@@ -26,10 +26,11 @@ engine from **Rust**, **Python**, or the **command line**.
 
 ## Install
 
-NSB **`0.2.0`** is in preparation and is **not yet publish-ready**. Registry
-publication is blocked by the upstream dependency graph tracked in
-[#265](https://github.com/VPRamon/NSB/issues/265). The latest published release
-is `0.1.1`; build the development version from this repository.
+NSB **`0.2.0`** is a release candidate using published Rust/Python dependencies.
+Publication still requires maintainer approval. The corrected Siderust Python
+bridge/runtime 0.5.1 is required; affected 0.5.0 is excluded.
+The latest published NSB release is `0.1.1`; commands targeting `0.2.0` apply
+once it is published. Build this checkout to test the candidate.
 
 Choose the interface that fits your workflow:
 
@@ -59,7 +60,7 @@ The Rust example below also uses Siderust, Tempoch and Chrono at the API
 boundary; add the matching dependencies to your application:
 
 ```bash
-cargo add nsb siderust@0.14.1 tempoch@0.10 chrono@0.4
+cargo add nsb@0.2.0 siderust@0.15.1 tempoch@0.11.1 chrono@0.4
 ```
 
 ## Quickstart
@@ -218,8 +219,6 @@ example. A conservative HEALPix subpixel path resolves the frozen Gaia angular
 case; the labelled historical comparison retains explicit astrometric differences. See the [spectral contract](docs/specifications/starlight-transport.md)
 for the bounded numerical method and diagnostic limitations.
 
-The repository temporarily patches Siderust to immutable revision
-`83d1ebb29ca1ae0b327d5784d13eda231d52c120`, including Python interoperability.
-Registry/PyPI publication of this revision is blocked pending the upstream release
-([#265](https://github.com/VPRamon/NSB/issues/265)). This is an experimental
-physical reference, with no empirical sky-accuracy or complete transport claim.
+The transport APIs use published Siderust 0.15.1 with the coordinated Python
+0.5 bridges. This remains an experimental physical reference, with no empirical
+sky-accuracy or complete transport claim.

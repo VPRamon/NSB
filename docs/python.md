@@ -21,7 +21,7 @@ Python 3.10 or newer is supported.
 python -m pip install nsb-py
 ```
 
-The distribution declares `siderust>=0.4.0,<0.5` and `tempoch>=0.4.0,<0.5`
+The distribution declares `siderust>=0.5.1,<0.6` and `tempoch>=0.5.0,<0.6`
 as runtime dependencies, so pip installs the matching canonical upstream packages. The Rust
 crate version used internally is a separate version line; see
 [Siderust compatibility](specifications/siderust-compatibility.md).
@@ -173,7 +173,7 @@ Evaluator construction, point evaluation, and planning operations detach from th
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install -U pip "maturin>=1.9,<2" pytest
-python -m pip install "siderust>=0.4.0,<0.5"
+python -m pip install "siderust>=0.5.1,<0.6"
 maturin develop --locked
 python -m pytest python/tests
 ```
@@ -190,12 +190,19 @@ The NSB binding uses PyO3's CPython stable ABI with a Python 3.10 floor
 (`abi3-py310`). Python support and the `siderust-py` / `tempoch-py` Rust bridge
 dependencies remain feature-gated, so normal Rust builds do not enable PyO3.
 
-The installed wheel tests resolve released Siderust and Tempoch 0.4 wheels
-from PyPI. The Rust extension links siderust-py / tempoch-py 0.4 against
-Siderust 0.14 and Tempoch 0.10. CLI, Rust and Python band searches use the
+The installed wheel tests resolve released Siderust and Tempoch 0.5 wheels
+from PyPI. The Rust extension links siderust-py / tempoch-py 0.5 against
+Siderust 0.15.1 and Tempoch 0.11.1. CLI, Rust and Python band searches use the
 same joint algorithm; `periods_in_band_adaptive(query, minimum)` accepts
 `minimum <= NSB <= query.threshold`, with both crossing brackets contracted
 inward. The context variant shares preparation. The certified band variant
 requires a sound enclosure of the whole band and fails for unsupported models.
 Ordinary Python timestamps remain timezone-aware `datetime` values, with
 inward projection checked at microsecond precision.
+
+Siderust 0.5.1 fixes the invalid Python-object-to-Rust-payload casts in free
+Star/Direction queries by retaining PyO3 borrow guards throughout dispatch
+([upstream #14](https://github.com/Siderust/siderust-py/pull/14)). Published crate
+and PyPI source artifacts contain the correction, and installed-wheel checks
+confirm method/free-function parity. NSB retains the official primitive interop
+protocol; both its Rust bridge and Python runtime requirements exclude 0.5.0.

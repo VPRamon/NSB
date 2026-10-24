@@ -162,8 +162,7 @@ LUT/cache acceleration or empirical accuracy claim. Frozen assets and reserved
 holdouts are untouched. #187/#263 remain open; #192 owns later acceleration.
 PR #264 is intentionally not merged and is not an implementation dependency.
 
-Siderust is temporarily patched workspace-wide to immutable revision
-`83d1ebb29ca1ae0b327d5784d13eda231d52c120`. See
-[siderust-compatibility.md](siderust-compatibility.md) and
-[#265](https://github.com/VPRamon/NSB/issues/265) for the registry publication
-blocker, archive verification contract and exact transition to a released version.
+Siderust 0.15.1 supplies the required optics APIs through crates.io, with the
+coordinated Python 0.5 bridges. See [dependency compatibility](siderust-compatibility.md)
+for provider identities and the separate upstream Python safety blocker. Registry
+packaging no longer uses a temporary Git patch.

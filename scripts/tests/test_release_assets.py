@@ -130,6 +130,21 @@ class ReleaseTests(unittest.TestCase):
         self.assertFalse(ready("workflow_dispatch", "github-release", {**recovery, "validate": "failure"}))
         self.assertFalse(ready("push", "pypi-sdist", base, cancelled=True))
 
+    def test_release_requires_successful_ci_on_exact_main_commit(self):
+        sha = "a" * 40
+        run = dict(head_sha=sha, head_branch="main", event="push", status="completed",
+                   conclusion="success", html_url="https://example.invalid/verified-ci")
+        self.assertEqual(release.verify_ci_run({"workflow_runs": [run]}, sha), run["html_url"])
+        for field, value in [("head_sha", "b" * 40), ("head_branch", "feature"),
+                             ("event", "pull_request"), ("status", "in_progress"),
+                             ("conclusion", "failure"), ("conclusion", "cancelled")]:
+            with self.subTest(field=field, value=value), self.assertRaisesRegex(ValueError, "no successful"):
+                release.verify_ci_run({"workflow_runs": [{**run, field: value}]}, sha)
+        with self.assertRaisesRegex(ValueError, "no successful"):
+            release.verify_ci_run({"workflow_runs": []}, sha)
+        with self.assertRaisesRegex(ValueError, "invalid release commit"):
+            release.verify_ci_run({"workflow_runs": [run]}, "main")
+
     def test_workflow_has_explicit_success_gate_and_no_generated_notes(self):
         workflow = (ROOT / ".github/workflows/publish.yml").read_text()
         for fragment in ("!cancelled()", "needs.record-publication.result == 'success'",
