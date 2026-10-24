@@ -83,10 +83,13 @@ See the [external manifest contract](../nsb_components/starlight/external-manife
 
 ## Airglow
 
-The airglow model uses a bundled continuum template and applies empirical
-corrections for observing geometry and temporal conditions. Van Rhijn is the
-unchanged default geometry: an explicit thin shell at 90 km. Callers can instead
-provide a validated, checksum-pinned vertical emission profile; the spherical
+Automatic Airglow in v0.2.0 combines the bundled PALACE continuum template
+with experimental Og/Or Oxygen lines. It is limited to zenith distance ≤60°
+and standard continuum geometry, even outside astronomical night; unsupported
+queries fail rather than silently returning continuum or zero. Explicit
+`ParanalPalaceV1` keeps the historical continuum-only model. The default
+continuum Van Rhijn thin shell represents 88 km. The explicit continuum model
+also permits a validated, checksum-pinned vertical emission profile; spherical
 line-of-sight integration uses the observer's real altitude. Geometry remains
 separate from the wavelength-dependent Noll atmospheric attenuation stage.
 
@@ -101,10 +104,13 @@ CLI selection and override:
 ```bash
 --components airglow
 --solar-radio-flux-sfu 130
+--airglow-model paranal-palace-v1
 --airglow-vertical-profile profile.toml
 ```
 
-When no value is supplied, NSB uses the documented default. Built-in site
+A custom vertical profile requires explicitly selecting the continuum-only
+model, as above; the default Oxygen model rejects nonstandard geometry.
+Without `--airglow-model`, NSB selects Automatic Oxygen. Built-in site
 profiles may select explicit planning assumptions, but the current CTAO profiles
 do not include dedicated site-calibrated airglow continua. Selecting a geometry,
 extinction model, or measured F10.7 does not upgrade scientific maturity.

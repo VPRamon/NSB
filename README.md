@@ -105,14 +105,15 @@ target = siderust.Direction(ra_deg=266.41683, dec_deg=-29.00781)
 
 evaluator = nsb.NsbEvaluator()
 result = evaluator.evaluate(
-    nsb.PointQuery(observer, datetime(2026, 6, 18, 23, tzinfo=timezone.utc), target)
+    nsb.PointQuery(observer, datetime(2026, 6, 19, 3, tzinfo=timezone.utc), target)
 )
 print(f"NSB: {result.integrated_photons_cm2_ns_sr:.3e} ph/(cm² ns sr)")
 ```
 
 This example uses CTAO South's coordinates with the **generic clear-sky**
-model, not a site-calibrated CTAO model. Python input times must be
-timezone-aware. For component breakdowns, planning and site profiles, see the
+profile and experimental Automatic Oxygen Airglow, not a site-calibrated CTAO
+model. The chosen night-time target lies within Oxygen's zenith-distance
+≤60° domain. Python input times must be timezone-aware. For component breakdowns, planning and site profiles, see the
 [Python guide](docs/python.md).
 
 ### Rust
@@ -155,7 +156,7 @@ After installing the executable above, evaluate the same target from CTAO South:
 
 ```bash
 nsb --format table point \
-  --time 2026-06-18T23:00:00Z \
+  --time 2026-06-19T03:00:00Z \
   --site CTAO-S --site-profile cta-south \
   --ra 266.41683 --dec -29.00781
 ```

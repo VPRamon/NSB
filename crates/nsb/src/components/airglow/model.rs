@@ -222,7 +222,7 @@ impl Airglow {
             solar_radio_flux: self.solar_radio_flux,
             user_scale: self.scale,
         };
-        super::continuum::validate_airglow_inputs(altitude, &ctx)?;
+        super::continuum::validate_airglow_inputs(altitude, &ctx, self.continuum.oxygen_enabled)?;
         if super::temporal::night_phase(time, self.location).is_none() {
             return Ok(BandPhotonRadiance::new(0.0));
         }
@@ -282,6 +282,7 @@ impl Airglow {
                 solar_radio_flux,
                 user_scale: self.scale,
             },
+            self.continuum.oxygen_enabled,
         )
     }
 }

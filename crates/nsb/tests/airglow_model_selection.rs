@@ -184,6 +184,50 @@ fn automatic_and_explicit_oxygen_require_standard_geometry() {
 }
 
 #[test]
+fn daytime_out_of_domain_is_rejected_for_automatic_and_explicit_oxygen() {
+    use nsb::units::length::Nanometers;
+
+    let location = observer(-70.4044, -24.6275, 2635.0);
+    let daylight = Time::<UTC>::from_chrono(
+        DateTime::parse_from_rfc3339("2023-09-04T16:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc),
+    );
+    let query = PointQuery::new(location, daylight, Target::new(0.0 * DEG, location.lat()))
+        .with_components(ComponentMask::AIRGLOW);
+    let lower = Nanometers::new(300.0);
+    let upper = Nanometers::new(650.0);
+
+    for selection in [
+        AirglowSelection::Automatic,
+        AirglowSelection::Explicit(REFERENCE_MODEL),
+    ] {
+        let evaluator = NsbEvaluator::with_config(
+            NsbModelConfig::generic_clear_sky().with_airglow_selection(selection),
+        )
+        .unwrap();
+        assert!(
+            matches!(evaluator.evaluate(&query), Err(nsb::NsbError::OutOfRange(message)) if message.contains("zenith distance <= 60"))
+        );
+        assert!(
+            matches!(evaluator.integrate_band(&query, lower, upper), Err(nsb::NsbError::OutOfRange(message)) if message.contains("zenith distance <= 60"))
+        );
+    }
+
+    // The historical continuum explicitly permits high zenith distances, and
+    // a geometrically valid daytime query remains a physical zero.
+    let continuum = NsbEvaluator::with_config(
+        NsbModelConfig::generic_clear_sky().with_airglow_model(AirglowModel::ParanalPalaceV1),
+    )
+    .unwrap();
+    assert_eq!(continuum.evaluate(&query).unwrap().integrated.value(), 0.0);
+    assert_eq!(
+        continuum.integrate_band(&query, lower, upper).unwrap().value(),
+        0.0
+    );
+}
+
+#[test]
 fn automatic_and_explicit_oxygen_return_identical_domain_errors() {
     let location = observer(-70.4044, -24.6275, 2635.0);
     let query = PointQuery::new(location, time(), Target::new(90.0 * DEG, location.lat()))

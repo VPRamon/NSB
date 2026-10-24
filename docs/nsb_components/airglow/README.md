@@ -222,9 +222,12 @@ let config = NsbModelConfig::generic_clear_sky().with_airglow_geometry(
 
 Evaluation still goes through `NsbEvaluator`; the geometry types are not a
 second direct component-evaluation API. A persisted profile can be selected in
-the CLI with `--airglow-vertical-profile profile.toml`. No network access is
-used to resolve or evaluate it. Selecting either geometry leaves the selected
-site profile and its calibration status unchanged.
+the CLI with `--airglow-model paranal-palace-v1 --airglow-vertical-profile profile.toml`.
+Automatic/explicit Oxygen require the standard continuum geometry and reject
+vertical profiles or custom Van Rhijn heights at evaluator construction.
+No network access is used to resolve or evaluate the explicit continuum
+profile. Choosing continuum geometry leaves the site profile and its
+calibration status unchanged.
 
 ### Why no bundled broadband VER profile
 

@@ -15,7 +15,8 @@ site calibration are separate axes.
 | Evaluator composition and units | Production software | Typed deterministic composition and component-sum identity | Yes, for software behaviour |
 | Atmospheric transport (`nsb::transport`) | Foundation / planning software | Identity exactness; Beer–Lambert direct path with Siderust Rayleigh/Mie/(optional) ozone; origin-rejection for airglow/moonlight | Planning / software only; does not imply site calibration |
 | Zodiacal component | Generic clear sky | Leinert anchors and Noll-style formula checks | Planning only |
-| Airglow component | Generic/planning | Astronomical night with a Paranal-derived continuum; arbitrary-location geometry is supported, but no location (including Paranal) is automatically site-calibrated | Planning only |
+| Airglow Automatic (v0.2.0 PALACE Oxygen) | Experimental | Paranal-derived continuum plus Og/Or oxygen lines, 300–650 nm, standard continuum geometry and zenith distance ≤60°; no independent absolute admission | Planning / experimental only |
+| Airglow explicit continuum (`ParanalPalaceV1`) | Generic/planning | Paranal-derived unresolved continuum with broader geometric coverage; custom validated vertical profiles require explicit continuum selection | Planning only |
 | Jones 2013 moonlight | Generic/planning | Spectral computation and deterministic regression cases | Planning only |
 | KS91 moonlight | Published reference | Approximate Johnson-V analytic benchmark | Reference-model use |
 | CTAO-N and CTAO-S | Planning preset | Explicit pressure/aerosol/airglow assumptions selected by application-layer `SiteProfileTag` markers (for example `nsb-cli`), independently of observatory identity | No calibrated-site claim |
@@ -28,7 +29,9 @@ For Airglow, the bundled PALACE v1.0 continuum's Paranal lineage records source
 provenance, not calibration evidence. Observer coordinates, observatory
 identity, geometry, F10.7, atmospheric/extinction assumptions, and user scaling
 may change the numerical result or provenance but cannot promote scientific
-maturity.
+maturity. Automatic Oxygen retains `ComponentCalibrationStatus::Experimental`
+even under generic or CTAO planning site profiles. The profile's own
+`CalibrationStatus` remains independent of component scientific maturity.
 
 Public typed profile construction is fail-closed with respect to maturity:
 `SiteProfile::<GenericClearSky>::generic_clear_sky()` produces
@@ -37,7 +40,8 @@ Public typed profile construction is fail-closed with respect to maturity:
 a path to construct `CalibrationStatus::Calibrated` through caller-defined tags.
 A profile therefore cannot promote its own component metadata to `Production`
 merely by supplying atmospheric parameters or a custom `NAME` string. Airglow
-evaluation always uses the bundled continuum template regardless of marker type.
+evaluation uses the bundled continuum baseline regardless of marker type;
+Automatic additionally includes the experimental PALACE Oxygen lines.
 
 A future `Calibrated` runtime profile must be connected to dedicated admitted
 site-validation evidence. Issue #38 remains the scientific promotion gate.
@@ -48,10 +52,17 @@ experimental seed map.
 
 ## Registered Airglow fits and oxygen extension
 
-`ParanalPalaceOxygenV1` is an explicit experimental published-data reconstruction
-of the Og/Or subset, not the automatic fallback. Its continuum uses the PALACE
-reference; oxygen geometry and variability are separate, with omitted species,
-molecular absorption and solar extrapolation limitations stated in result metadata.
+`ParanalPalaceOxygenV1` is the **Automatic v0.2.0 planning fallback**, as well
+as a supported explicit selection. It reconstructs the experimental Og/Or
+oxygen subset on top of PALACE continuum; oxygen geometry and variability are
+separate, with omitted species, molecular absorption and solar extrapolation
+limitations stated in result metadata. This release-policy default is not an
+independent absolute observational admission (Patat informed development; LVM
+absolute equivalence remains pending). Automatic and explicit Oxygen both require
+standard continuum geometry and zenith distance ≤60°; invalid geometry is
+rejected during construction and out-of-domain queries error, even outside
+astronomical night. Choose `ParanalPalaceV1` explicitly for continuum-only
+historical comparisons, broader zenith coverage or custom vertical geometry.
 
 Portable user continuum fits are reproducible **registered fits**, with recorded
 training observations, covariance and provenance. Their component status is

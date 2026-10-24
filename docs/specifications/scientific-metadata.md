@@ -28,8 +28,10 @@ columns.
 | `PublishedReference` | Supported published comparison model, not the default |
 | `Experimental` | Capability without a production validation contract |
 
-The default components report generic or planning status. No CTAO profile is
-currently calibrated.
+Default Automatic Airglow resolves to experimental PALACE Oxygen and reports
+`Experimental` **component** maturity even when the independent site-profile
+status is `GenericFallback` or `PlanningPreset`. Other default components
+retain their own maturity statuses. No CTAO profile is currently calibrated.
 
 ## Physical integrated band and B/V diagnostics
 
@@ -99,9 +101,14 @@ symmetrically if required.
 Airglow component metadata includes nested `airglow_selection` with the
 resolved `AirglowModel` identity (`resolved_model`) actually selected by the
 evaluator, plus selection kind and typed fallback reason. The first-release
-identity is `paranal-palace-v1`, corresponding to the checksum-pinned PALACE
-v1.0 Paranal unresolved-continuum model used as an explicit planning model and
-temporary automatic fallback. PALACE emission lines are not part of this model.
+Automatic v0.2.0 identity is `paranal-palace-oxygen-v1` (experimental
+Paranal-derived planning fallback). This combines the checksum-pinned PALACE v1.0
+continuum with experimental Og/Or oxygen emission lines, requires the standard
+continuum geometry and zenith distance ≤60°, and does not constitute independent
+absolute observational admission. The explicit `paranal-palace-v1` selection
+retains the historical continuum-only model, without oxygen lines; it also
+preserves wider zenith-angle and custom-geometry workflows. Metadata identifies
+Automatic versus explicit Oxygen separately despite identical numerical results.
 
 Physical outcomes live in a separate `airglow_evaluation` field present only
 after a time-dependent evaluation. Descriptors from `describe_components`

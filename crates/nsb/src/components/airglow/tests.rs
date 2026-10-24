@@ -500,6 +500,38 @@ fn assert_out_of_range(err: crate::error::NsbError) {
 }
 
 #[test]
+fn oxygen_domain_is_validated_before_daytime_physical_zero() {
+    let mut continuum = load_builtin_standard().unwrap();
+    continuum.oxygen_enabled = true;
+    let location = paranal();
+    let ctx = airglow_ctx(
+        location,
+        AtmosphericConditions::generic_clear_sky(location),
+    );
+    let daylight = t("2023-09-04T16:00:00Z");
+    let out = super::continuum::evaluate_continuum(
+        &continuum,
+        daylight,
+        Degrees::new(60.0),
+        ctx.clone(),
+    )
+    .unwrap();
+    assert_eq!(out.physical_outcome, AirglowPhysicalOutcome::PhysicalZero);
+    assert_eq!(out.integrated, BandPhotonRadiance::zero());
+
+    let err = super::continuum::evaluate_continuum(
+        &continuum,
+        daylight,
+        Degrees::new(15.0),
+        ctx,
+    )
+    .expect_err("out-of-domain Oxygen must not silently become daytime zero");
+    assert!(
+        matches!(err, crate::error::NsbError::OutOfRange(message) if message.contains("zenith distance <= 60"))
+    );
+}
+
+#[test]
 fn altitude_at_or_below_minus_ninety_is_out_of_range() {
     let continuum = load_builtin_standard().unwrap();
     let err = super::continuum::evaluate_continuum(
