@@ -24,14 +24,26 @@ engine from **Rust**, **Python**, or the **command line**.
   This visualizes a starlight data product, <strong>not</strong> a total NSB prediction.
 </sub></p>
 
-## Observational validation notebooks
+## Airglow defaults and examples
 
-Executable notebooks live under [`notebooks/`](notebooks/README.md):
+**v0.2.0 Automatic Airglow resolves to PALACE Oxygen** (`ParanalPalaceOxygenV1`).
+Oxygen remains **Experimental**, requires the standard continuum geometry and
+zenith distance **≤60°**, and raises explicit domain errors outside that range.
+Planning tracks and sky scans must stay within this domain or deliberately select
+continuum; NSB never silently substitutes it.
 
-- [`notebooks/NSB_Validation.ipynb`](notebooks/NSB_Validation.ipynb) — standalone Patat/FORS1 campaign
-- [`notebooks/NSB_CTAO_Validation.ipynb`](notebooks/NSB_CTAO_Validation.ipynb) — CTAO four-component package (`./ctao/reproduce.sh`)
+Select historical continuum explicitly with Rust
+`config.with_airglow_model(AirglowModel::ParanalPalaceV1)`, Python
+`config.with_airglow_model(nsb.AirglowModel.PARANAL_PALACE_V1)`, or CLI
+`--airglow-model paranal-palace-v1`.
 
-**v0.2.0 Automatic Airglow is PALACE Oxygen.** Explicit continuum-only selection remains available. This is a release-policy reference-model choice, not an independent absolute observational admission.
+See [notebooks](notebooks/README.md) for a standalone observational demonstration
+and a concise [CTAO API example](notebooks/CTAO_API_Example.ipynb).
+Complete observational experiments, datasets and scientific admission material live
+in [nsb-validation](https://github.com/VPRamon/nsb-validation), including its
+[CTAO benchmark](https://github.com/VPRamon/nsb-validation/pull/23).
+The default is a release-policy choice, not independent observational admission:
+Patat informed development and LVM absolute equivalence remains pending.
 
 ## Install
 

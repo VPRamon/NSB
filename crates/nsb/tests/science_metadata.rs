@@ -249,7 +249,20 @@ fn airglow_component_metadata_reflects_site_profile_maturity() {
 fn vertical_profile_identity_reaches_metadata_without_upgrading_maturity() {
     let profile = synthetic_profile();
     let expected_checksum = profile.checksum_sha256().to_string();
+    for selection in [
+        nsb::AirglowSelection::Automatic,
+        nsb::AirglowSelection::Explicit(AirglowModel::ParanalPalaceOxygenV1),
+    ] {
+        let invalid = nsb::NsbModelConfig::generic_clear_sky()
+            .with_airglow_selection(selection)
+            .with_airglow_geometry(AirglowGeometryModel::VerticalProfile(profile.clone()));
+        assert!(matches!(
+            NsbEvaluator::with_config(invalid),
+            Err(nsb::NsbError::Unsupported(_))
+        ));
+    }
     let config = nsb::NsbModelConfig::generic_clear_sky()
+        .with_airglow_model(AirglowModel::ParanalPalaceV1)
         .with_airglow_geometry(AirglowGeometryModel::VerticalProfile(profile));
     let result = NsbEvaluator::with_config(config)
         .unwrap()
@@ -265,7 +278,7 @@ fn vertical_profile_identity_reaches_metadata_without_upgrading_maturity() {
     let airglow = result.components.first().unwrap();
     assert_eq!(
         airglow.metadata.status,
-        ComponentCalibrationStatus::Experimental
+        ComponentCalibrationStatus::GenericClearSky
     );
     assert_eq!(
         airglow
@@ -274,7 +287,7 @@ fn vertical_profile_identity_reaches_metadata_without_upgrading_maturity() {
             .as_ref()
             .unwrap()
             .resolved_model,
-        Some(AirglowModel::ParanalPalaceOxygenV1)
+        Some(AirglowModel::ParanalPalaceV1)
     );
     let geometry = airglow.metadata.airglow_geometry.as_ref().unwrap();
     assert_eq!(geometry.model, "vertical_profile");

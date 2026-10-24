@@ -127,17 +127,14 @@ fn scientific_model_identity_is_independent_of_geometry_f107_location_and_site_m
     let paranal = observer(-70.4044, -24.6275, 2_635.0);
     let base_arbitrary = evaluate_airglow(base.clone(), arbitrary);
     let base_paranal = evaluate_airglow(base, paranal);
-    let changed_geometry = evaluate_airglow(changed_geometry, arbitrary);
+    assert!(matches!(
+        NsbEvaluator::with_config(changed_geometry),
+        Err(nsb::NsbError::Unsupported(_))
+    ));
     let changed_f107 = evaluate_airglow(changed_f107, paranal);
     let changed_site = evaluate_airglow(changed_site, paranal);
 
-    for component in [
-        &base_arbitrary,
-        &base_paranal,
-        &changed_geometry,
-        &changed_f107,
-        &changed_site,
-    ] {
+    for component in [&base_arbitrary, &base_paranal, &changed_f107, &changed_site] {
         assert_eq!(
             component
                 .metadata
@@ -161,4 +158,52 @@ fn scientific_model_identity_is_independent_of_geometry_f107_location_and_site_m
         changed_site.metadata.status,
         ComponentCalibrationStatus::Experimental
     );
+}
+
+#[test]
+fn automatic_and_explicit_oxygen_require_standard_geometry() {
+    for selection in [
+        AirglowSelection::Automatic,
+        AirglowSelection::Explicit(REFERENCE_MODEL),
+    ] {
+        let config = NsbModelConfig::generic_clear_sky().with_airglow_selection(selection);
+        assert!(NsbEvaluator::with_config(config.clone()).is_ok());
+        let nonstandard = config.with_airglow_geometry(AirglowGeometryModel::VanRhijn(
+            VanRhijnConfig::new(Kilometers::new(110.0)).unwrap(),
+        ));
+        assert!(matches!(
+            NsbEvaluator::with_config(nonstandard.clone()),
+            Err(nsb::NsbError::Unsupported(_))
+        ));
+        // Custom continuum geometry remains an explicit supported capability.
+        assert!(NsbEvaluator::with_config(
+            nonstandard.with_airglow_model(AirglowModel::ParanalPalaceV1)
+        )
+        .is_ok());
+    }
+}
+
+#[test]
+fn automatic_and_explicit_oxygen_return_identical_domain_errors() {
+    let location = observer(-70.4044, -24.6275, 2635.0);
+    let query = PointQuery::new(location, time(), Target::new(90.0 * DEG, location.lat()))
+        .with_components(ComponentMask::AIRGLOW);
+    for selection in [
+        AirglowSelection::Automatic,
+        AirglowSelection::Explicit(REFERENCE_MODEL),
+    ] {
+        let evaluator = NsbEvaluator::with_config(
+            NsbModelConfig::generic_clear_sky().with_airglow_selection(selection),
+        )
+        .unwrap();
+        assert!(
+            matches!(evaluator.evaluate(&query), Err(nsb::NsbError::OutOfRange(message)) if message.contains("zenith distance <= 60"))
+        );
+    }
+    assert!(NsbEvaluator::with_config(
+        NsbModelConfig::generic_clear_sky().with_airglow_model(AirglowModel::ParanalPalaceV1)
+    )
+    .unwrap()
+    .evaluate(&query)
+    .is_ok());
 }

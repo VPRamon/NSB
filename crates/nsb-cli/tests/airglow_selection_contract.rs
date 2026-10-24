@@ -206,7 +206,7 @@ fn point_json_exposes_daytime_physical_zero() {
 }
 
 #[test]
-fn oxygen_selection_is_opt_in_and_experimental() {
+fn explicit_oxygen_selection_remains_experimental() {
     let output = Command::cargo_bin("nsb")
         .unwrap()
         .args([
@@ -319,4 +319,49 @@ fn registered_calibration_cli_matches_the_rust_fixture() {
         .as_f64()
         .unwrap();
     assert!((actual - expected).abs() < 1e-14);
+}
+
+#[test]
+fn automatic_and_explicit_oxygen_share_values_and_domain_errors() {
+    let run = |ra: &str, model: &str| {
+        Command::cargo_bin("nsb")
+            .unwrap()
+            .args([
+                "--format",
+                "json",
+                "point",
+                "--time",
+                "2023-09-04T01:48:00Z",
+                "--site",
+                "PARANAL",
+                "--ra",
+                ra,
+                "--dec",
+                "-24.6275",
+                "--components",
+                "airglow",
+                "--airglow-model",
+                model,
+                "--solar-radio-flux-sfu",
+                "100",
+            ])
+            .output()
+            .unwrap()
+    };
+    let automatic = run("0", "automatic");
+    let explicit = run("0", "paranal-palace-oxygen-v1");
+    assert!(automatic.status.success());
+    assert!(explicit.status.success());
+    let auto: serde_json::Value = serde_json::from_slice(&automatic.stdout).unwrap();
+    let oxygen: serde_json::Value = serde_json::from_slice(&explicit.stdout).unwrap();
+    assert_eq!(
+        auto["components"][0]["integrated_ph_cm2_ns_sr"],
+        oxygen["components"][0]["integrated_ph_cm2_ns_sr"]
+    );
+    for model in ["automatic", "paranal-palace-oxygen-v1"] {
+        let outside = run("90", model);
+        assert!(!outside.status.success());
+        assert!(String::from_utf8_lossy(&outside.stderr).contains("zenith distance <= 60"));
+    }
+    assert!(run("90", "paranal-palace-v1").status.success());
 }

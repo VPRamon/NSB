@@ -34,8 +34,9 @@ impl NsbEvaluator {
 
     /// Construct from explicit immutable model choices.
     pub fn with_config(config: NsbModelConfig) -> Result<Self> {
+        let airglow_resolved = airglow::resolve_airglow_selection(config.airglow_selection())?;
         if (config.site_profile().airglow_profile.is_some()
-            || config.airglow_model() == Some(airglow::AirglowModel::ParanalPalaceOxygenV1))
+            || airglow_resolved.model == airglow::AirglowModel::ParanalPalaceOxygenV1)
             && !matches!(config.airglow_geometry(), airglow::AirglowGeometryModel::VanRhijn(g) if *g == airglow::VanRhijnConfig::default())
         {
             return Err(NsbError::Unsupported("registered continuum fits and experimental oxygen require the standard continuum geometry; oxygen uses separate source heights".into()));
@@ -44,7 +45,6 @@ impl NsbEvaluator {
             zodiacal::ZodiacalModel::Leinert1998 => ZodiacalLight::leinert1998()?,
         }
         .with_extinction(config.zodiacal_extinction());
-        let airglow_resolved = airglow::resolve_airglow_selection(config.airglow_selection())?;
         let airglow_continuum = airglow::load_continuum_for_model(airglow_resolved.model)?;
         let starlight = match config.starlight_product() {
             None => None,

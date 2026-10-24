@@ -30,8 +30,8 @@ Python siderust >=0.5.1,<0.6, excluding the unsafe 0.5.0 query dispatcher
   (#271).
 - Registered Airglow calibration workflow and PALACE oxygen emission model;
   development diagnostics do not establish independent accuracy (#272).
-- Standalone observational validation notebooks under `notebooks/`, including the
-  imported CTAO four-component package under `ctao/`.
+- Standalone observational demonstration and focused CTAO public-API example
+  under `notebooks/`; complete experiments remain in `nsb-validation`.
 - Opt-in multiple-scattering transport, native spectral HEALPix boundary handling
   and scalable numerical verification (#269, #270).
 - Scientific publication-candidate numerical/interface evidence and reproducible
