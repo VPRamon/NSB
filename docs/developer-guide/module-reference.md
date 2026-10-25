@@ -13,7 +13,7 @@ SemVer policy, and the snapshot gate are documented in
 | Crate | Responsibility | Runtime role |
 | --- | --- | --- |
 | `nsb` | Typed scientific models, component composition, point evaluation, threshold-window search, runtime assets, and scientific metadata | Linked by applications and the CLI |
-| `nsb-cli` | User-facing parsing, site aliases, configuration templates, logging, and stable output rendering | Installed as the `nsb` executable |
+| `nsb-cli` | User-facing parsing, site aliases, logging, and stable output rendering | Installed as the `nsb` executable |
 | `nsb-data-tools` | Offline acquisition, transformation, validation, reconciliation, and packaging of scientific data | Maintainer-only; never invoked by runtime evaluation |
 | `scripts/coverage-gate.sh` | Overall and changed-production coverage gates over llvm-cov LCOV | CI/local quality tool; not a scientific runtime |
 | `scripts/check-public-api.sh` | Public API snapshot integrity and baseline SemVer gates via `cargo-public-api` | CI/local quality tool; not a scientific runtime |
@@ -69,9 +69,8 @@ SemVer policy, and the snapshot gate are documented in
 
 | Module | Responsibility |
 | --- | --- |
-| `cli` | Clap definitions for global options and the `point`, `window`, `sites`, and `config` command families |
-| `commands` | Thin handlers for `point`, `window`, `sites`, and `config` |
-| `config` | Serializable configuration template and validation rules |
+| `cli` | Clap definitions for global options and the `point`, `window`, and `sites` command families |
+| `commands` | Thin handlers for `point`, `window`, and `sites` |
 | `error` | User-facing CLI error classification and presentation |
 | `logging` | Log-level resolution without contaminating machine-readable stdout |
 | `output` | Stable table, JSON, and CSV rendering |

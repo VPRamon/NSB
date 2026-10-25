@@ -15,10 +15,24 @@ ROOT = Path(__file__).resolve().parent.parent
 CURRENT_MARKDOWN = (
     "README.md",
     "crates/nsb/README.md",
+    "crates/nsb-cli/README.md",
+    "README_PYPI.md",
     "docs/README.md",
     "docs/python.md",
     "docs/scientific-validation.md",
     "docs/user-guide/getting-started.md",
+    "docs/user-guide/README.md",
+    "docs/user-guide/components.md",
+    "docs/user-guide/observatory-customization.md",
+    "docs/developer-guide/README.md",
+    "docs/developer-guide/architecture.md",
+    "docs/developer-guide/module-reference.md",
+    "docs/developer-guide/public-api.md",
+    "docs/developer-guide/testing.md",
+    "docs/specifications/model-maturity.md",
+    "docs/specifications/scientific-model.md",
+    "docs/specifications/validation-consumer.md",
+    "docs/nsb_components/zodiacal/README.md",
     "examples/README.md",
     "CONTRIBUTING.md",
     "SECURITY.md",
@@ -31,7 +45,6 @@ CURRENT_NOTEBOOKS = (
 LINK = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 OUTDATED = (
     ("nsb-validation", "historical validation-repository reference"),
-    ("nsb-validator", "retired validator reference"),
     ("PR #", "development pull-request narrative"),
 )
 

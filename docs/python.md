@@ -131,7 +131,7 @@ for start, end in result.periods:
 
 Returned periods are `(start, end)` tuples of timezone-aware UTC `datetime.datetime` values. NSB does not expose a bespoke Python `UtcPeriod` type.
 
-Normal planning methods use step-free adaptive discovery in NSB 0.1.
+Normal planning methods use step-free adaptive discovery in NSB 0.2.0.
 Explicit adaptive method names are aliases
 for the same search. Inclusive bands use the shared two-threshold engine:
 

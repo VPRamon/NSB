@@ -32,8 +32,6 @@ pub enum Command {
     Window(WindowArgs),
     /// Inspect CLI-owned site aliases.
     Sites(SitesArgs),
-    /// Generate or validate CLI configuration files.
-    Config(ConfigArgs),
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -250,18 +248,4 @@ pub enum SitesCommand {
     List,
     /// Show one site alias.
     Show { alias: String },
-}
-
-#[derive(Debug, Args)]
-pub struct ConfigArgs {
-    #[command(subcommand)]
-    pub command: ConfigCommand,
-}
-
-#[derive(Debug, Subcommand)]
-pub enum ConfigCommand {
-    /// Print a starter TOML configuration to stdout.
-    Init,
-    /// Validate a TOML configuration file.
-    Validate { path: PathBuf },
 }

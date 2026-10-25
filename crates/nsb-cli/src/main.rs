@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 mod cli;
 mod commands;
-mod config;
 mod error;
 mod logging;
 mod output;
@@ -23,7 +22,6 @@ fn main() -> Result<()> {
         Command::Point(args) => commands::point::run(args, cli.format),
         Command::Window(args) => commands::window::run(args, cli.format),
         Command::Sites(args) => commands::sites::run(args, cli.format),
-        Command::Config(args) => commands::config::run(args),
     };
 
     if let Err(error) = &result {
