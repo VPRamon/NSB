@@ -20,17 +20,11 @@ pub(in crate::python) struct PyNsbComponentMetadata {
     airglow_physical_outcome: Option<String>,
     airglow_physical_zero_reason: Option<String>,
     solar_activity_provenance: Option<String>,
-    oxygen_f107_domain_provenance: Option<String>,
     oxygen_f107_numerical_range: Option<String>,
-    oxygen_f107_numerically_extrapolated: Option<bool>,
-    oxygen_f107_covariate_matches_training: Option<bool>,
-    oxygen_f107_actual_conditions_claim: Option<String>,
-    oxygen_f107_claims_actual_conditions_within_training_domain: Option<bool>,
     oxygen_f107_applied_sfu: Option<f64>,
     oxygen_f107_training_range_low_sfu: Option<f64>,
     oxygen_f107_training_range_high_sfu: Option<f64>,
-    oxygen_f107_operational_quantity: Option<String>,
-    oxygen_f107_training_covariate: Option<String>,
+    oxygen_f107_limitation: Option<String>,
 }
 
 impl From<NsbComponentMetadata> for PyNsbComponentMetadata {
@@ -64,25 +58,15 @@ impl From<NsbComponentMetadata> for PyNsbComponentMetadata {
                 .solar_activity
                 .as_ref()
                 .map(|solar| solar.provenance_fragment()),
-            oxygen_f107_domain_provenance: oxygen.map(|domain| domain.provenance_fragment()),
             oxygen_f107_numerical_range: oxygen
-                .map(|domain| domain.numerical_range.as_str().to_owned()),
-            oxygen_f107_numerically_extrapolated: oxygen
-                .map(|domain| domain.numerically_extrapolated),
-            oxygen_f107_covariate_matches_training: oxygen
-                .map(|domain| domain.covariate_matches_training_statistic),
-            oxygen_f107_actual_conditions_claim: oxygen
-                .map(|domain| domain.actual_conditions_claim.as_str().to_owned()),
-            oxygen_f107_claims_actual_conditions_within_training_domain: oxygen
-                .map(|domain| domain.claims_actual_conditions_within_training_domain),
+                .map(|domain| domain.numerical_range().as_str().to_owned()),
             oxygen_f107_applied_sfu: oxygen.map(|domain| domain.applied_sfu),
             oxygen_f107_training_range_low_sfu: oxygen.map(|domain| domain.training_range_low_sfu),
             oxygen_f107_training_range_high_sfu: oxygen
                 .map(|domain| domain.training_range_high_sfu),
-            oxygen_f107_operational_quantity: oxygen
-                .map(|domain| domain.operational_quantity.to_owned()),
-            oxygen_f107_training_covariate: oxygen
-                .map(|domain| domain.training_covariate.to_owned()),
+            oxygen_f107_limitation: oxygen.map(|_| {
+                crate::components::airglow::OxygenF107DomainDiagnostic::LIMITATION.to_owned()
+            }),
         }
     }
 }

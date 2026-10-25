@@ -144,29 +144,28 @@ When the resolved Airglow model is experimental PALACE Oxygen
 metadata may also include `oxygen_f107_domain`. Continuum-only Airglow omits it.
 Descriptors from `describe_components` omit it when no F10.7 was resolved.
 
-The diagnostic reports:
+The Rust diagnostic stores only `applied_sfu`, `training_range_low_sfu` and
+`training_range_high_sfu`. `numerical_range()` derives `below-training-interval`,
+`within-training-interval` or `above-training-interval`; both endpoints are
+inclusive. Bounds come from the evaluator's already-loaded continuum asset,
+without reparsing it per evaluation. CLI JSON exposes those three scalars,
+`numerical_range` and `limitation`; Python exposes the same five values as
+`oxygen_f107_*` properties. Rust exposes the interpretation as
+`OxygenF107DomainDiagnostic::LIMITATION`.
 
-| Field | Meaning |
-|---|---|
-| `applied_sfu` | F10.7 scalar actually applied to Oxygen SCE scaling |
-| `training_range_*_sfu` | Inclusive evidence interval from the continuum asset (`67`–`166` sfu) |
-| `training_covariate` | `centred-27-day-f107-average` (PALACE fit statistic) |
-| `operational_quantity` | Resolver product identity (monthly planning, climatology, explicit, …) |
-| `numerical_range` | `below-training-interval` / `within-training-interval` / `above-training-interval` |
-| `numerically_extrapolated` | True when `numerical_range` is below or above |
-| `covariate_matches_training_statistic` | Whether the operational quantity is the centred-27-day training covariate |
-| `actual_conditions_claim` | What the applied input can say about actual solar conditions |
-| `claims_actual_conditions_within_training_domain` | Whether metadata claims actual centred-27 conditions were known in-domain |
+**Numerical membership is not scientific validation.** The limitation states
+that operational monthly planning inputs, climatology and caller scalars do not
+establish actual centred-27-day training-domain membership. Automatic climatology
+≈129 sfu is numerically inside `[67, 166]` but supplies no evidence of actual
+solar conditions (merged #295 / #308). Even observed monthly means do not match
+the centred-27-day training statistic. Explicit scalar provenance is caller-owned;
+NSB cannot infer its temporal convention. Forecasts remain planning inputs.
 
-**Numerical membership is not scientific validation.** A climatological
-≈129 sfu value is numerically inside `[67, 166]` but
-`claims_actual_conditions_within_training_domain` remains `false` and
-`actual_conditions_claim` is `unknown-because-planning-fallback` (issue #295 /
-#294). Current Automatic/Dataset/Explicit paths never set
-`covariate_matches_training_statistic` because the resolver supplies monthly
-planning quantities, not centred 27-day averages. The diagnostic does not change
-radiance, maturity (`experimental`), or site-calibration status; see also
-[#280](https://github.com/VPRamon/NSB/issues/280).
+Use the existing `solar_activity` record (Python: `solar_activity_provenance`)
+for source kind, product, cadence, completeness and resolution step. There is no
+second source classification or redundant extrapolation/actual-conditions flag.
+The diagnostic does not change radiance, maturity (`experimental`), or
+site-calibration status; see also [#280](https://github.com/VPRamon/NSB/issues/280).
 
 ## Airglow geometry and attenuation
 

@@ -201,13 +201,8 @@ struct OxygenF107DomainJson {
     applied_sfu: f64,
     training_range_low_sfu: f64,
     training_range_high_sfu: f64,
-    training_covariate: &'static str,
-    operational_quantity: &'static str,
     numerical_range: &'static str,
-    numerically_extrapolated: bool,
-    covariate_matches_training_statistic: bool,
-    actual_conditions_claim: &'static str,
-    claims_actual_conditions_within_training_domain: bool,
+    limitation: &'static str,
 }
 
 #[derive(Serialize)]
@@ -552,14 +547,8 @@ fn oxygen_f107_domain_json(domain: &OxygenF107DomainDiagnostic) -> OxygenF107Dom
         applied_sfu: domain.applied_sfu,
         training_range_low_sfu: domain.training_range_low_sfu,
         training_range_high_sfu: domain.training_range_high_sfu,
-        training_covariate: domain.training_covariate,
-        operational_quantity: domain.operational_quantity,
-        numerical_range: domain.numerical_range.as_str(),
-        numerically_extrapolated: domain.numerically_extrapolated,
-        covariate_matches_training_statistic: domain.covariate_matches_training_statistic,
-        actual_conditions_claim: domain.actual_conditions_claim.as_str(),
-        claims_actual_conditions_within_training_domain: domain
-            .claims_actual_conditions_within_training_domain,
+        numerical_range: domain.numerical_range().as_str(),
+        limitation: OxygenF107DomainDiagnostic::LIMITATION,
     }
 }
 

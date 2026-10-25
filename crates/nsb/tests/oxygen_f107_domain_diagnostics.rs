@@ -4,7 +4,7 @@
 
 use chrono::{DateTime, Utc};
 use nsb::components::airglow::{
-    AirglowModel, OxygenF107ActualConditionsClaim, OxygenF107NumericalRange,
+    AirglowModel, OxygenF107DomainDiagnostic, OxygenF107NumericalRange,
 };
 use nsb::solar_activity::{resolve_f107, SolarActivitySource};
 use nsb::{
@@ -74,15 +74,8 @@ fn explicit_above_range_marks_numerical_extrapolation() {
         .as_ref()
         .expect("oxygen domain");
     assert_eq!(
-        domain.numerical_range,
+        domain.numerical_range(),
         OxygenF107NumericalRange::AboveTrainingInterval
-    );
-    assert!(domain.numerically_extrapolated);
-    assert!(!domain.covariate_matches_training_statistic);
-    assert!(!domain.claims_actual_conditions_within_training_domain);
-    assert_eq!(
-        domain.actual_conditions_claim,
-        OxygenF107ActualConditionsClaim::ExplicitCallerScalarOnly
     );
     assert_eq!(air.metadata.status.as_str(), "experimental");
 }
@@ -100,12 +93,10 @@ fn explicit_endpoints_are_within_training_interval() {
             .as_ref()
             .expect("oxygen domain");
         assert_eq!(
-            domain.numerical_range,
+            domain.numerical_range(),
             OxygenF107NumericalRange::WithinTrainingInterval,
             "value={value}"
         );
-        assert!(!domain.numerically_extrapolated);
-        assert!(!domain.claims_actual_conditions_within_training_domain);
         assert_eq!(domain.training_range_low_sfu, 67.0);
         assert_eq!(domain.training_range_high_sfu, 166.0);
     }
@@ -123,11 +114,9 @@ fn explicit_below_range_marks_numerical_extrapolation() {
         .as_ref()
         .expect("oxygen domain");
     assert_eq!(
-        domain.numerical_range,
+        domain.numerical_range(),
         OxygenF107NumericalRange::BelowTrainingInterval
     );
-    assert!(domain.numerically_extrapolated);
-    assert!(!domain.claims_actual_conditions_within_training_domain);
 }
 
 #[test]
@@ -147,24 +136,13 @@ fn automatic_patat_era_climatology_does_not_claim_actual_in_domain() {
         .as_ref()
         .expect("oxygen domain on Automatic evaluation");
     assert_eq!(
-        domain.numerical_range,
+        domain.numerical_range(),
         OxygenF107NumericalRange::WithinTrainingInterval
     );
-    assert!(!domain.numerically_extrapolated);
-    assert_eq!(domain.operational_quantity, "planning-climatology-fallback");
-    assert_eq!(
-        domain.actual_conditions_claim,
-        OxygenF107ActualConditionsClaim::UnknownBecausePlanningFallback
-    );
-    assert!(
-        !domain.claims_actual_conditions_within_training_domain,
-        "climatology numerically inside [67,166] must not claim actual solar was in-domain"
-    );
-    assert!(!domain.covariate_matches_training_statistic);
     assert!(air
         .metadata
         .provenance
-        .contains("claims_actual_conditions_within_training_domain=false"));
+        .contains(OxygenF107DomainDiagnostic::LIMITATION));
 }
 
 #[test]
@@ -181,17 +159,8 @@ fn automatic_with_monthly_observed_coverage_stays_experimental_and_nonmatching_c
         .oxygen_f107_domain
         .as_ref()
         .expect("oxygen domain");
+    assert_eq!(domain.applied_sfu, resolved.value.value());
     assert_eq!(air.metadata.status.as_str(), "experimental");
-    assert!(!domain.covariate_matches_training_statistic);
-    assert!(!domain.claims_actual_conditions_within_training_domain);
-    assert_eq!(
-        domain.actual_conditions_claim,
-        OxygenF107ActualConditionsClaim::MonthlyObservedPlanningIndexOnly
-    );
-    assert_eq!(
-        domain.operational_quantity,
-        "monthly-observed-planning-mean"
-    );
 }
 
 #[test]
@@ -224,4 +193,25 @@ fn oxygen_radiance_is_deterministic_with_domain_diagnostic_present() {
     );
     assert!(a.metadata.oxygen_f107_domain.is_some());
     assert!(a.integrated.value().is_finite() && a.integrated.value() > 0.0);
+}
+
+#[test]
+fn dataset_forecast_keeps_temporal_provenance_and_numerical_range_separate() {
+    let store = std::sync::Arc::new(nsb::solar_activity::bundled_f107_store().unwrap().clone());
+    let source = SolarActivitySource::Dataset(store.clone());
+    let time = parse_time("2027-01-09T01:48:00Z");
+    let resolved = resolve_f107(time, &source).unwrap();
+    assert_eq!(resolved.record.kind.as_str(), "forecast");
+    let config = NsbModelConfig::generic_clear_sky().with_f107_store(store);
+    let air = evaluate_airglow(config, time);
+    let solar = air.metadata.solar_activity.as_ref().unwrap();
+    assert_eq!(solar, &resolved);
+    assert_eq!(solar.record.cadence.as_deref(), Some("monthly"));
+    let domain = air.metadata.oxygen_f107_domain.as_ref().unwrap();
+    assert_eq!(domain.applied_sfu, resolved.value.value());
+    assert!(air
+        .metadata
+        .provenance
+        .contains(OxygenF107DomainDiagnostic::LIMITATION));
+    assert_eq!(air.metadata.status.as_str(), "experimental");
 }

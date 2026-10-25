@@ -303,18 +303,6 @@ fn airglow_metadata_inner(
             .expect("build-verified oxygen asset");
         metadata.provenance = Cow::Owned(format!("{}; oxygen asset {} sha256 {} license CC-BY-4.0; PALACE Og/Or families; no local calibration of oxygen", metadata.provenance, oxygen_asset.path, oxygen_asset.sha256));
         metadata.validated_domain = Cow::Owned(format!("{}; EXPERIMENTAL OXYGEN EXTENSION (Automatic planning fallback as of v0.2.0): adds Og 557.8887 nm and Or 630.2046/636.5536/639.35 nm vacuum integrated delta lines with source heights 97/250 km and separate 144-cell climatologies; line flux is not continuum-scaled; Noll wavelength-dependent scattering; molecular absorption omitted; zenith <=60 deg; linear F10.7 extrapolation outside the 67–166 sfu training range is experimental; incomplete optical line population (Na, OH, O2, N excluded); monochromatic B/V proxies remain continuum-only; not an independent absolute observational admission; temporary Paranal-derived automatic fallback until #157 climatology", metadata.validated_domain));
-        if let Some(resolved_solar) = solar {
-            let domain = OxygenF107DomainDiagnostic::from_resolved(
-                resolved_solar,
-                crate::components::airglow::oxygen_f107_domain::training_range_sfu_from_continuum_asset(),
-            );
-            metadata.provenance = Cow::Owned(format!(
-                "{}; {}",
-                metadata.provenance,
-                domain.provenance_fragment()
-            ));
-            metadata.oxygen_f107_domain = Some(domain);
-        }
     }
     metadata
 }

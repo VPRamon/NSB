@@ -55,11 +55,10 @@ attach `oxygen_f107_domain` metadata that classifies the applied operational
 scalar against the asset evidence interval (67–166 sfu, inclusive) without
 claiming that monthly/climatological inputs equal the centred-27-day training
 covariate. Example: Automatic climatology ≈129.2 sfu is
-`numerical_range=within-training-interval` but
-`claims_actual_conditions_within_training_domain=false` and
-`actual_conditions_claim=unknown-because-planning-fallback`. An explicit
-200 sfu override is `above-training-interval` with
-`numerically_extrapolated=true`. See
+`numerical_range=within-training-interval`, with a `limitation` explaining that
+this does not establish actual centred-27-day solar conditions. Source kind,
+product and cadence stay in the existing solar provenance. An explicit 200 sfu
+override is `above-training-interval`. See
 [scientific metadata](../../specifications/scientific-metadata.md#experimental-oxygen-f107-domain-diagnostic).
 
 NSB consumes F10.7 **as republished by NOAA/NWS SWPC** machine-readable
