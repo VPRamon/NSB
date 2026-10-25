@@ -2,7 +2,7 @@
   "candidate_definitions": {
     "centered27_diagnostic": "mean daily observed F10.7 on [T-13, T+13]; non-causal",
     "latest_daily_latency1": "daily observed F10.7 on T-1",
-    "operational_automatic": "NSB Automatic F10.7 resolver; Patat-era \u2192 climatology",
+    "operational_automatic": "NSB Automatic F10.7 resolver; Patat-era → climatology",
     "previous_month_mean": "mean daily observed F10.7 of previous calendar month",
     "trailing27_latency1": "mean daily observed F10.7 on [T-27, T-1]"
   },
@@ -24,7 +24,7 @@
         "nights": 13,
         "relative_mae": 0.1627885746127446
       },
-      "F27 67\u2013166 sfu (within training)": {
+      "F27 67–166 sfu (within training)": {
         "coverage": "night intervals",
         "mae": 0.0858183945635693,
         "mean_signed_error": -0.0858183945635693,
@@ -63,7 +63,7 @@
         "nights": 13,
         "relative_mae": 0.1742322237506596
       },
-      "F27 67\u2013166 sfu (within training)": {
+      "F27 67–166 sfu (within training)": {
         "coverage": "night intervals",
         "mae": 0.08459305866099787,
         "mean_signed_error": -0.08459305866099787,
@@ -102,7 +102,7 @@
         "nights": 13,
         "relative_mae": 0.24983497666818558
       },
-      "F27 67\u2013166 sfu (within training)": {
+      "F27 67–166 sfu (within training)": {
         "coverage": "night intervals",
         "mae": 0.08598103205841238,
         "mean_signed_error": -0.08598103205841238,
@@ -141,7 +141,7 @@
         "nights": 13,
         "relative_mae": 0.1392326287707279
       },
-      "F27 67\u2013166 sfu (within training)": {
+      "F27 67–166 sfu (within training)": {
         "coverage": "night intervals",
         "mae": 0.0798870794910419,
         "mean_signed_error": -0.0798870794910419,
@@ -180,7 +180,7 @@
         "nights": 13,
         "relative_mae": 0.14257048968181743
       },
-      "F27 67\u2013166 sfu (within training)": {
+      "F27 67–166 sfu (within training)": {
         "coverage": "night intervals",
         "mae": 0.08468129770782613,
         "mean_signed_error": -0.08468129770782613,
@@ -224,7 +224,7 @@
       "improvement not confined solely to outside-training solar domain without disclosure",
       "no Oxygen/continuum coefficient changes"
     ],
-    "practical_margin_pp": 10.0,
+    "practical_margin_pp": 10,
     "primary_metric": "mean_absolute_relative_error on 94 evaluation spectra",
     "primary_model": "NSB Automatic (Oxygen)"
   },
@@ -334,7 +334,7 @@
     "latest_daily_latency1": {
       "max_sfu": 208.3,
       "mean_sfu": 180.06170212765952,
-      "median_sfu": 195.0,
+      "median_sfu": 195,
       "min_sfu": 108.8,
       "n": 94,
       "outside_training": 63
@@ -419,5 +419,14 @@
       }
     },
     "within_training_domain_finding": "All candidate-minus-operational relative-MAE intervals cross zero on the F27 67-166 subset (21 spectra / 8 nights)."
+  },
+  "reproduction_status": {
+    "aggregate_primary_metrics": "Archived; the offline runner checks regenerated metrics against these values",
+    "within_domain_paired_intervals": "Not included in the original archive; regenerate per-spectrum, per-night intervals with scripts/reproduce_f107_cadence.py",
+    "historical_publication_times": "Not archived; lag-one-calendar-day proxies have conditional, unverified causality",
+    "script": "scripts/reproduce_f107_cadence.py",
+    "source_notebook": "examples/observational-validation.ipynb",
+    "bootstrap_seed": 182,
+    "bootstrap_draws": 2000
   }
 }
