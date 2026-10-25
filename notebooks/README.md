@@ -24,7 +24,7 @@ release is published. No automatic fallback to an older model is performed.
 The observational notebook preserves its fixed PyPI-wheel SHA-256 verification,
 or checks the actual PEP 610 GitHub commit and installed native files when
 built from a Git revision. Its `nsb2` comparison and scientific data integrity
-checks remain separate; synthetic mode is never observational evidence.
+checks remain separate.
 
 Automatic Airglow in v0.2.0 selects experimental PALACE Oxygen for zenith
 distance ≤60°. Other sites are spatial extrapolations; invalid geometry raises
