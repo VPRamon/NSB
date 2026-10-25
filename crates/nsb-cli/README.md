@@ -17,7 +17,7 @@ For development without installation, use
 
 This crate owns:
 
-- `point`, `window`, `sites`, and `config` commands;
+- `point`, `window`, and `sites` commands;
 - parsing of UTC timestamps, coordinates, targets, components, and radiance;
 - named observatory aliases;
 - stable table, JSON, and CSV output;
@@ -35,8 +35,6 @@ the `nsb` crate. Offline catalogue and data-product generation remain in
 | `nsb window` | Find UTC periods satisfying NSB and visibility constraints |
 | `nsb sites list` | List the effective observatory catalog (Siderust + NSB extensions) |
 | `nsb sites show <name-or-alias>` | Inspect one catalog observatory |
-| `nsb config init` | Print a starter TOML configuration structure |
-| `nsb config validate <path>` | Validate the TOML configuration schema |
 
 ## Examples
 

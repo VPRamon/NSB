@@ -1,7 +1,7 @@
 # Public API policy (crate `nsb`)
 
-Status: Public signatures remain **frozen** for `0.1.0`. The maintainer explicitly
-reopened the threshold-search behavior freeze for PR #235 on 2026-10-13.
+Status: Public API snapshot and SemVer compatibility checks are active for the
+release. Behavioral changes are covered by regression contracts.
 `crates/nsb/api/public-api.txt` records the reviewed baseline and
 `crates/nsb/api/API_FROZEN` activates snapshot and SemVer enforcement.
 Audience: Library consumers, contributors, and release maintainers.

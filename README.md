@@ -73,7 +73,8 @@ cargo install --path crates/nsb-cli --locked
 nsb --help
 ```
 
-The Rust example below also uses Siderust, Tempoch and Chrono at the API
+The Rust example below uses the same UTC instant, coordinates and target as the
+Python example. It also uses Siderust, Tempoch and Chrono at the API
 boundary; add the matching dependencies to your application:
 
 ```bash
@@ -117,16 +118,22 @@ model. The chosen night-time target lies within Oxygen's zenith-distance
 ```rust
 use chrono::{DateTime, Utc};
 use nsb::{NsbEvaluator, PointQuery, Target, DEG};
-use siderust::catalogs::observatories;
+use siderust::coordinates::centers::Geodetic;
+use siderust::coordinates::frames::ECEF;
+use siderust::qtty::{Degrees, Meters};
 use tempoch::{Time, UTC};
 
 fn main() -> nsb::Result<()> {
-    let utc = DateTime::parse_from_rfc3339("2023-09-04T01:48:00Z")
+    let utc = DateTime::parse_from_rfc3339("2026-06-19T03:00:00Z")
         .unwrap()
         .with_timezone(&Utc);
 
     let query = PointQuery::new(
-        observatories::EL_PARANAL.geodetic(),
+        Geodetic::<ECEF>::new_raw(
+            Degrees::new(-70.31634),
+            Degrees::new(-24.683427),
+            Meters::new(2184.6),
+        ),
         Time::<UTC>::from_chrono(utc),
         Target::new(266.41683 * DEG, -29.00781 * DEG),
     );
@@ -148,12 +155,14 @@ NSB uses Siderust and Tempoch types at its public Rust boundaries.
 
 ### CLI
 
-After installing the executable above, evaluate the same target from CTAO South:
+After installing the executable above, evaluate the same target, time and
+coordinates with the same generic clear-sky assumptions:
 
 ```bash
 nsb --format table point \
   --time 2026-06-19T03:00:00Z \
-  --site CTAO-S --site-profile cta-south \
+  --lon -70.31634 --lat -24.683427 --height 2184.6 \
+  --site-profile generic-clear-sky \
   --ra 266.41683 --dec -29.00781
 ```
 

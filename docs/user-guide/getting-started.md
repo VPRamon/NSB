@@ -135,20 +135,6 @@ Component names may be comma-separated. Useful model options include:
 
 See [Runtime components](components.md) before changing the default composition.
 
-## Configuration templates
-
-The CLI can generate and validate a TOML configuration structure:
-
-```bash
-cargo run --locked -p nsb-cli -- config init > nsb.toml
-cargo run --locked -p nsb-cli -- config validate nsb.toml
-```
-
-The current CLI validates this schema but point and window commands still take
-their operational values from command-line arguments. Treat the generated file
-as a reproducible configuration template until direct `--config` execution is
-implemented.
-
 ## Rust library
 
 The library accepts typed observer, time, and target values directly:

@@ -7,169 +7,52 @@ tag-triggered publication workflow succeeds.
 
 ## [0.2.0]
 
-Release preparation; not yet published. Registry dependency compatibility is
-restored; publication still awaits maintainer approval. Require siderust-py and
-Python siderust >=0.5.1,<0.6, excluding the unsafe 0.5.0 query dispatcher
-([upstream #13](https://github.com/Siderust/siderust-py/issues/13)).
-
-### Changed
-
-- **Automatic Airglow resolves to PALACE Oxygen** (`ParanalPalaceOxygenV1`) as the
-  v0.2.0 reference planning fallback until a global climatological model (#157)
-  is admitted. This is a release-policy choice supported by physical completeness
-  and favorable retrospective Patat/FORS1 development evidence; it is **not** an
-  independent absolute observational admission. Explicit continuum-only
-  `ParanalPalaceV1` remains fully supported. Automatic Oxygen inherits the
-  experimental Oxygen domain (including zenith distance ≤ 60°). Scientific
-  maturity metadata remains Experimental for Oxygen.
+Release candidate; registry availability depends on the tag-triggered
+publication workflow completing successfully.
 
 ### Added
 
-- Component-separated restricted-band results and single-pass evaluation in Rust
-  and Python, with explicit unsupported contributions and uncertainty semantics
-  (#271).
-- Registered Airglow calibration workflow and PALACE oxygen emission model;
-  development diagnostics do not establish independent accuracy (#272).
-- Standalone observational demonstration and focused CTAO public-API example
-  under `notebooks/`; complete experiments remain in `nsb-validation`.
-- Opt-in multiple-scattering transport, native spectral HEALPix boundary handling
-  and scalable numerical verification (#269, #270).
-- Scientific publication-candidate numerical/interface evidence and reproducible
-  artifact checks (#274).
-
-- Opt-in experimental native-bin Starlight single-scattering transport with
-  explicit flat photon density, site/TT/UT1 geometry, bounded wavelength
-  refinement, conservative HEALPix kernel subdivision and independent WGS84/MSL
-  origins, with component-separated provenance; evaluator defaults remain
-  unchanged (#268).
-
-- Experimental opt-in `transport::single` scalar plane-parallel reference with
-  separate direct/single contributions, explicitly uncomputed higher orders,
-  deterministic convergence checks and independent analytical/SciPy validation.
-  Defaults and existing component calculations remain unchanged.
-
-- Source-level Gaia XP interval-report example using checksum-pinned inputs,
-  canonical parsing and covariance-aware integration, with deterministic
-  numeric source ordering (#258).
-
-- One validated `StarlightMap` Rust/Python API for versioned spectral products
-  with configurable bins, explicit capabilities, checksum-verified loading and
-  optional statistical uncertainty channels (#257).
-
-- Typed Rust and Python restricted-band integration for supported component
-  spectra within 300–650 nm, including interpolated interval boundaries and
-  explicit errors for unsupported spectral contributions (#254).
+- Component-separated restricted-band radiance for supported 300–650 nm
+  component spectra in Rust and Python. Unsupported spectral contributions
+  produce explicit errors rather than inferred zeros.
+- Registered Airglow calibration interfaces and an experimental PALACE
+  continuum-plus-oxygen emission model with reproducible asset provenance.
+- Versioned spectral Starlight map ingestion, native bins and uncertainty
+  channels, with explicit top-of-atmosphere applicability limits.
+- Opt-in experimental atmospheric transport references with documented
+  numerical verification. These are not part of default NSB evaluations.
+- Reproducible scientific reports and cross-interface examples with validation
+  evidence and limitations stated separately.
 
 ### Changed
 
-- Simplify Airglow spherical line-of-sight geometry while preserving the physical
-  model and regression contract (#261).
-- Consolidate external observational status and validator consumer requirements;
-  preserve historical evaluated revisions and negative findings (#275).
-- Replace the temporary Siderust Git graph with compatible published providers;
-  preserve canonical Python objects, UTC datetime/period handling and GIL release.
-- Require successful full main-branch CI for the exact release commit before
-  tag publication, retaining environment, Trusted Publishing and recovery guards.
-- Remove the historical snapshot-hash SemVer exemption. Every frozen comparison
-  now uses the regular removal/change gate (#275).
-
-- Reject unsupported NESTED spectral-map lookup and ground-level evaluation of
-  top-of-atmosphere spectral products explicitly. Preserve the frozen Gaia XP
-  map, legacy integrated products and existing production assets (#257).
-
-- Reuse the upstream Optica clipped trapezoidal integration kernel for Airglow
-  band integration, preserving existing physical models and full-band results
-  (#254).
-
-### Breaking Changes
-
-- Rust callers constructing upstream domain types must migrate their own
-  Siderust/Tempoch dependencies to the coordinated 0.15.1/0.11.1 graph; older
-  provider identities cannot be mixed with NSB 0.2.0. NSB method/class names and
-  evaluator defaults are preserved. Python installations require the 0.5 runtime
-  distributions while retaining the canonical Observer/Direction classes.
-
-### Dependencies
-
-- Update MD5 0.10.6 → 0.11.0 and TOML editing 0.23.10 → 0.25.17; share
-  Digest 0.11 with SHA-256 and the TOML 1.1 parser stack. Update ZIP 9.0.4 →
-  9.0.5 and refresh compatible transitive dependencies.
-- Remove the unused ttf-parser advisory exception; that crate is absent from
-  the dependency graph. Retain the upstream paste maintenance exception.
-- Migrate Siderust 0.14.1 Git → registry 0.15.1, Tempoch/core 0.10 → 0.11.1,
-  Python bridges/runtime packages 0.4 → 0.5, and PyO3 0.29.3 → 0.30.1, with
-  Affn 0.12.1, Principia 0.7 and Optica 0.5. Remove the Git-source exception and
-  negative packaging workaround; retain Rust 1.89 and Python 3.10 minima.
-  See [dependency compatibility](docs/specifications/siderust-compatibility.md).
+- Automatic Airglow selects `ParanalPalaceOxygenV1`. The model is
+  **Experimental** and supports standard continuum geometry at zenith distances
+  no greater than 60°. Outside that domain evaluation fails explicitly.
+  Select `ParanalPalaceV1` for the distinct continuum-only model.
+- Public coordinate/time/photometry boundary types use published Siderust
+  0.15.1 and Tempoch 0.11.1. Python requires compatible `siderust`
+  (>=0.5.1,<0.6) and `tempoch` (>=0.5.0,<0.6).
+- The release gate verifies scientific assets, licenses, CI status,
+  crate packaging, Python wheels and source distribution before publishing.
 
 ### Fixed
 
-- Verify the separately registered experimental oxygen asset, its checksum
-  manifest and Airglow notices in release archives, alongside the main registry.
+- S10 photon-energy conversion uses exact SI `h*c`. This changes only S10
+  diagnostics by approximately 2e-14 relative, not integrated radiance.
+- Starlight spectral-map parsing rejects unsupported geometry, unavailable
+  photometry and inconsistent uncertainty/covariance inputs explicitly.
+- Scientific asset packaging preserves source-specific terms and
+  checksum-pinned provenance independently of the AGPL software license.
 
-- Correct the private S10 photon-energy numerator to exact SI `h*c`. The prior
-  constant differed by about 1.98e-14 relative; only S10 diagnostics change at
-  that scale. Integrated photon radiances, model defaults and observational
-  evidence are unchanged. An independent SI regression covers 16 cases.
+### Compatibility and scientific scope
 
-
-- Verify and process the same manifest, GaiaXPy design and source CSV bytes in
-  the source-interval utility, preventing input replacement from invalidating
-  recorded scientific checksums (#258).
-
-- Publish source-interval reports through staged, synced files without replacing
-  existing output, preventing concurrent writers from overwriting a report or
-  exposing partial contents (#258).
-
-- Preserve single-bin Starlight statistical uncertainty in native-band queries
-  and pixel adapters; reject contradictory per-bin/native sigmas and violations
-  of necessary covariance bounds without assuming independent spectral bins
-  (#257).
-
-- Reject incomplete Starlight pixel uncertainty combinations during map
-  construction instead of silently discarding supplied systematic/total values
-  when statistical uncertainty is absent (#257).
-
-- Represent missing Starlight B/V photometry as unavailable instead of physical
-  zero; retain supplied full-band statistical uncertainty without inventing
-  systematic uncertainty or cross-bin covariance (#257).
-- Refresh compiled scientific provenance after relevant workspace source, data,
-  Cargo-input and Git-state changes, including incremental rebuilds (#257).
-- Reject empty shard edges, source-count overflows and inconsistent source
-  accounting before scientific-product publication (#257).
-
-- Release the Python GIL during restricted-band evaluation (#254).
-
-### Removed
-
-- Unused private site planning-name formatter and its self-tests; exclude the
-  standalone calibration parser from production builds and remove the module's
-  blanket dead-code suppression. Runtime calibration validation is retained.
-- Development-transition prose, obsolete API exception documentation and the
-  task-specific release audit file. API lifecycle fixtures now use synthetic
-  snapshots rather than depending on a pre-release Git commit. Scientific
-  evidence, approval records and numerical reference results are preserved.
-
-- Historical exact-snapshot authorization for removing pre-v0.1.0 sampling APIs.
-  The sampling methods were already absent in published v0.1.1; this removes no
-  published API. Frozen snapshot equality and historical SemVer checks remain.
-
-### Interface notes
-
-- Rust/Python add `NsbEvaluator.integrate_band_components`,
-  `RestrictedBandResult` and `RestrictedBandComponent`; retain scalar
-  `integrate_band`. Unsupported spectra raise errors rather than returning zero.
-- Rust adds `site::airglow_profile` calibration definition, observation, request
-  and profile records; configuration accepts an explicit fitted profile. Python
-  exposes calibration through TOML configuration. CLI gains the
-  `nsb-airglow-calibrate` workflow. Opt-in oxygen is separate from the default
-  PALACE continuum model.
-- Experimental transport adds solver/convergence settings and result records for
-  single, multiple, projected and native-bin Starlight evaluation. These are
-  explicit library APIs; ordinary CLI/evaluator defaults do not enable them.
-- Generic spectral `StarlightMap` loading, bin/support/provenance queries and
-  optional uncertainty channels preserve legacy integrated-map input. Missing
-  uncertainty or photometry remains unavailable; no covariance is invented.
+- Rust consumers must use the coordinated Siderust/Tempoch public type versions.
+- The full four-component model has **not** been independently validated for
+  absolute observational night-sky radiance. CTAO presets are planning models;
+  Starlight implementation agreement is not absolute astrophysical validation.
+  See [scientific validation](docs/scientific-validation.md) and
+  [model maturity](docs/specifications/model-maturity.md).
 
 ## [0.1.1] 15/10/2026
 

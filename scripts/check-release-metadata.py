@@ -65,6 +65,10 @@ def main() -> None:
     require(project["name"] == "nsb-py", "PyPI project must be nsb-py")
     require("version" in project["dynamic"] and "version" not in project,
             "Python version must be derived from Cargo, not duplicated")
+    require(project.get("readme") == "README_PYPI.md"
+            and "readme" not in project["dynamic"]
+            and (ROOT / "README_PYPI.md").is_file(),
+            "PyPI must include its own Python-oriented README")
     require(project["requires-python"] == ">=3.10",
             "Python abi3 minimum must be Python 3.10")
     require(maturin["manifest-path"] == "crates/nsb/Cargo.toml"

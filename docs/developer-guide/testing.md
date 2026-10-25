@@ -86,7 +86,6 @@ Do not add tests solely to raise coverage percentage.
 | Suite | Contract |
 | --- | --- |
 | `sites_contract.rs` | Site list/show aliases and JSON |
-| `config_contract.rs` | `config init` / `validate` accept and reject paths |
 | `point_contract.rs` | Default point JSON/CSV schema and component presence |
 | `window_contract.rs` | Window JSON schema, empty-result table/JSON behaviour |
 | `airglow_provenance_contract.rs` | Vertical-profile and van Rhijn provenance in point/window CSV/JSON |

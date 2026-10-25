@@ -1,8 +1,8 @@
 # Independent validation consumer contract
 
 New campaigns must identify the exact NSB source commit, package version, dirty
-state, build features, lockfile and scientific asset checksums. Version `0.1.1`
-alone cannot identify development revisions that still share that package version.
+state, build features, lockfile and scientific asset checksums. A package
+version alone cannot identify distinct source revisions or locally built wheels.
 Retain the installed wheel/sdist hashes, toolchain and dependency provenance;
 `SIDERUST_VERSION` and `SIDERUST_SOURCE` identify the upstream implementation.
 Never relabel a frozen campaign after rebuilding a different revision.

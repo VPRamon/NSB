@@ -5,7 +5,8 @@ build-backend = "maturin"
 [project]
 name = "nsb-py"
 # Inherit the authoritative release version and metadata from crates/nsb/Cargo.toml.
-dynamic = ["version", "description", "readme", "authors", "license", "keywords", "urls"]
+dynamic = ["version", "description", "authors", "license", "keywords", "urls"]
+readme = "README_PYPI.md"
 requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -36,6 +37,7 @@ features = ["python"]
 # Scientific-data notices accompany source and binary distributions.
 include = [
     { path = "LICENSE", format = "sdist" },
+    { path = "README_PYPI.md", format = "sdist" },
     { path = "crates/nsb/THIRD_PARTY_NOTICES.md", format = ["sdist", "wheel"] },
     { path = "crates/nsb/AIRGLOW_DATA_NOTICES.md", format = ["sdist", "wheel"] },
 ]
