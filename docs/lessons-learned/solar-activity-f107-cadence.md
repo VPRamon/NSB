@@ -1,9 +1,14 @@
-# Issue #295 — Operational F10.7 cadence versus retrospective matched solar inputs
+# Solar activity — operational F10.7 cadence vs retrospective measurements
+
+**Mistake to avoid:** A retrospective fit gain, even with a nominal one-day-lag proxy, is not proof of improved prediction-time accuracy. Keep historical publication availability, the PALACE training domain, and independent validation separate.
+
+**Decision:** Retain the existing resolver default. Require genuinely time-available inputs and independent, in-domain paired validation before reconsidering.
+
 
 **Outcome:** B — no demonstrated, defensible operational improvement  
 **Issue:** [#295](https://github.com/VPRamon/NSB/issues/295)  
-**Related:** [#280](https://github.com/VPRamon/NSB/issues/280), [#294](https://github.com/VPRamon/NSB/issues/294), [#296](https://github.com/VPRamon/NSB/issues/296); oxygen metrics in [`docs/nsb_components/airglow/validation/oxygen-and-calibration-v1.md`](../docs/nsb_components/airglow/validation/oxygen-and-calibration-v1.md); resolver contract in [`docs/nsb_components/airglow/f107-resolver.md`](../docs/nsb_components/airglow/f107-resolver.md)  
-**Evidence artifact:** [`artifacts/issue-295-causal-f107-evidence.json`](artifacts/issue-295-causal-f107-evidence.json)  
+**Related:** [#280](https://github.com/VPRamon/NSB/issues/280), [#294](https://github.com/VPRamon/NSB/issues/294), [#296](https://github.com/VPRamon/NSB/issues/296); oxygen metrics in [`docs/nsb_components/airglow/validation/oxygen-and-calibration-v1.md`](../nsb_components/airglow/validation/oxygen-and-calibration-v1.md); resolver contract in [`docs/nsb_components/airglow/f107-resolver.md`](../nsb_components/airglow/f107-resolver.md)  
+**Evidence artifact:** [`artifacts/solar-activity-f107-cadence-evidence.json`](artifacts/solar-activity-f107-cadence-evidence.json)  
 **Baseline commit for the experiment:** `bcbeaf73c423b5ef0fc8c34ad08a47d0afb0c1d3` (`main` at investigation time)
 
 ## 1. Original hypothesis
@@ -35,12 +40,12 @@ helps under controlled conditions.
 | Quantity | Monthly-averaged planning F10.7 (Noll/SkyCalc `msolflux` lineage), **not** raw daily |
 | Units / convention | sfu; `penticton-f107-sfu-as-reported-by-noaa-swpc` |
 | Precedence | Explicit → finalized monthly observed → provisional observed+forecast (full month only) → complete 45-day forecast month mean → official monthly prediction → climatology ≈ **129.207 sfu** |
-| Causality rule | Forecasts with `forecast_issued_at > requested_time` are excluded; partial-month means are never selected |
+| Time-validity rule | Forecasts issued after the requested instant are excluded. Historical finalized monthly observations can nevertheless be selected from a later snapshot, even if unavailable at that instant. |
 | Daily rows in store | Present for diagnostics only; **never** selected as the Airglow input |
 | Bundled coverage (snapshot `bundled-2026-08-27`) | Monthly observed **2023-08 … 2026-07**; daily observed **2026-07-28 … 2026-08-26**; no Patat-era (1999–2003) monthly indices |
 | Patat-era Automatic | Resolves to **climatology** for all registered cohort dates (verified) |
 | PALACE physics | Continuum/Oxygen scales are linear about 100 sfu: `1 + 0.01·SCE·(F−100)`; training evidence uses **centred 27-day** averages spanning **67–166 sfu** |
-| API leakage | Explicit override and Dataset paths cannot invent future data; Automatic has no retrospective/reanalysis mode |
+| Historical replay | Automatic has no separate retrospective mode, but it may select a later-published finalized monthly observed record for an earlier requested instant. Historical evaluations need explicit provenance labels. |
 | Siderust / Tempoch | No F10.7 solar-index helpers; time/geometry remain there, solar selection stays in NSB |
 
 Native versus matched notebook scenarios therefore compare **climatology** against
@@ -54,12 +59,14 @@ Definitions were frozen **before** interpreting final metrics.
 
 | ID | Definition | Causal at observation UTC date \(T\)? | Role |
 |---|---|---|---|
-| `operational_automatic` | NSB Automatic resolver (no override) | Yes | Operational baseline |
-| `trailing27_latency1` | Mean of observed daily F10.7 on \([T-27,T-1]\) | Yes (assumes ≥1 day publication latency) | Research candidate |
-| `previous_month_mean` | Mean of all observed dailies in the previous calendar month | Yes | Research candidate (causal monthly proxy) |
-| `latest_daily_latency1` | Observed daily F10.7 on \(T-1\) | Yes (with latency) | Research candidate |
+| `operational_automatic` | NSB Automatic resolver (no override) | Patat cohort: climatology available in advance; not generally causal for historical monthly observations from later snapshots | Operational baseline on this cohort |
+| `trailing27_latency1` | Mean of observed daily F10.7 on \([T-27,T-1]\) | Conditional on every included daily record having been published by prediction time; publication timestamps not checked | Simulated lag-one-day research candidate |
+| `previous_month_mean` | Mean of all observed dailies in the previous calendar month | Conditional on final daily publication, which may lag the beginning of the current month | Research candidate |
+| `latest_daily_latency1` | Observed daily F10.7 on \(T-1\) | Conditional on the prior-day observation actually having been published | Simulated lag-one-day research candidate |
 | `same_month_finalized_diagnostic` | Mean of all dailies in the calendar month of \(T\) | **No** mid-month; would match designed Automatic **after** month finalization if the store held historical monthly indices | Coverage diagnostic |
 | `centered27_diagnostic` | Mean on \([T-13,T+13]\) | **No** — uses future days | Retrospective reference only |
+
+**Publication caveat:** The one-day calendar lag is an *assumption*, not a reconstruction from issuance timestamps. Candidate inputs may have arrived after the observation instant. Hence these are simulated causal candidates, not verified real-time forecasts.
 
 **Rejected as an automatic substitute for PALACE coefficients without evidence:**
 treating a trailing mean as interchangeable with the centred training statistic
@@ -164,8 +171,7 @@ Outcome A for this evidence set.
 
 ## 8. Scientific and operational limitations
 
-- Publication latency of DRAO/NOAA daily products was modelled as one UTC day;
-  real latency can be longer or product-dependent.
+- Daily publication was approximated using a one-calendar-day lag, without historical release timestamps; real delays can be longer or product-dependent. Causality is conditional, not independently verified.
 - Observed versus 1-AU-adjusted F10.7 convention equivalence with PALACE’s
   original fit is **not** asserted (existing docs).
 - Bundled store staleness / missing historical monthly indices affect
@@ -205,7 +211,7 @@ data-engineering task. Even on this cohort, a same-month finalized diagnostic
 climatology, so coverage extension alone would not demonstrate in-domain
 scientific improvement.
 
-## 11. Reproduction
+## 11. Reproduction and independent audit
 
 Inputs (checksum-pinned):
 
@@ -213,16 +219,17 @@ Inputs (checksum-pinned):
 - Solar daily listing SHA-256 `7240df111ea45f26057b89d3e9880a58856d7b6d040ad16247db41f5546dac96`
 - Cohort identity SHA-256 `3efdd3a0f3af19bfbc7615864f928b33fe22bcdbd6c67568fe317c059d44a1d6`
 
-Procedure sketch:
+**Archival limitation:** The original evidence JSON records aggregate statistics and global paired intervals, but omits most per-candidate paired intervals restricted to the 67–166 sfu training subset. The report's within-domain non-significance claim should not be treated as independently auditable from the archived JSON alone. The reproducibility command below computes the missing intervals when checksum-pinned per-spectrum inputs are available; do not invent numerical bounds.
+
+Procedure:
 
 1. Check out `bcbeaf73c423b5ef0fc8c34ad08a47d0afb0c1d3` (or later `main` with
    Automatic → Oxygen unchanged).
 2. Build `nsb-py` from that commit (`maturin build --features python`).
 3. Load the registered Patat cohort and solar file (same operators as
    `examples/observational-validation.ipynb`).
-4. Evaluate continuum and Automatic Oxygen with the frozen solar scenarios above;
-   score evaluation spectra with night-clustered bootstrap (seed 182, 2000 draws).
-5. Compare to [`artifacts/issue-295-causal-f107-evidence.json`](artifacts/issue-295-causal-f107-evidence.json).
+4. Run `python scripts/reproduce_f107_cadence.py --patat /path/to/skyspectra.tar --solar /path/to/solar-observed.txt --output /tmp/f107-reproduced.json`. Requires the pinned Python NSB implementation and NumPy, SciPy, Astropy, and siderust; the script reuses the cohort/scoring definitions from `examples/observational-validation.ipynb`, and calculates paired 95% night-clustered intervals (2000 draws, seed 182).
+5. Compare the output against [`artifacts/solar-activity-f107-cadence-evidence.json`](artifacts/solar-activity-f107-cadence-evidence.json). Refuse mismatched inputs, registration, or primary published metrics.
 
 No runtime network dependency was added to NSB. The investigation did **not**
 change default resolver behaviour.
