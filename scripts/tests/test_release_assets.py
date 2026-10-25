@@ -147,6 +147,9 @@ class ReleaseTests(unittest.TestCase):
 
     def test_workflow_has_explicit_success_gate_and_no_generated_notes(self):
         workflow = (ROOT / ".github/workflows/publish.yml").read_text()
+        self.assertIn('gh run watch "$ci_run_id" --exit-status', workflow)
+        self.assertIn('python scripts/release_assets.py ci --sha "$GITHUB_SHA"', workflow)
+        self.assertIn('checks: read', workflow)
         for fragment in ("!cancelled()", "needs.record-publication.result == 'success'",
                          "needs.publish-crates-io.result == 'success'",
                          "needs.publish-pypi.result == 'success'",
