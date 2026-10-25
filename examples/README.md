@@ -31,8 +31,10 @@ using `nsb-py` (import `nsb`) and `siderust`. Continue with the
 selection, errors and units.
 
 The optional [continuum notebook](scientific-reproducibility.ipynb) demonstrates
-a fixed-geometry F10.7 sweep with an isolated, precisely pinned source build,
-bundled assets and one figure. Its outputs are cleared in Git.
+a fixed-geometry F10.7 sweep. Its first cell selects a specific PyPI `nsb-py`
+release or a pinned GitHub commit; it installs everything required without a
+local checkout, including in Google Colab. The package imports as `nsb`, not
+`nsb-py`. Its outputs are cleared in Git.
 
 ## Command line
 
