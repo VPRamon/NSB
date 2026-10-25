@@ -108,7 +108,7 @@ checksums, uncertainty/status fields and any custom calibrations.
 
 Run the minimal public-interface examples from
 [the examples index](../examples/README.md). The
-[observational notebook](../notebooks/NSB_Validation.ipynb) contains a
+[observational notebook](../examples/observational-validation.ipynb) contains a
 registered Patat/FORS1 acquisition and comparison protocol; raw observations
 are not redistributed inside this repository. Internal and independent
 numerical tests are specified in the [validation matrix](specifications/validation.md).

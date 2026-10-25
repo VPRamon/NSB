@@ -12,17 +12,40 @@ publication workflow completing successfully.
 
 ### Added
 
-- Component-separated restricted-band radiance for supported 300–650 nm
-  component spectra in Rust and Python. Unsupported spectral contributions
-  produce explicit errors rather than inferred zeros.
-- Registered Airglow calibration interfaces and an experimental PALACE
-  continuum-plus-oxygen emission model with reproducible asset provenance.
-- Versioned spectral Starlight map ingestion, native bins and uncertainty
-  channels, with explicit top-of-atmosphere applicability limits.
-- Opt-in experimental atmospheric transport references with documented
-  numerical verification. These are not part of default NSB evaluations.
-- Reproducible scientific reports and cross-interface examples with validation
-  evidence and limitations stated separately.
+- Component-separated restricted-band results and single-pass evaluation in Rust
+  and Python, with explicit unsupported contributions and uncertainty semantics
+  (#271).
+- Registered Airglow calibration workflow and PALACE oxygen emission model;
+  development diagnostics do not establish independent accuracy (#272).
+- Standalone observational demonstration and focused CTAO public-API example
+  under `examples/`; complete experiments remain in `nsb-validation`.
+- Opt-in multiple-scattering transport, native spectral HEALPix boundary handling
+  and scalable numerical verification (#269, #270).
+- Scientific publication-candidate numerical/interface evidence and reproducible
+  artifact checks (#274).
+
+- Opt-in experimental native-bin Starlight single-scattering transport with
+  explicit flat photon density, site/TT/UT1 geometry, bounded wavelength
+  refinement, conservative HEALPix kernel subdivision and independent WGS84/MSL
+  origins, with component-separated provenance; evaluator defaults remain
+  unchanged (#268).
+
+- Experimental opt-in `transport::single` scalar plane-parallel reference with
+  separate direct/single contributions, explicitly uncomputed higher orders,
+  deterministic convergence checks and independent analytical/SciPy validation.
+  Defaults and existing component calculations remain unchanged.
+
+- Source-level Gaia XP interval-report example using checksum-pinned inputs,
+  canonical parsing and covariance-aware integration, with deterministic
+  numeric source ordering (#258).
+
+- One validated `StarlightMap` Rust/Python API for versioned spectral products
+  with configurable bins, explicit capabilities, checksum-verified loading and
+  optional statistical uncertainty channels (#257).
+
+- Typed Rust and Python restricted-band integration for supported component
+  spectra within 300–650 nm, including interpolated interval boundaries and
+  explicit errors for unsupported spectral contributions (#254).
 
 ### Changed
 

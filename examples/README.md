@@ -1,7 +1,8 @@
 # Examples
 
-The runnable Rust examples live in [`crates/nsb/examples/`](../crates/nsb/examples/).
-This root directory indexes the examples and contains one Python notebook. The Rust examples are compiled by the repository CI.
+This directory contains the Python notebooks and indexes the runnable examples.
+Rust sources live in [`crates/nsb/examples/`](../crates/nsb/examples/) and are
+compiled by the repository CI.
 
 ## Rust
 
@@ -30,9 +31,102 @@ using `nsb-py` (import `nsb`) and `siderust`. Continue with the
 [Python guide](../docs/python.md) for threshold-window planning, model
 selection, errors and units.
 
-The optional [continuum notebook](scientific-reproducibility.ipynb) demonstrates
-a fixed-geometry F10.7 sweep with an isolated, precisely pinned source build,
-bundled assets and one figure. Its outputs are cleared in Git.
+### Notebooks
+
+| Notebook | Purpose |
+|---|---|
+| [observational-validation.ipynb](observational-validation.ipynb) | Scientific assessment of nsb-py against Patat/FORS1 observations, nsb2 and a calibration-only baseline |
+| [ctao-sky-background.ipynb](ctao-sky-background.ipynb) | Practical nsb-py 0.2.0 guide: point radiance, components, Airglow and observation windows at both CTAO sites |
+| [airglow-solar-activity.ipynb](airglow-solar-activity.ipynb) | Controlled F10.7 sweep of PALACE continuum Airglow at fixed Paranal geometry |
+
+All notebooks are standalone: no local checkout or private service is required.
+They can be opened in Jupyter or Google Colab with a compatible Python runtime.
+The distribution is **`nsb-py`**; Python code uses `import nsb`. Do not install the
+unrelated package named `nsb`.
+
+### Scientific assessment
+
+`observational-validation.ipynb` begins with the scientific questions and observing regime,
+then presents the comparison design, measured errors and paired uncertainties,
+physical diagnostics, and conclusions. Input checks and reproducibility details
+are explained in a technical appendix; supporting code is folded where supported.
+The notebook includes saved tables and figures for inspection directly on GitHub.
+Use **Restart and Run All** to regenerate the results in order.
+
+Select a fresh CPython **3.12 or 3.13** Jupyter/Google Colab kernel and **Run All**.
+The first code cell installs exactly **`nsb-py==0.2.0` from PyPI**, together with
+the notebook's scientific Python dependencies, using the current kernel's Python.
+No NSB checkout, GitHub installation of NSB or Rust toolchain is needed; installation
+requires a compatible NSB wheel. Matching installed packages are reused. If setup
+changes an already imported package, restart the kernel and Run All as instructed.
+The editable `REQUIREMENTS` list shows the packages being installed.
+
+The separate **nsb2 reference** is installed from GitHub commit
+`bc9320db03fbff69997ce366c6e76a37339c5d00`, since it is not published on PyPI;
+Git and network access to GitHub are required for this reference only.
+The existing `CACHE` configuration selects local scientific inputs. Registered
+scientific settings should remain unchanged for reproduction. Public observations
+and nsb2 reference assets are downloaded initially and reused from verified caches.
+Installed versions and scientific input hashes are displayed in the appendix.
+
+The assessment retains 103 spectra from 22 Paranal nights over 365–650 nm, with
+94 evaluation spectra on 17 nights. Native and matched solar-input scenarios
+are reported separately. Patat informed Oxygen development: this is development
+evidence, not an independent test of generalization or CTAO site calibration.
+The restricted-band Starlight contribution uses an explicit research-only
+spectral proxy. See [scientific validation](../docs/scientific-validation.md).
+
+Execution displays tables and figures inline and does not export JSON, checksum
+or image files. Observations, predictions, metrics and failure details remain in
+kernel memory. Patat and solar input hashes and the registered sample identity
+are still verified. Missing inputs are downloaded using Astropy's cache; existing
+files under `CACHE` are reused after verification. FITS spectra are read directly
+from the TAR without extracting a directory.
+An unavailable or invalid scenario is identified explicitly; an incomplete
+campaign does not produce an overall comparative conclusion.
+
+### CTAO API example
+
+`ctao-sky-background.ipynb` supports **nsb-py 0.2.0 from PyPI** with CPython
+**3.12 or 3.13**. Use a fresh kernel and **Run All**: its first code cell installs
+`nsb-py==0.2.0`, NumPy, Matplotlib and Astropy using the kernel's Python.
+It requires no local checkout, GitHub access or Rust build. If setup changes
+already imported packages, restart the kernel and Run All as instructed.
+Code that teaches the public API remains visible; results are generated inline.
+The notebook does not acquire external scientific data or export files.
+
+The guide starts with one explicit point query toward the Crab Nebula, compares
+total radiance and components at both CTAO array locations, explores Airglow
+versus zenith distance, and searches for UTC intervals below an illustrative
+radiance ceiling. Observer coordinates use the project's WGS84 array positions;
+atmospheric profiles remain planning assumptions. All examples use fixed,
+editable dates and solar inputs in the default 300–650 nm band.
+
+Automatic Airglow in v0.2.0 selects experimental PALACE Oxygen with standard
+continuum geometry and zenith distance ≤60°. The default examples stay inside
+this domain. The site profiles and the illustrative threshold do not establish
+observational calibration or detector performance; consult `observational-validation.ipynb`
+for the separate scientific assessment.
+
+### Continuum solar-input example
+
+[airglow-solar-activity.ipynb](airglow-solar-activity.ipynb) varies six
+explicit F10.7 inputs from 67 to 166 sfu at a fixed Paranal observer, ICRS direction
+and UTC instant. It selects PALACE continuum only and integrates Airglow over
+300–650 nm, displaying a radiance table and figure. This illustrates a controlled
+model response, not observational validation.
+
+Select a fresh CPython **3.12 or 3.13** kernel and **Run All**. The first code
+cell installs `nsb-py==0.2.0` from PyPI and Matplotlib using the kernel's Python,
+without a checkout, GitHub access or Rust build. If setup changes already imported
+packages, restart the kernel and Run All as instructed. The notebook uses bundled
+NSB assets, requires no scientific data acquisition and exports no files.
+
+All three notebooks retain their saved outputs and execution counts so readers
+can inspect the scientific results without running the code. The existing
+documentation gate, `python scripts/check-product-docs.py`, checks notebook
+structure, Python syntax, setup ordering, the NSB version selection and local
+documentation links; saved outputs are permitted. It runs in the existing CI job.
 
 ## Command line
 

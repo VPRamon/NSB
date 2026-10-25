@@ -3,6 +3,7 @@
 # Copyright (C) 2026 Vallés Puig, Ramon
 """Check current user-facing documentation without rewriting pinned scientific evidence."""
 
+import ast
 import json
 import re
 import sys
@@ -33,15 +34,14 @@ CURRENT_MARKDOWN = (
     "docs/specifications/scientific-model.md",
     "docs/specifications/validation-consumer.md",
     "docs/nsb_components/zodiacal/README.md",
-    "notebooks/README.md",
     "examples/README.md",
     "CONTRIBUTING.md",
     "SECURITY.md",
 )
 CURRENT_NOTEBOOKS = (
-    "notebooks/NSB_Validation.ipynb",
-    "notebooks/CTAO_API_Example.ipynb",
-    "examples/scientific-reproducibility.ipynb",
+    "examples/observational-validation.ipynb",
+    "examples/ctao-sky-background.ipynb",
+    "examples/airglow-solar-activity.ipynb",
 )
 LINK = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 OUTDATED = (
@@ -76,6 +76,45 @@ def markdown_issues(path: Path, text: str) -> list[str]:
     return problems
 
 
+def notebook_issues(path: Path, nb: dict) -> list[str]:
+    """Keep distributed notebooks parseable and runnable in order."""
+    relative = path.relative_to(ROOT)
+    if not isinstance(nb, dict) or nb.get("nbformat") != 4 or not isinstance(nb.get("cells"), list):
+        return [f"{relative}: expected nbformat 4 cells"]
+    problems, code = [], []
+    for i, cell in enumerate(nb["cells"]):
+        if not isinstance(cell, dict) or cell.get("cell_type") not in ("code", "markdown", "raw"):
+            problems.append(f"{relative}:cell {i}: invalid cell type")
+            continue
+        source = cell.get("source")
+        if not isinstance(source, list) or not all(isinstance(line, str) for line in source):
+            problems.append(f"{relative}:cell {i}: invalid source")
+            continue
+        if cell["cell_type"] != "code":
+            continue
+        code.append(cell)
+        try:
+            ast.parse("".join(source), feature_version=(3, 12))
+        except SyntaxError as error:
+            problems.append(f"{relative}:cell {i}: invalid Python: {error}")
+    if not code or "setup" not in code[0].get("metadata", {}).get("tags", []):
+        problems.append(f"{relative}: installation setup must be the first code cell")
+    else:
+        try:
+            tree = ast.parse("".join(code[0]["source"]))
+            imports = {name.name.split(".")[0] for node in ast.walk(tree) if isinstance(node, ast.Import) for name in node.names}
+            imports.update(node.module.split(".")[0] for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) and node.module)
+            if imports - sys.stdlib_module_names:
+                problems.append(f"{relative}: setup imports third-party dependencies before installation")
+            requirements = next(ast.literal_eval(node.value) for node in tree.body
+                                if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "REQUIREMENTS" for t in node.targets))
+            if not isinstance(requirements, list) or "nsb-py==0.2.0" not in requirements:
+                problems.append(f"{relative}: setup must select nsb-py==0.2.0")
+        except (SyntaxError, ValueError, StopIteration):
+            problems.append(f"{relative}: setup requires a literal REQUIREMENTS list")
+    return problems
+
+
 def check() -> list[str]:
     problems = []
     for name in CURRENT_MARKDOWN:
@@ -90,9 +129,16 @@ def check() -> list[str]:
         if not path.is_file():
             problems.append(f"{name}: notebook is missing")
             continue
-        nb = json.loads(path.read_text(encoding="utf-8"))
+        try:
+            nb = json.loads(path.read_text(encoding="utf-8"))
+        except ValueError as error:
+            problems.append(f"{name}: invalid notebook JSON: {error}")
+            continue
+        problems.extend(notebook_issues(path, nb))
+        if not isinstance(nb, dict) or not isinstance(nb.get("cells"), list):
+            continue
         for i, cell in enumerate(nb["cells"]):
-            if cell.get("cell_type") == "markdown":
+            if isinstance(cell, dict) and cell.get("cell_type") == "markdown" and isinstance(cell.get("source"), list):
                 text = "".join(cell.get("source", []))
                 problems.extend(markdown_issues(path, text))
 
