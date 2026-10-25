@@ -393,6 +393,8 @@ def test_provenance_explicit_missing_fields_and_no_local_install_details(monkeyp
         "observed",
         "calibration_baseline",
         "aggregate_mae",
+        "boolean_metric",
+        "boolean_count",
         "per_night",
         "night_weighted",
         "paired_difference",
@@ -421,6 +423,10 @@ def test_stale_scientific_results_invalidate_manifest(
         campaign["rows"][2]["observed"] += 1
     elif problem == "calibration_baseline":
         campaign["rows"][0]["observed"] += 1
+    elif problem == "boolean_metric":
+        aggregate["models"]["baseline"]["mae"] = False
+    elif problem == "boolean_count":
+        aggregate["per_night"][2]["nsb2"]["n"] = True
     elif problem == "aggregate_mae":
         aggregate["models"]["nsb2"]["mae"] += 0.01
     elif problem == "per_night":
