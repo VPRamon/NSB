@@ -103,6 +103,23 @@ fn close(actual: f64, expected: f64, relative: f64) {
     );
 }
 
+// Model a component-reporting consumer that selects accessors dynamically.
+// Indirect calls also preserve tiny cross-crate accessor bodies under optimized
+// LLVM coverage, where direct calls may be folded into their callers.
+fn availability(r: &Output, expected: [bool; 5]) {
+    type Radiance = nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian;
+    let accessors: [fn(&Output) -> Option<Radiance>; 5] = [
+        Output::direct,
+        Output::single,
+        Output::higher_orders,
+        Output::total_scattered,
+        Output::ground_total,
+    ];
+    for (accessor, expected) in accessors.into_iter().zip(expected) {
+        assert_eq!(std::hint::black_box(accessor)(r).is_some(), expected);
+    }
+}
+
 #[test]
 fn exact_identity_retains_shared_product_and_has_no_ground_prediction() {
     assert!(StarlightMap::from_json_bytes(FIXTURE, &"0".repeat(64)).is_err());
@@ -122,6 +139,7 @@ fn exact_identity_retains_shared_product_and_has_no_ground_prediction() {
             )
             .unwrap();
         assert_eq!(r.toa().value(), expected);
+        availability(&r, [false; 5]);
         assert!(r.direct().is_none());
         assert!(r.single().is_none());
         assert!(r.higher_orders().is_none());
@@ -160,6 +178,7 @@ fn vacuum_absorption_and_scattering_direct_match_beer_lambert_without_angular_wo
                 },
             )
             .unwrap();
+        availability(&r, [true, false, false, false, false]);
         close(r.toa().value(), 0.003, 1e-14);
         close(
             r.direct().unwrap().value(),
@@ -211,6 +230,8 @@ fn single_and_multiple_match_independent_disort_and_preserve_decomposition() {
             },
         )
         .unwrap();
+    availability(&s, [true, true, false, false, false]);
+    availability(&m, [true; 5]);
     assert_eq!(s.toa().value(), 0.003);
     assert_eq!(m.toa(), s.toa());
     assert!(s.uncertainty().is_none() && m.uncertainty().is_none());
