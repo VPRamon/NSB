@@ -137,6 +137,37 @@ never labelled as observations. A measured F10.7 does not promote Airglow to
 site-calibrated status; see
 [F10.7 resolver](../nsb_components/airglow/f107-resolver.md).
 
+### Experimental Oxygen F10.7 domain diagnostic
+
+When the resolved Airglow model is experimental PALACE Oxygen
+(`paranal-palace-oxygen-v1`) and an F10.7 value was applied for the evaluation,
+metadata may also include `oxygen_f107_domain`. Continuum-only Airglow omits it.
+Descriptors from `describe_components` omit it when no F10.7 was resolved.
+
+The diagnostic reports:
+
+| Field | Meaning |
+|---|---|
+| `applied_sfu` | F10.7 scalar actually applied to Oxygen SCE scaling |
+| `training_range_*_sfu` | Inclusive evidence interval from the continuum asset (`67`–`166` sfu) |
+| `training_covariate` | `centred-27-day-f107-average` (PALACE fit statistic) |
+| `operational_quantity` | Resolver product identity (monthly planning, climatology, explicit, …) |
+| `numerical_range` | `below-training-interval` / `within-training-interval` / `above-training-interval` |
+| `numerically_extrapolated` | True when `numerical_range` is below or above |
+| `covariate_matches_training_statistic` | Whether the operational quantity is the centred-27-day training covariate |
+| `actual_conditions_claim` | What the applied input can say about actual solar conditions |
+| `claims_actual_conditions_within_training_domain` | Whether metadata claims actual centred-27 conditions were known in-domain |
+
+**Numerical membership is not scientific validation.** A climatological
+≈129 sfu value is numerically inside `[67, 166]` but
+`claims_actual_conditions_within_training_domain` remains `false` and
+`actual_conditions_claim` is `unknown-because-planning-fallback` (issue #295 /
+#294). Current Automatic/Dataset/Explicit paths never set
+`covariate_matches_training_statistic` because the resolver supplies monthly
+planning quantities, not centred 27-day averages. The diagnostic does not change
+radiance, maturity (`experimental`), or site-calibration status; see also
+[#280](https://github.com/VPRamon/NSB/issues/280).
+
 ## Airglow geometry and attenuation
 
 Airglow component metadata includes a structured `airglow_geometry` record.

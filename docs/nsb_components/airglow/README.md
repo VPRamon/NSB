@@ -336,11 +336,21 @@ persisted profiles must pin and reproduce it.
 ## F10.7 and calibration
 
 PALACE was fitted using centred 27-day F10.7 averages and its training data span
-67–166 sfu. The current automatic path resolves NSB's documented monthly
-planning F10.7 quantity from the bundled offline store for the evaluation UTC
-date. This cadence mismatch is a stated approximation. Callers can set a value with
-`NsbModelConfig::with_solar_radio_flux` or `--solar-radio-flux-sfu`. See the
-[F10.7 resolver](f107-resolver.md).
+67–166 sfu (inclusive endpoints on the continuum asset
+`solar_flux_evidence_range_sfu`). The current automatic path resolves NSB's
+documented monthly planning F10.7 quantity from the bundled offline store for
+the evaluation UTC date. This cadence mismatch is a stated approximation.
+Callers can set a value with `NsbModelConfig::with_solar_radio_flux` or
+`--solar-radio-flux-sfu`. See the [F10.7 resolver](f107-resolver.md).
+
+For experimental Oxygen evaluations, `NsbComponentMetadata::oxygen_f107_domain`
+classifies the **applied** F10.7 against that asset interval and records that
+the operational quantity is not the centred-27-day training covariate.
+Numerically in-range climatology must not be read as evidence that actual solar
+conditions were in-domain; see
+[scientific metadata](../../specifications/scientific-metadata.md#experimental-oxygen-f107-domain-diagnostic)
+and issue #294. Continuum-only configurations omit the field. The diagnostic
+does not change coefficients, radiance, or maturity.
 
 The generic and CTAO planning profiles use the PALACE-derived continuum baseline
 with explicit uncalibrated provenance. Automatic F10.7, an explicit value, or a

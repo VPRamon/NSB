@@ -6,6 +6,7 @@ use crate::parsing::time::format_utc;
 use anyhow::Result;
 use nsb::components::airglow::{
     AirglowEvaluationOutcome, AirglowGeometryMetadata, AirglowSelectionMetadata,
+    OxygenF107DomainDiagnostic,
 };
 use nsb::solar_activity::SolarActivitySource;
 use nsb::{
@@ -143,6 +144,8 @@ struct ComponentMetadataJson {
     #[serde(skip_serializing_if = "Option::is_none")]
     airglow_selection: Option<AirglowSelectionJson>,
     solar_activity: Option<SolarActivityJson>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    oxygen_f107_domain: Option<OxygenF107DomainJson>,
     airglow_geometry: Option<AirglowGeometryJson>,
 }
 
@@ -191,6 +194,20 @@ struct SolarActivityJson {
     uncertainty_sfu: Option<f64>,
     range_low_sfu: Option<f64>,
     range_high_sfu: Option<f64>,
+}
+
+#[derive(Serialize)]
+struct OxygenF107DomainJson {
+    applied_sfu: f64,
+    training_range_low_sfu: f64,
+    training_range_high_sfu: f64,
+    training_covariate: &'static str,
+    operational_quantity: &'static str,
+    numerical_range: &'static str,
+    numerically_extrapolated: bool,
+    covariate_matches_training_statistic: bool,
+    actual_conditions_claim: &'static str,
+    claims_actual_conditions_within_training_domain: bool,
 }
 
 #[derive(Serialize)]
@@ -519,10 +536,30 @@ fn component_metadata_json(metadata: &NsbComponentMetadata) -> ComponentMetadata
                 range_low_sfu: solar.record.range_low_sfu,
                 range_high_sfu: solar.record.range_high_sfu,
             }),
+        oxygen_f107_domain: metadata
+            .oxygen_f107_domain
+            .as_ref()
+            .map(oxygen_f107_domain_json),
         airglow_geometry: metadata
             .airglow_geometry
             .as_ref()
             .map(airglow_geometry_json),
+    }
+}
+
+fn oxygen_f107_domain_json(domain: &OxygenF107DomainDiagnostic) -> OxygenF107DomainJson {
+    OxygenF107DomainJson {
+        applied_sfu: domain.applied_sfu,
+        training_range_low_sfu: domain.training_range_low_sfu,
+        training_range_high_sfu: domain.training_range_high_sfu,
+        training_covariate: domain.training_covariate,
+        operational_quantity: domain.operational_quantity,
+        numerical_range: domain.numerical_range.as_str(),
+        numerically_extrapolated: domain.numerically_extrapolated,
+        covariate_matches_training_statistic: domain.covariate_matches_training_statistic,
+        actual_conditions_claim: domain.actual_conditions_claim.as_str(),
+        claims_actual_conditions_within_training_domain: domain
+            .claims_actual_conditions_within_training_domain,
     }
 }
 

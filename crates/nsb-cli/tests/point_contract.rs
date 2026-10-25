@@ -222,6 +222,22 @@ fn point_explicit_solar_radio_flux_is_accepted_and_labelled() {
         airglow["metadata"]["solar_activity"]["resolution_step"],
         "explicit-override"
     );
+    let domain = &airglow["metadata"]["oxygen_f107_domain"];
+    assert_eq!(domain["applied_sfu"], 250.0);
+    assert_eq!(domain["training_range_low_sfu"], 67.0);
+    assert_eq!(domain["training_range_high_sfu"], 166.0);
+    assert_eq!(domain["numerical_range"], "above-training-interval");
+    assert_eq!(domain["numerically_extrapolated"], true);
+    assert_eq!(domain["covariate_matches_training_statistic"], false);
+    assert_eq!(
+        domain["claims_actual_conditions_within_training_domain"],
+        false
+    );
+    assert_eq!(
+        domain["actual_conditions_claim"],
+        "explicit-caller-scalar-only"
+    );
+    assert_eq!(domain["training_covariate"], "centred-27-day-f107-average");
 }
 
 #[test]

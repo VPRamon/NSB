@@ -32,6 +32,18 @@ raw daily observation or daily forecast value. Metadata and the PALACE
 validation report disclose this cadence mismatch; a dedicated centred 27-day
 resolver remains future work.
 
+**Oxygen domain diagnostics (issue #294).** Experimental Oxygen evaluations
+attach `oxygen_f107_domain` metadata that classifies the applied operational
+scalar against the asset evidence interval (67–166 sfu, inclusive) without
+claiming that monthly/climatological inputs equal the centred-27-day training
+covariate. Example: Automatic climatology ≈129.2 sfu is
+`numerical_range=within-training-interval` but
+`claims_actual_conditions_within_training_domain=false` and
+`actual_conditions_claim=unknown-because-planning-fallback`. An explicit
+200 sfu override is `above-training-interval` with
+`numerically_extrapolated=true`. See
+[scientific metadata](../../specifications/scientific-metadata.md#experimental-oxygen-f107-domain-diagnostic).
+
 NSB consumes F10.7 **as republished by NOAA/NWS SWPC** machine-readable
 products. Product identity is retained on every record so users can audit which
 SWPC product supplied a value.

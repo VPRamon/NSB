@@ -7,7 +7,8 @@ use crate::components::airglow::calibration::{
 use crate::components::airglow::{
     AirglowEvaluationOutcome, AirglowFallbackReason, AirglowPhysicalOutcome,
     AirglowPhysicalZeroReason, AirglowSelectionKind, AirglowSelectionMetadata,
-    ResolvedAirglowSelection, NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG,
+    OxygenF107DomainDiagnostic, ResolvedAirglowSelection,
+    NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG,
 };
 use crate::components::moonlight::MoonlightModel;
 use crate::components::starlight::{StarlightProduct, StarlightProvenance};
@@ -113,6 +114,14 @@ pub struct NsbComponentMetadata {
     pub airglow_evaluation: Option<AirglowEvaluationOutcome>,
     /// Optional resolved F10.7 provenance for airglow evaluations.
     pub solar_activity: Option<crate::solar_activity::ResolvedSolarActivity>,
+    /// Optional Oxygen-only F10.7 training-domain diagnostic for the applied scalar.
+    ///
+    /// Present only for [`crate::AirglowModel::ParanalPalaceOxygenV1`] when F10.7
+    /// was resolved for the evaluation. Distinguishes numerical interval membership
+    /// from centred-27-day covariate compatibility and from claims about actual
+    /// solar conditions. Absent for continuum-only Airglow. Never upgrades
+    /// experimental maturity or site calibration.
+    pub oxygen_f107_domain: Option<OxygenF107DomainDiagnostic>,
     /// Optional emitting-volume geometry provenance for Airglow evaluations.
     pub airglow_geometry: Option<crate::components::airglow::AirglowGeometryMetadata>,
 }
@@ -151,6 +160,7 @@ pub(crate) fn zodiacal_metadata(
         airglow_selection: None,
         airglow_evaluation: None,
         solar_activity: None,
+        oxygen_f107_domain: None,
         airglow_geometry: None,
     }
 }
@@ -280,6 +290,7 @@ fn airglow_metadata_inner(
         airglow_selection: Some(selection),
         airglow_evaluation: evaluation,
         solar_activity: solar.cloned(),
+        oxygen_f107_domain: None,
         airglow_geometry: Some(geometry.metadata()),
     };
     if site_profile.airglow_profile.is_some() {
@@ -292,6 +303,18 @@ fn airglow_metadata_inner(
             .expect("build-verified oxygen asset");
         metadata.provenance = Cow::Owned(format!("{}; oxygen asset {} sha256 {} license CC-BY-4.0; PALACE Og/Or families; no local calibration of oxygen", metadata.provenance, oxygen_asset.path, oxygen_asset.sha256));
         metadata.validated_domain = Cow::Owned(format!("{}; EXPERIMENTAL OXYGEN EXTENSION (Automatic planning fallback as of v0.2.0): adds Og 557.8887 nm and Or 630.2046/636.5536/639.35 nm vacuum integrated delta lines with source heights 97/250 km and separate 144-cell climatologies; line flux is not continuum-scaled; Noll wavelength-dependent scattering; molecular absorption omitted; zenith <=60 deg; linear F10.7 extrapolation outside the 67–166 sfu training range is experimental; incomplete optical line population (Na, OH, O2, N excluded); monochromatic B/V proxies remain continuum-only; not an independent absolute observational admission; temporary Paranal-derived automatic fallback until #157 climatology", metadata.validated_domain));
+        if let Some(resolved_solar) = solar {
+            let domain = OxygenF107DomainDiagnostic::from_resolved(
+                resolved_solar,
+                crate::components::airglow::oxygen_f107_domain::training_range_sfu_from_continuum_asset(),
+            );
+            metadata.provenance = Cow::Owned(format!(
+                "{}; {}",
+                metadata.provenance,
+                domain.provenance_fragment()
+            ));
+            metadata.oxygen_f107_domain = Some(domain);
+        }
     }
     metadata
 }
@@ -327,6 +350,7 @@ pub(super) fn starlight_metadata(
             airglow_selection: None,
             airglow_evaluation: None,
             solar_activity: None,
+            oxygen_f107_domain: None,
             airglow_geometry: None,
         },
     }
@@ -377,6 +401,7 @@ fn starlight_map_metadata(
         airglow_selection: None,
         airglow_evaluation: None,
         solar_activity: None,
+        oxygen_f107_domain: None,
         airglow_geometry: None,
     }
 }
@@ -403,6 +428,7 @@ pub(crate) fn moonlight_metadata(
                 airglow_selection: None,
                 airglow_evaluation: None,
                 solar_activity: None,
+                oxygen_f107_domain: None,
                 airglow_geometry: None,
             }
         }
@@ -421,6 +447,7 @@ pub(crate) fn moonlight_metadata(
                 airglow_selection: None,
                 airglow_evaluation: None,
                 solar_activity: None,
+                oxygen_f107_domain: None,
                 airglow_geometry: None,
             }
         }
