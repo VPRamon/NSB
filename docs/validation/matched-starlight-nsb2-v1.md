@@ -103,7 +103,8 @@ For each direction:
 
 - **NSB:** bundled Starlight component via `NsbEvaluator.evaluate` (TOA 300–650).
 - **nsb2:** `query_direct` with zero pressure; flat Bandpass 300–650 nm;
-  **nanmean** over finite Pickles colour-grid templates (documented reduction).
+  **nanmedian** over finite Pickles colour-grid templates (nsb2 instrument
+  central reduction among nanmin/nanmedian/nanmax).
 
 Two nsb2 configurations: faint-only (notebook-like) and faint+bright+XHIP.
 **No solar-colour fraction is applied to NSB.**
@@ -123,9 +124,9 @@ Signed difference = nsb2 − NSB. Relative difference = |nsb2 − NSB| / |NSB|.
 | galactic_north_pole | 0.01692 | 0.00082 | 0.952 |
 | galactic_south_pole | 0.02442 | 0.00071 | 0.971 |
 | sparse_high_lat | 0.03249 | 0.00179 | 0.945 |
-| dense_plane | 0.19956 | 0.08686 | 0.565 |
-| anticenter | 0.08321 | 0.01455 | 0.825 |
-| galactic_center | 0.12363 | 0.02416 | 0.805 |
+| dense_plane | 0.19956 | 0.08703 | 0.564 |
+| anticenter | 0.08321 | 0.01460 | 0.825 |
+| galactic_center | 0.12363 | 0.02420 | 0.804 |
 
 XHIP (88 stars) did not contribute inside the nside=128 resolution cones for
 these six directions, so faint+XHIP equals faint-only here. The large deficit of

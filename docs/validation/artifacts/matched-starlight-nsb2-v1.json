@@ -16,9 +16,9 @@
         "nsb",
         "nsb2"
       ],
-      "max_relative_difference": 0.9710897255870883,
-      "mean_absolute_difference": 0.058560951078641815,
-      "median_relative_difference": 0.8850567181707956,
+      "max_relative_difference": 0.9710947910998103,
+      "mean_absolute_difference": 0.058518497079064945,
+      "median_relative_difference": 0.8847676634377348,
       "n_cases": 6
     },
     "level2_conditional_faint_xhip": {
@@ -26,9 +26,9 @@
         "nsb",
         "nsb2"
       ],
-      "max_relative_difference": 0.9710897255870883,
-      "mean_absolute_difference": 0.058560951078641815,
-      "median_relative_difference": 0.8850567181707956,
+      "max_relative_difference": 0.9710947910998103,
+      "mean_absolute_difference": 0.058518497079064945,
+      "median_relative_difference": 0.8847676634377348,
       "n_cases": 6
     }
   },
@@ -361,7 +361,7 @@
   ],
   "level2_cases": [
     {
-      "absolute_difference": 0.01610630651543291,
+      "absolute_difference": 0.01610874752013425,
       "case_id": "L2_galactic_north_pole__nsb_vs_nsb2_faint_only",
       "classification": "conditional",
       "direction": {
@@ -383,9 +383,9 @@
       "model_nsb2": "nsb2_faint_only",
       "n_sources_declared": null,
       "nsb": 0.01692409628685068,
-      "nsb2": 0.0008177897714177731,
+      "nsb2": 0.0008153487667164297,
       "nsb2_parts": {
-        "faint": 0.0008177897714177731,
+        "faint": 0.0008153487667164297,
         "suppl": 0.0
       },
       "observable": "TOA band-integrated photon radiance",
@@ -394,15 +394,15 @@
         "include_bright_catalog": false,
         "mjd": 52075.0,
         "nsb2_commit": "bc9320db03fbff69997ce366c6e76a37339c5d00",
-        "pickles_template_reduction": "nanmean of finite colour-grid templates",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
         "site": {
           "height": 2635.0,
           "latitude": -24.6275,
           "longitude": -70.40498688
         }
       },
-      "relative_difference": 0.9516789695853266,
-      "signed_difference": -0.01610630651543291,
+      "relative_difference": 0.9518232020843604,
+      "signed_difference": -0.01610874752013425,
       "units": "photons cm^-2 ns^-1 sr^-1",
       "wavelength_bounds_nm": [
         300.0,
@@ -410,7 +410,7 @@
       ]
     },
     {
-      "absolute_difference": 0.01610630651543291,
+      "absolute_difference": 0.01610874752013425,
       "case_id": "L2_galactic_north_pole__nsb_vs_nsb2_faint_xhip",
       "classification": "conditional",
       "direction": {
@@ -432,9 +432,9 @@
       "model_nsb2": "nsb2_faint_xhip",
       "n_sources_declared": null,
       "nsb": 0.01692409628685068,
-      "nsb2": 0.0008177897714177731,
+      "nsb2": 0.0008153487667164297,
       "nsb2_parts": {
-        "faint": 0.0008177897714177731,
+        "faint": 0.0008153487667164297,
         "suppl": 0.0
       },
       "observable": "TOA band-integrated photon radiance",
@@ -443,15 +443,15 @@
         "include_bright_catalog": false,
         "mjd": 52075.0,
         "nsb2_commit": "bc9320db03fbff69997ce366c6e76a37339c5d00",
-        "pickles_template_reduction": "nanmean of finite colour-grid templates",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
         "site": {
           "height": 2635.0,
           "latitude": -24.6275,
           "longitude": -70.40498688
         }
       },
-      "relative_difference": 0.9516789695853266,
-      "signed_difference": -0.01610630651543291,
+      "relative_difference": 0.9518232020843604,
+      "signed_difference": -0.01610874752013425,
       "units": "photons cm^-2 ns^-1 sr^-1",
       "wavelength_bounds_nm": [
         300.0,
@@ -459,7 +459,7 @@
       ]
     },
     {
-      "absolute_difference": 0.02371851232387213,
+      "absolute_difference": 0.023718636047172625,
       "case_id": "L2_galactic_south_pole__nsb_vs_nsb2_faint_only",
       "classification": "conditional",
       "direction": {
@@ -481,9 +481,9 @@
       "model_nsb2": "nsb2_faint_only",
       "n_sources_declared": null,
       "nsb": 0.02442463523083072,
-      "nsb2": 0.0007061229069585894,
+      "nsb2": 0.0007059991836580959,
       "nsb2_parts": {
-        "faint": 0.0007061229069585894,
+        "faint": 0.0007059991836580959,
         "suppl": 0.0
       },
       "observable": "TOA band-integrated photon radiance",
@@ -492,15 +492,15 @@
         "include_bright_catalog": false,
         "mjd": 52075.0,
         "nsb2_commit": "bc9320db03fbff69997ce366c6e76a37339c5d00",
-        "pickles_template_reduction": "nanmean of finite colour-grid templates",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
         "site": {
           "height": 2635.0,
           "latitude": -24.6275,
           "longitude": -70.40498688
         }
       },
-      "relative_difference": 0.9710897255870883,
-      "signed_difference": -0.02371851232387213,
+      "relative_difference": 0.9710947910998103,
+      "signed_difference": -0.023718636047172625,
       "units": "photons cm^-2 ns^-1 sr^-1",
       "wavelength_bounds_nm": [
         300.0,
@@ -508,7 +508,7 @@
       ]
     },
     {
-      "absolute_difference": 0.02371851232387213,
+      "absolute_difference": 0.023718636047172625,
       "case_id": "L2_galactic_south_pole__nsb_vs_nsb2_faint_xhip",
       "classification": "conditional",
       "direction": {
@@ -530,9 +530,9 @@
       "model_nsb2": "nsb2_faint_xhip",
       "n_sources_declared": null,
       "nsb": 0.02442463523083072,
-      "nsb2": 0.0007061229069585894,
+      "nsb2": 0.0007059991836580959,
       "nsb2_parts": {
-        "faint": 0.0007061229069585894,
+        "faint": 0.0007059991836580959,
         "suppl": 0.0
       },
       "observable": "TOA band-integrated photon radiance",
@@ -541,15 +541,15 @@
         "include_bright_catalog": false,
         "mjd": 52075.0,
         "nsb2_commit": "bc9320db03fbff69997ce366c6e76a37339c5d00",
-        "pickles_template_reduction": "nanmean of finite colour-grid templates",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
         "site": {
           "height": 2635.0,
           "latitude": -24.6275,
           "longitude": -70.40498688
         }
       },
-      "relative_difference": 0.9710897255870883,
-      "signed_difference": -0.02371851232387213,
+      "relative_difference": 0.9710947910998103,
+      "signed_difference": -0.023718636047172625,
       "units": "photons cm^-2 ns^-1 sr^-1",
       "wavelength_bounds_nm": [
         300.0,
@@ -557,7 +557,7 @@
       ]
     },
     {
-      "absolute_difference": 0.030701877945898962,
+      "absolute_difference": 0.030699663798978954,
       "case_id": "L2_sparse_high_lat__nsb_vs_nsb2_faint_only",
       "classification": "conditional",
       "direction": {
@@ -579,9 +579,9 @@
       "model_nsb2": "nsb2_faint_only",
       "n_sources_declared": null,
       "nsb": 0.03248880716112205,
-      "nsb2": 0.0017869292152230848,
+      "nsb2": 0.0017891433621430922,
       "nsb2_parts": {
-        "faint": 0.0017869292152230848,
+        "faint": 0.0017891433621430922,
         "suppl": 0.0
       },
       "observable": "TOA band-integrated photon radiance",
@@ -590,15 +590,15 @@
         "include_bright_catalog": false,
         "mjd": 52075.0,
         "nsb2_commit": "bc9320db03fbff69997ce366c6e76a37339c5d00",
-        "pickles_template_reduction": "nanmean of finite colour-grid templates",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
         "site": {
           "height": 2635.0,
           "latitude": -24.6275,
           "longitude": -70.40498688
         }
       },
-      "relative_difference": 0.9449986204060632,
-      "signed_difference": -0.030701877945898962,
+      "relative_difference": 0.9449304693376344,
+      "signed_difference": -0.030699663798978954,
       "units": "photons cm^-2 ns^-1 sr^-1",
       "wavelength_bounds_nm": [
         300.0,
@@ -606,7 +606,7 @@
       ]
     },
     {
-      "absolute_difference": 0.030701877945898962,
+      "absolute_difference": 0.030699663798978954,
       "case_id": "L2_sparse_high_lat__nsb_vs_nsb2_faint_xhip",
       "classification": "conditional",
       "direction": {
@@ -628,9 +628,9 @@
       "model_nsb2": "nsb2_faint_xhip",
       "n_sources_declared": null,
       "nsb": 0.03248880716112205,
-      "nsb2": 0.0017869292152230848,
+      "nsb2": 0.0017891433621430922,
       "nsb2_parts": {
-        "faint": 0.0017869292152230848,
+        "faint": 0.0017891433621430922,
         "suppl": 0.0
       },
       "observable": "TOA band-integrated photon radiance",
@@ -639,15 +639,15 @@
         "include_bright_catalog": false,
         "mjd": 52075.0,
         "nsb2_commit": "bc9320db03fbff69997ce366c6e76a37339c5d00",
-        "pickles_template_reduction": "nanmean of finite colour-grid templates",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
         "site": {
           "height": 2635.0,
           "latitude": -24.6275,
           "longitude": -70.40498688
         }
       },
-      "relative_difference": 0.9449986204060632,
-      "signed_difference": -0.030701877945898962,
+      "relative_difference": 0.9449304693376344,
+      "signed_difference": -0.030699663798978954,
       "units": "photons cm^-2 ns^-1 sr^-1",
       "wavelength_bounds_nm": [
         300.0,
@@ -655,7 +655,7 @@
       ]
     },
     {
-      "absolute_difference": 0.11270167523372661,
+      "absolute_difference": 0.11253007048261662,
       "case_id": "L2_dense_plane__nsb_vs_nsb2_faint_only",
       "classification": "conditional",
       "direction": {
@@ -677,9 +677,9 @@
       "model_nsb2": "nsb2_faint_only",
       "n_sources_declared": null,
       "nsb": 0.19956031552261533,
-      "nsb2": 0.08685864028888872,
+      "nsb2": 0.0870302450399987,
       "nsb2_parts": {
-        "faint": 0.08685864028888872,
+        "faint": 0.0870302450399987,
         "suppl": 0.0
       },
       "observable": "TOA band-integrated photon radiance",
@@ -688,15 +688,15 @@
         "include_bright_catalog": false,
         "mjd": 52075.0,
         "nsb2_commit": "bc9320db03fbff69997ce366c6e76a37339c5d00",
-        "pickles_template_reduction": "nanmean of finite colour-grid templates",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
         "site": {
           "height": 2635.0,
           "latitude": -24.6275,
           "longitude": -70.40498688
         }
       },
-      "relative_difference": 0.564749935068902,
-      "signed_difference": -0.11270167523372661,
+      "relative_difference": 0.5638900208587015,
+      "signed_difference": -0.11253007048261662,
       "units": "photons cm^-2 ns^-1 sr^-1",
       "wavelength_bounds_nm": [
         300.0,
@@ -704,7 +704,7 @@
       ]
     },
     {
-      "absolute_difference": 0.11270167523372661,
+      "absolute_difference": 0.11253007048261662,
       "case_id": "L2_dense_plane__nsb_vs_nsb2_faint_xhip",
       "classification": "conditional",
       "direction": {
@@ -726,9 +726,9 @@
       "model_nsb2": "nsb2_faint_xhip",
       "n_sources_declared": null,
       "nsb": 0.19956031552261533,
-      "nsb2": 0.08685864028888872,
+      "nsb2": 0.0870302450399987,
       "nsb2_parts": {
-        "faint": 0.08685864028888872,
+        "faint": 0.0870302450399987,
         "suppl": 0.0
       },
       "observable": "TOA band-integrated photon radiance",
@@ -737,15 +737,15 @@
         "include_bright_catalog": false,
         "mjd": 52075.0,
         "nsb2_commit": "bc9320db03fbff69997ce366c6e76a37339c5d00",
-        "pickles_template_reduction": "nanmean of finite colour-grid templates",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
         "site": {
           "height": 2635.0,
           "latitude": -24.6275,
           "longitude": -70.40498688
         }
       },
-      "relative_difference": 0.564749935068902,
-      "signed_difference": -0.11270167523372661,
+      "relative_difference": 0.5638900208587015,
+      "signed_difference": -0.11253007048261662,
       "units": "photons cm^-2 ns^-1 sr^-1",
       "wavelength_bounds_nm": [
         300.0,
@@ -753,7 +753,7 @@
       ]
     },
     {
-      "absolute_difference": 0.06866054863369189,
+      "absolute_difference": 0.06861811329900915,
       "case_id": "L2_anticenter__nsb_vs_nsb2_faint_only",
       "classification": "conditional",
       "direction": {
@@ -775,9 +775,9 @@
       "model_nsb2": "nsb2_faint_only",
       "n_sources_declared": null,
       "nsb": 0.08321332656697421,
-      "nsb2": 0.014552777933282308,
+      "nsb2": 0.014595213267965068,
       "nsb2_parts": {
-        "faint": 0.014552777933282308,
+        "faint": 0.014595213267965068,
         "suppl": 0.0
       },
       "observable": "TOA band-integrated photon radiance",
@@ -786,15 +786,15 @@
         "include_bright_catalog": false,
         "mjd": 52075.0,
         "nsb2_commit": "bc9320db03fbff69997ce366c6e76a37339c5d00",
-        "pickles_template_reduction": "nanmean of finite colour-grid templates",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
         "site": {
           "height": 2635.0,
           "latitude": -24.6275,
           "longitude": -70.40498688
         }
       },
-      "relative_difference": 0.8251148159355278,
-      "signed_difference": -0.06866054863369189,
+      "relative_difference": 0.8246048575378354,
+      "signed_difference": -0.06861811329900915,
       "units": "photons cm^-2 ns^-1 sr^-1",
       "wavelength_bounds_nm": [
         300.0,
@@ -802,7 +802,7 @@
       ]
     },
     {
-      "absolute_difference": 0.06866054863369189,
+      "absolute_difference": 0.06861811329900915,
       "case_id": "L2_anticenter__nsb_vs_nsb2_faint_xhip",
       "classification": "conditional",
       "direction": {
@@ -824,9 +824,9 @@
       "model_nsb2": "nsb2_faint_xhip",
       "n_sources_declared": null,
       "nsb": 0.08321332656697421,
-      "nsb2": 0.014552777933282308,
+      "nsb2": 0.014595213267965068,
       "nsb2_parts": {
-        "faint": 0.014552777933282308,
+        "faint": 0.014595213267965068,
         "suppl": 0.0
       },
       "observable": "TOA band-integrated photon radiance",
@@ -835,15 +835,15 @@
         "include_bright_catalog": false,
         "mjd": 52075.0,
         "nsb2_commit": "bc9320db03fbff69997ce366c6e76a37339c5d00",
-        "pickles_template_reduction": "nanmean of finite colour-grid templates",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
         "site": {
           "height": 2635.0,
           "latitude": -24.6275,
           "longitude": -70.40498688
         }
       },
-      "relative_difference": 0.8251148159355278,
-      "signed_difference": -0.06866054863369189,
+      "relative_difference": 0.8246048575378354,
+      "signed_difference": -0.06861811329900915,
       "units": "photons cm^-2 ns^-1 sr^-1",
       "wavelength_bounds_nm": [
         300.0,
@@ -851,7 +851,7 @@
       ]
     },
     {
-      "absolute_difference": 0.09947678581922842,
+      "absolute_difference": 0.0994357513264781,
       "case_id": "L2_galactic_center__nsb_vs_nsb2_faint_only",
       "classification": "conditional",
       "direction": {
@@ -873,9 +873,9 @@
       "model_nsb2": "nsb2_faint_only",
       "n_sources_declared": null,
       "nsb": 0.12363382703189044,
-      "nsb2": 0.024157041212662024,
+      "nsb2": 0.024198075705412336,
       "nsb2_parts": {
-        "faint": 0.024157041212662024,
+        "faint": 0.024198075705412336,
         "suppl": 0.0
       },
       "observable": "TOA band-integrated photon radiance",
@@ -884,15 +884,15 @@
         "include_bright_catalog": false,
         "mjd": 52075.0,
         "nsb2_commit": "bc9320db03fbff69997ce366c6e76a37339c5d00",
-        "pickles_template_reduction": "nanmean of finite colour-grid templates",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
         "site": {
           "height": 2635.0,
           "latitude": -24.6275,
           "longitude": -70.40498688
         }
       },
-      "relative_difference": 0.804608157875507,
-      "signed_difference": -0.09947678581922842,
+      "relative_difference": 0.8042762544334195,
+      "signed_difference": -0.0994357513264781,
       "units": "photons cm^-2 ns^-1 sr^-1",
       "wavelength_bounds_nm": [
         300.0,
@@ -900,7 +900,7 @@
       ]
     },
     {
-      "absolute_difference": 0.09947678581922842,
+      "absolute_difference": 0.0994357513264781,
       "case_id": "L2_galactic_center__nsb_vs_nsb2_faint_xhip",
       "classification": "conditional",
       "direction": {
@@ -922,9 +922,9 @@
       "model_nsb2": "nsb2_faint_xhip",
       "n_sources_declared": null,
       "nsb": 0.12363382703189044,
-      "nsb2": 0.024157041212662024,
+      "nsb2": 0.024198075705412336,
       "nsb2_parts": {
-        "faint": 0.024157041212662024,
+        "faint": 0.024198075705412336,
         "suppl": 0.0
       },
       "observable": "TOA band-integrated photon radiance",
@@ -933,15 +933,15 @@
         "include_bright_catalog": false,
         "mjd": 52075.0,
         "nsb2_commit": "bc9320db03fbff69997ce366c6e76a37339c5d00",
-        "pickles_template_reduction": "nanmean of finite colour-grid templates",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
         "site": {
           "height": 2635.0,
           "latitude": -24.6275,
           "longitude": -70.40498688
         }
       },
-      "relative_difference": 0.804608157875507,
-      "signed_difference": -0.09947678581922842,
+      "relative_difference": 0.8042762544334195,
+      "signed_difference": -0.0994357513264781,
       "units": "photons cm^-2 ns^-1 sr^-1",
       "wavelength_bounds_nm": [
         300.0,
@@ -1054,7 +1054,7 @@
   "provenance": {
     "nsb2_commit_pinned": "bc9320db03fbff69997ce366c6e76a37339c5d00",
     "nsb2_package_version": "0.2.0",
-    "nsb_git": "8d510c96ccd451b37c7ed57c112e69e02c65e1b6",
+    "nsb_git": "32e38dd495b25ba83a86c65360ce3628fd209d73",
     "nsb_package_version": null,
     "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43",
     "python": "3.14.4"

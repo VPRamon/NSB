@@ -431,11 +431,12 @@ def nsb_toa_starlight(ra_deg: float, dec_deg: float) -> float:
 
 
 def _nsb2_band_integral(field, lower: float, upper: float) -> float:
-    """Flat top-hat band integral; nanmean over finite Pickles template components.
+    """Flat top-hat band integral; nanmedian over finite Pickles templates.
 
     Empty catalog fields (no star in the search cone) contribute exactly zero —
     not an imputed population. For N sources × C templates, each source uses the
-    nanmean over finite templates; sources are then summed.
+    nanmedian over finite templates (nsb2's instrument central reduction among
+    nanmin/nanmedian/nanmax); sources are then summed.
     """
     import astropy.units as u
     from nsb2.core.spectral import Bandpass
@@ -455,7 +456,7 @@ def _nsb2_band_integral(field, lower: float, upper: float) -> float:
     for row in shaped:
         ok = row[np.isfinite(row)]
         if ok.size:
-            per_source.append(float(np.mean(ok)))
+            per_source.append(float(np.median(ok)))
     if not per_source:
         raise ValueError("No finite Pickles template rate for this direction")
     return float(np.sum(per_source) * 1e-9)
@@ -569,7 +570,10 @@ def level2_sky_direction_cases(*, include_bright_catalog: bool = False) -> list[
                     "nsb2_commit": NSB2_COMMIT,
                     "mjd": MJD,
                     "site": SITE,
-                    "pickles_template_reduction": "nanmean of finite colour-grid templates",
+                    "pickles_template_reduction": (
+                        "nanmedian of finite colour-grid templates "
+                        "(nsb2 instrument central of nanmin/nanmedian/nanmax)"
+                    ),
                     "include_bright_catalog": include_bright_catalog,
                 },
                 "limitations": [
