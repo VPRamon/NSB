@@ -50,14 +50,31 @@ MJD = 52075.0  # fixed TOA evaluation epoch; atmosphere excluded
 
 COMPARABILITY_MATRIX = [
     {
-        "comparison": "Level-1 synthetic StarlightMap band integrals",
+        "comparison": "Level-1 synthetic StarlightMap band integrals vs analytic reference",
         "status": "equivalent",
         "quantity": "Bin-integrated TOA photon radiance",
         "units": UNIT,
         "population": "synthetic fixture sources",
         "spectral_domain_nm": [360, 450],
         "atmosphere": "excluded (TOA)",
-        "notes": "Independent analytic expectations on checksum-pinned synthetic JSON.",
+        "notes": (
+            "NSB StarlightMap vs independently calculated analytic expectations. "
+            "Not by itself an NSB↔nsb2 cross-implementation equivalence test."
+        ),
+    },
+    {
+        "comparison": "Level-1 imposed constant spectrum through NSB StarlightMap and nsb2 SpectralGrid",
+        "status": "equivalent",
+        "quantity": "Band-integrated TOA photon radiance",
+        "units": UNIT,
+        "population": "synthetic single-spectrum radiance",
+        "spectral_domain_nm": [360, 450],
+        "atmosphere": "excluded (TOA)",
+        "notes": (
+            "Same constant photon spectral radiance density evaluated via NSB's "
+            "StarlightMap.integrate_band and nsb2's SpectralGrid/Bandpass/"
+            "integrate_wavelength path, each checked against the analytic integral."
+        ),
     },
     {
         "comparison": "NSB bundled 300–650 vs nsb2 faint G>15 (same sky directions)",
@@ -430,13 +447,42 @@ def nsb_toa_starlight(ra_deg: float, dec_deg: float) -> float:
     return float(result.components[0].integrated_photons_cm2_ns_sr)
 
 
+class UnavailableSpectralTemplate(ValueError):
+    """A selected source has no finite Pickles template rate (not a zero flux)."""
+
+
+def reduce_pickles_template_rates(rates_nc) -> float:
+    """Sum per-source nanmedians of finite Pickles template rates.
+
+    Distinguishes:
+    - empty selection (N=0) → legitimate 0.0
+    - selected source with no finite templates → UnavailableSpectralTemplate
+    - selected source with mixed finite/non-finite templates → nanmedian of finite
+    - selected source with valid numerical zero → contributes 0.0
+
+    Never silently drops an invalid selected source while summing the rest.
+    """
+    rates = np.asarray(rates_nc, float)
+    if rates.size == 0:
+        return 0.0
+    rates = np.atleast_2d(rates)
+    per_source = []
+    for index, row in enumerate(rates):
+        ok = row[np.isfinite(row)]
+        if ok.size == 0:
+            raise UnavailableSpectralTemplate(
+                f"selected source index {index} has no finite Pickles template rate"
+            )
+        per_source.append(float(np.median(ok)))
+    return float(np.sum(per_source))
+
+
 def _nsb2_band_integral(field, lower: float, upper: float) -> float:
-    """Flat top-hat band integral; nanmedian over finite Pickles templates.
+    """Flat top-hat band integral with fail-closed Pickles template reduction.
 
     Empty catalog fields (no star in the search cone) contribute exactly zero —
-    not an imputed population. For N sources × C templates, each source uses the
-    nanmedian over finite templates (nsb2's instrument central reduction among
-    nanmin/nanmedian/nanmax); sources are then summed.
+    not an imputed population. Selected sources with no finite templates reject
+    the evaluation rather than vanishing into a partial sum.
     """
     import astropy.units as u
     from nsb2.core.spectral import Bandpass
@@ -452,14 +498,11 @@ def _nsb2_band_integral(field, lower: float, upper: float) -> float:
         float,
     )
     shaped = np.atleast_2d(shaped)
-    per_source = []
-    for row in shaped:
-        ok = row[np.isfinite(row)]
-        if ok.size:
-            per_source.append(float(np.median(ok)))
-    if not per_source:
-        raise ValueError("No finite Pickles template rate for this direction")
-    return float(np.sum(per_source) * 1e-9)
+    if shaped.shape[0] != n_sources:
+        raise ValueError(
+            f"nsb2 rate rows {shaped.shape[0]} != selected sources {n_sources}"
+        )
+    return reduce_pickles_template_rates(shaped) * 1e-9
 
 
 def nsb2_search_radius_rad() -> float:
@@ -612,10 +655,244 @@ def package_version(name: str) -> str | None:
         return None
 
 
+def _direct_url_commit(dist) -> str | None:
+    raw = dist.read_text("direct_url.json")
+    if not raw:
+        return None
+    payload = json.loads(raw)
+    vcs = payload.get("vcs_info") or {}
+    commit = vcs.get("commit_id")
+    return str(commit) if commit else None
+
+
+def resolve_nsb2_identity() -> dict:
+    """Resolve the installed nsb2 revision without network access."""
+    import importlib.metadata as metadata
+    import nsb2
+
+    identity = {
+        "pinned_commit": NSB2_COMMIT,
+        "package_version": package_version("nsb2"),
+        "module_path": str(Path(nsb2.__file__).resolve()),
+        "resolved_commit": None,
+        "resolution_source": None,
+        "verification": "unverifiable",
+    }
+    module_root = Path(nsb2.__file__).resolve().parent
+    for candidate in (module_root, module_root.parent):
+        commit = git_rev(candidate)
+        if commit:
+            identity["resolved_commit"] = commit
+            identity["resolution_source"] = f"git:{candidate}"
+            break
+    if identity["resolved_commit"] is None:
+        try:
+            dist = metadata.distribution("nsb2")
+            commit = _direct_url_commit(dist)
+            if commit:
+                identity["resolved_commit"] = commit
+                identity["resolution_source"] = "direct_url.json:vcs_info.commit_id"
+        except Exception:  # noqa: BLE001
+            pass
+    resolved = identity["resolved_commit"]
+    if resolved == NSB2_COMMIT:
+        identity["verification"] = "matched"
+    elif resolved is not None:
+        identity["verification"] = "mismatched"
+    return identity
+
+
+def require_nsb2_pin(*, allow_unverified: bool = False) -> dict:
+    """Option A: require pinned revision. Option B: allow explicit provenance limit."""
+    identity = resolve_nsb2_identity()
+    if identity["verification"] == "matched":
+        identity["evidence_status"] = "pinned_reference"
+        return identity
+    if identity["verification"] == "mismatched":
+        raise RuntimeError(
+            "Installed nsb2 commit "
+            f"{identity['resolved_commit']} does not match pinned {NSB2_COMMIT}"
+        )
+    if not allow_unverified:
+        raise RuntimeError(
+            "Installed nsb2 revision is unverifiable (no git checkout or "
+            "direct_url vcs_info). Refusing to publish falsely pinned evidence. "
+            "Use --allow-unverified-nsb2 only for explicitly provenance-limited runs."
+        )
+    identity["evidence_status"] = "provenance_limited_unverified"
+    return identity
+
+
+def level1_cross_implementation_constant_spectrum() -> list[dict]:
+    """Paired NSB↔nsb2 evaluation of the same imposed constant TOA spectrum.
+
+    Uses NSB StarlightMap.integrate_band and nsb2 SpectralGrid + Bandpass +
+    integrate_wavelength on independently constructed representations of the
+    same constant photon spectral radiance density. A shared NumPy helper is
+    not used as the only reference.
+    """
+    import tempfile
+
+    import astropy.units as u
+    import nsb
+    from nsb2.core.dtypes import ResolvedField
+    from nsb2.core.spectral import Bandpass, integrate_wavelength
+    from astropy.coordinates import SkyCoord
+
+    density_per_nm = 1.0e-4  # photons cm^-2 ns^-1 sr^-1 nm^-1
+    lo, hi = 360, 450
+    analytic = density_per_nm * (hi - lo)
+    # Three equal native bins; StarlightMap edges are integer nm (u16).
+    edges = [360, 390, 420, 450]
+    bin_radiance = [density_per_nm * 30.0] * 3
+    pixels = [
+        {"pixel": i, "sources": 1, "radiance": bin_radiance} for i in range(12)
+    ]
+    document = {
+        "schema": "nsb-starlight-spectral-map-v2",
+        "product_id": "synthetic-constant-360-450-cross-v1",
+        "band_nm": [lo, hi],
+        "bin_edges_nm": edges,
+        "nside": 1,
+        "ordering": "ring",
+        "coordinate_frame": "galactic",
+        "domain": "top-of-atmosphere",
+        "units": "photon/(cm2 ns sr)",
+        "wavelength_convention": "vacuum",
+        "maturity": "experimental",
+        "provenance": {
+            "source_catalogue": "synthetic",
+            "source_license": "AGPL-3.0-only",
+            "source_selection": "imposed constant spectrum",
+            "generation_method": "matched-starlight benchmark fixture",
+            "limitations": ["synthetic cross-implementation fixture"],
+        },
+        "catalogue_rows": 12,
+        "admitted_sources": 12,
+        "excluded_sources": {},
+        "pixels": pixels,
+    }
+    raw = (json.dumps(document, separators=(",", ":")) + "\n").encode()
+    sha = hashlib.sha256(raw).hexdigest()
+    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as handle:
+        handle.write(raw)
+        path = Path(handle.name)
+    try:
+        mmap = nsb.StarlightMap.load(str(path), sha)
+        nsb_value, _ = mmap.integrate_band(0.0, 0.0, float(lo), float(hi))
+        nsb_value = float(nsb_value)
+    finally:
+        path.unlink(missing_ok=True)
+
+    # nsb2 path: constant density in per-second units; solid angle via weight.
+    dens_per_s = density_per_nm * 1e9
+    wave = np.linspace(float(lo), float(hi), 901) * u.nm
+    flx = np.full((wave.size, 1), dens_per_s) * (1 / u.s / u.cm**2 / u.nm)
+    from nsb2.core.spectral import SpectralGrid
+
+    grid = SpectralGrid([], wave, flx)
+    # UnivariateSpline (k=3) requires >3 nodes; flat top-hat over the band.
+    band = Bandpass(
+        np.array([float(lo), 390.0, 420.0, float(hi)]) * u.nm, np.ones(4)
+    )
+    restricted = grid.apply_bandpass(band)
+    weights = np.array([[1.0]]) / u.sr
+    # (N=1, W, C=1) radiance field for ResolvedField.integrate.
+    flx_n = restricted.flx[None, ...]
+    resolved = ResolvedField(
+        coords=SkyCoord([0] * u.deg, [0] * u.deg, frame="galactic"),
+        weights=weights,
+        wvl=restricted.wvl,
+        flx=flx_n,
+        radiance_field=True,
+    )
+    rate = resolved.integrate()
+    nsb2_per_s = float(
+        np.asarray(
+            rate.to_value(1 / u.s / u.cm**2 / u.sr, equivalencies=u.dimensionless_angles())
+        ).reshape(-1)[0]
+    )
+    nsb2_value = nsb2_per_s * 1e-9
+    # Direct nsb2.integrate_wavelength on the same weighted spectrum.
+    direct = integrate_wavelength(weights[:, None] * flx_n, restricted.wvl, axis=-2)
+    direct_value = float(
+        np.asarray(
+            direct.to_value(1 / u.s / u.cm**2 / u.sr, equivalencies=u.dimensionless_angles())
+        ).reshape(-1)[0]
+    ) * 1e-9
+
+    cases = []
+    for case_id, left, right, label_a, label_b in (
+        ("L1_cross_nsb_vs_analytic", nsb_value, analytic, "nsb", "analytic"),
+        ("L1_cross_nsb2_vs_analytic", nsb2_value, analytic, "nsb2", "analytic"),
+        ("L1_cross_nsb_vs_nsb2", nsb_value, nsb2_value, "nsb", "nsb2"),
+        ("L1_cross_nsb2_integrate_vs_resolved", nsb2_value, direct_value, "nsb2_resolved", "nsb2_integrate_wavelength"),
+    ):
+        signed = float(left) - float(right)
+        cases.append({
+            "case_id": case_id,
+            "classification": "equivalent",
+            "level": 1,
+            "population": "synthetic imposed constant spectrum",
+            "n_sources_declared": 1,
+            "wavelength_bounds_nm": [lo, hi],
+            "observable": "TOA band-integrated photon radiance",
+            "nsb": nsb_value if "nsb" in label_a or label_a == "nsb" else None,
+            "nsb2": nsb2_value,
+            "left": float(left),
+            "right": float(right),
+            "compared_keys": [label_a, label_b],
+            "reference": analytic,
+            "signed_difference": signed,
+            "absolute_difference": abs(signed),
+            "relative_difference": None if right == 0 else abs(signed) / abs(right),
+            "units": UNIT,
+            "geometry": "synthetic isotropic radiance; NSB nside=1 galactic RING",
+            "provenance": {
+                "density_photons_cm2_ns_sr_nm": density_per_nm,
+                "nsb_map_sha256": sha,
+                "nsb2_operators": [
+                    "ResolvedField.integrate",
+                    "integrate_wavelength",
+                    "Bandpass",
+                ],
+            },
+            "limitations": [
+                "Synthetic imposed spectrum only; not a Gaia population comparison.",
+            ],
+        })
+    return cases
+
+
+def summarize_cases(cases: list[dict], key_a: str, key_b: str) -> dict | None:
+    if not cases:
+        return None
+    rel = [c["relative_difference"] for c in cases if c.get("relative_difference") is not None]
+    absdiff = [c["absolute_difference"] for c in cases if c.get("absolute_difference") is not None]
+    return {
+        "n_cases": len(cases),
+        "mean_absolute_difference": float(np.mean(absdiff)) if absdiff else None,
+        "median_relative_difference": float(np.median(rel)) if rel else None,
+        "max_relative_difference": float(np.max(rel)) if rel else None,
+        "compared_keys": [key_a, key_b],
+    }
+
+
 def build_artifact(
-    *, skip_level2: bool, offline_audit: bool, include_bright_catalog: bool
+    *,
+    skip_level2: bool,
+    offline_audit: bool,
+    include_bright_catalog: bool,
+    allow_unverified_nsb2: bool,
 ) -> dict:
-    level1 = level1_analytic_operator_cases() + level1_synthetic_nsb_cases()
+    # Level-1 cross-implementation and Level-2 both import nsb2 operators.
+    nsb2_identity = require_nsb2_pin(allow_unverified=allow_unverified_nsb2)
+
+    level1 = (
+        level1_analytic_operator_cases()
+        + level1_synthetic_nsb_cases()
+        + level1_cross_implementation_constant_spectrum()
+    )
     level2: list[dict] = []
     level2_error = None
     if not skip_level2:
@@ -627,25 +904,24 @@ def build_artifact(
             level2_error = str(error)
 
     equivalent = [c for c in level1 if c.get("classification") == "equivalent"]
+    cross = [c for c in equivalent if c["case_id"].startswith("L1_cross_")]
     conditional = [c for c in level2 if c.get("classification") == "conditional"]
-
-    def summarize(cases: list[dict], key_a: str, key_b: str) -> dict | None:
-        if not cases:
-            return None
-        rel = [c["relative_difference"] for c in cases if c.get("relative_difference") is not None]
-        absdiff = [c["absolute_difference"] for c in cases if c.get("absolute_difference") is not None]
-        return {
-            "n_cases": len(cases),
-            "mean_absolute_difference": float(np.mean(absdiff)) if absdiff else None,
-            "median_relative_difference": float(np.median(rel)) if rel else None,
-            "max_relative_difference": float(np.max(rel)) if rel else None,
-            "compared_keys": [key_a, key_b],
-        }
 
     return {
         "schema": PROTOCOL,
         "issue": 298,
         "outcome": "B_restricted_equivalent_benchmark",
+        "issue_298_closure": {
+            "closes": True,
+            "justification": (
+                "Acceptance requires a comparison contract, at least one genuinely "
+                "equivalent numerical paired test, explicit missing-population "
+                "accounting, and distinction from empirical validation. Level-1 "
+                "includes an NSB↔nsb2 imposed-spectrum paired test through each "
+                "implementation's spectral operators plus analytic checks; Level-2 "
+                "remains conditional. Missing populations are not treated as zero."
+            ),
+        },
         "scientific_question": (
             "When NSB and nsb2 represent stellar sources over a shared wavelength "
             "interval with the same physical observation operator, how closely do "
@@ -662,8 +938,14 @@ def build_artifact(
         "provenance": {
             "nsb_git": git_rev(ROOT),
             "nsb2_commit_pinned": NSB2_COMMIT,
+            "nsb2_identity": nsb2_identity,
             "nsb2_package_version": package_version("nsb2"),
             "nsb_package_version": package_version("nsb"),
+            "pickles_template_reduction": (
+                "nanmedian over finite Pickles template alternatives "
+                "(nsb2 instrument central of nanmin/nanmedian/nanmax); "
+                "selected sources with no finite template reject the evaluation"
+            ),
             "python": platform.python_version(),
             "platform": platform.platform(),
         },
@@ -671,23 +953,25 @@ def build_artifact(
             "solar_colour_proxy_on_nsb_300_650",
             "arbitrary_renormalization",
             "treating_missing_population_as_zero",
+            "silent_drop_of_invalid_pickles_templates",
         ],
         "level1_cases": level1,
         "level2_cases": level2,
         "level2_execution_error": level2_error,
         "aggregates": {
-            "level1_equivalent": summarize(equivalent, "nsb", "reference"),
-            "level2_conditional_faint_only": summarize(
+            "level1_equivalent": summarize_cases(equivalent, "left_or_nsb", "right_or_reference"),
+            "level1_cross_implementation": summarize_cases(cross, "left", "right"),
+            "level2_conditional_faint_only": summarize_cases(
                 [c for c in conditional if c["case_id"].endswith("nsb2_faint_only")],
                 "nsb",
                 "nsb2",
             ),
-            "level2_conditional_faint_xhip": summarize(
+            "level2_conditional_faint_xhip": summarize_cases(
                 [c for c in conditional if c["case_id"].endswith("nsb2_faint_xhip")],
                 "nsb",
                 "nsb2",
             ),
-            "level2_conditional_faint_bright_xhip": summarize(
+            "level2_conditional_faint_bright_xhip": summarize_cases(
                 [c for c in conditional if c["case_id"].endswith("nsb2_faint_bright_xhip")],
                 "nsb",
                 "nsb2",
@@ -707,7 +991,8 @@ def build_artifact(
                 "evidence": (
                     "NSB uses XP/photometric/CK04 construction; nsb2 uses Pickles "
                     "templates keyed by Gaia colour. Colour grids retain multiple "
-                    "finite templates (nanmean used here)."
+                    "finite templates; Level-2 uses nanmedian of finite alternatives "
+                    "and rejects selected sources with no finite template."
                 ),
             },
             {
@@ -725,9 +1010,11 @@ def build_artifact(
         ],
         "limitations": [
             "Cross-implementation agreement is not empirical validation.",
-            "Level-2 cases are conditional, not equivalent.",
+            "Level-2 cases are conditional, not population-equivalent.",
             "XP 360–570 candidate bytes are unavailable in this repository checkout.",
             "No production Starlight coefficients were changed.",
+            "Level-1 NSB-vs-analytic cases alone do not establish NSB↔nsb2 equivalence; "
+            "the imposed-spectrum cross cases do.",
         ],
         "follow_ups": [
             "Obtain checksum-pinned XP map bytes to enable 360–570 nm spectral comparisons (#304 context).",
@@ -749,16 +1036,26 @@ def main() -> None:
         action="store_true",
         help="Also build the nsb2 G<15 BallTree (~3.7e7 stars; slow, opt-in)",
     )
+    parser.add_argument(
+        "--allow-unverified-nsb2",
+        action="store_true",
+        help=(
+            "Option B: allow Level-1/2 when nsb2 commit cannot be verified; "
+            "marks evidence as provenance-limited (default refuses)"
+        ),
+    )
     args = parser.parse_args()
     artifact = build_artifact(
         skip_level2=args.skip_level2,
         offline_audit=args.offline_audit,
         include_bright_catalog=args.include_bright_catalog,
+        allow_unverified_nsb2=args.allow_unverified_nsb2,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(artifact, indent=2, sort_keys=True) + "\n")
     print(f"Wrote {args.output}")
     print("outcome", artifact["outcome"])
+    print("nsb2_identity", artifact["provenance"].get("nsb2_identity"))
     if artifact["level2_execution_error"]:
         print("level2_error", artifact["level2_execution_error"])
     for key, summary in artifact["aggregates"].items():

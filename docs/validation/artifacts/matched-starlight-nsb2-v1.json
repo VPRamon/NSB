@@ -1,14 +1,24 @@
 {
   "aggregates": {
+    "level1_cross_implementation": {
+      "compared_keys": [
+        "left",
+        "right"
+      ],
+      "max_relative_difference": 0.0,
+      "mean_absolute_difference": 0.0,
+      "median_relative_difference": 0.0,
+      "n_cases": 4
+    },
     "level1_equivalent": {
       "compared_keys": [
-        "nsb",
-        "reference"
+        "left_or_nsb",
+        "right_or_reference"
       ],
       "max_relative_difference": 1.927470528863119e-16,
-      "mean_absolute_difference": 4.956352788505163e-19,
+      "mean_absolute_difference": 3.154042683594195e-19,
       "median_relative_difference": 0.0,
-      "n_cases": 8
+      "n_cases": 12
     },
     "level2_conditional_faint_bright_xhip": null,
     "level2_conditional_faint_only": {
@@ -40,10 +50,23 @@
   "comparability_matrix": [
     {
       "atmosphere": "excluded (TOA)",
-      "comparison": "Level-1 synthetic StarlightMap band integrals",
-      "notes": "Independent analytic expectations on checksum-pinned synthetic JSON.",
+      "comparison": "Level-1 synthetic StarlightMap band integrals vs analytic reference",
+      "notes": "NSB StarlightMap vs independently calculated analytic expectations. Not by itself an NSB\u2194nsb2 cross-implementation equivalence test.",
       "population": "synthetic fixture sources",
       "quantity": "Bin-integrated TOA photon radiance",
+      "spectral_domain_nm": [
+        360,
+        450
+      ],
+      "status": "equivalent",
+      "units": "photons cm^-2 ns^-1 sr^-1"
+    },
+    {
+      "atmosphere": "excluded (TOA)",
+      "comparison": "Level-1 imposed constant spectrum through NSB StarlightMap and nsb2 SpectralGrid",
+      "notes": "Same constant photon spectral radiance density evaluated via NSB's StarlightMap.integrate_band and nsb2's SpectralGrid/Bandpass/integrate_wavelength path, each checked against the analytic integral.",
+      "population": "synthetic single-spectrum radiance",
+      "quantity": "Band-integrated TOA photon radiance",
       "spectral_domain_nm": [
         360,
         450
@@ -111,7 +134,7 @@
     },
     {
       "cause": "intentional_scientific_model_difference",
-      "evidence": "NSB uses XP/photometric/CK04 construction; nsb2 uses Pickles templates keyed by Gaia colour. Colour grids retain multiple finite templates (nanmean used here)."
+      "evidence": "NSB uses XP/photometric/CK04 construction; nsb2 uses Pickles templates keyed by Gaia colour. Colour grids retain multiple finite templates; Level-2 uses nanmedian of finite alternatives and rejects selected sources with no finite template."
     },
     {
       "cause": "geometry_definition_difference",
@@ -130,7 +153,8 @@
   "forbidden_operations_not_used": [
     "solar_colour_proxy_on_nsb_300_650",
     "arbitrary_renormalization",
-    "treating_missing_population_as_zero"
+    "treating_missing_population_as_zero",
+    "silent_drop_of_invalid_pickles_templates"
   ],
   "frozen_sky_directions": [
     {
@@ -165,6 +189,10 @@
     }
   ],
   "issue": 298,
+  "issue_298_closure": {
+    "closes": true,
+    "justification": "Acceptance requires a comparison contract, at least one genuinely equivalent numerical paired test, explicit missing-population accounting, and distinction from empirical validation. Level-1 includes an NSB\u2194nsb2 imposed-spectrum paired test through each implementation's spectral operators plus analytic checks; Level-2 remains conditional. Missing populations are not treated as zero."
+  },
   "level1_cases": [
     {
       "absolute_difference": 0.0,
@@ -356,6 +384,158 @@
       "wavelength_bounds_nm": [
         360.0,
         380.0
+      ]
+    },
+    {
+      "absolute_difference": 0.0,
+      "case_id": "L1_cross_nsb_vs_analytic",
+      "classification": "equivalent",
+      "compared_keys": [
+        "nsb",
+        "analytic"
+      ],
+      "geometry": "synthetic isotropic radiance; NSB nside=1 galactic RING",
+      "left": 0.009000000000000001,
+      "level": 1,
+      "limitations": [
+        "Synthetic imposed spectrum only; not a Gaia population comparison."
+      ],
+      "n_sources_declared": 1,
+      "nsb": 0.009000000000000001,
+      "nsb2": 0.009000000000000001,
+      "observable": "TOA band-integrated photon radiance",
+      "population": "synthetic imposed constant spectrum",
+      "provenance": {
+        "density_photons_cm2_ns_sr_nm": 0.0001,
+        "nsb2_operators": [
+          "ResolvedField.integrate",
+          "integrate_wavelength",
+          "Bandpass"
+        ],
+        "nsb_map_sha256": "c58d7711acdc7ca20d47640395ba5b51c85860f210c2f8095b9632547e398051"
+      },
+      "reference": 0.009000000000000001,
+      "relative_difference": 0.0,
+      "right": 0.009000000000000001,
+      "signed_difference": 0.0,
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        360,
+        450
+      ]
+    },
+    {
+      "absolute_difference": 0.0,
+      "case_id": "L1_cross_nsb2_vs_analytic",
+      "classification": "equivalent",
+      "compared_keys": [
+        "nsb2",
+        "analytic"
+      ],
+      "geometry": "synthetic isotropic radiance; NSB nside=1 galactic RING",
+      "left": 0.009000000000000001,
+      "level": 1,
+      "limitations": [
+        "Synthetic imposed spectrum only; not a Gaia population comparison."
+      ],
+      "n_sources_declared": 1,
+      "nsb": 0.009000000000000001,
+      "nsb2": 0.009000000000000001,
+      "observable": "TOA band-integrated photon radiance",
+      "population": "synthetic imposed constant spectrum",
+      "provenance": {
+        "density_photons_cm2_ns_sr_nm": 0.0001,
+        "nsb2_operators": [
+          "ResolvedField.integrate",
+          "integrate_wavelength",
+          "Bandpass"
+        ],
+        "nsb_map_sha256": "c58d7711acdc7ca20d47640395ba5b51c85860f210c2f8095b9632547e398051"
+      },
+      "reference": 0.009000000000000001,
+      "relative_difference": 0.0,
+      "right": 0.009000000000000001,
+      "signed_difference": 0.0,
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        360,
+        450
+      ]
+    },
+    {
+      "absolute_difference": 0.0,
+      "case_id": "L1_cross_nsb_vs_nsb2",
+      "classification": "equivalent",
+      "compared_keys": [
+        "nsb",
+        "nsb2"
+      ],
+      "geometry": "synthetic isotropic radiance; NSB nside=1 galactic RING",
+      "left": 0.009000000000000001,
+      "level": 1,
+      "limitations": [
+        "Synthetic imposed spectrum only; not a Gaia population comparison."
+      ],
+      "n_sources_declared": 1,
+      "nsb": 0.009000000000000001,
+      "nsb2": 0.009000000000000001,
+      "observable": "TOA band-integrated photon radiance",
+      "population": "synthetic imposed constant spectrum",
+      "provenance": {
+        "density_photons_cm2_ns_sr_nm": 0.0001,
+        "nsb2_operators": [
+          "ResolvedField.integrate",
+          "integrate_wavelength",
+          "Bandpass"
+        ],
+        "nsb_map_sha256": "c58d7711acdc7ca20d47640395ba5b51c85860f210c2f8095b9632547e398051"
+      },
+      "reference": 0.009000000000000001,
+      "relative_difference": 0.0,
+      "right": 0.009000000000000001,
+      "signed_difference": 0.0,
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        360,
+        450
+      ]
+    },
+    {
+      "absolute_difference": 0.0,
+      "case_id": "L1_cross_nsb2_integrate_vs_resolved",
+      "classification": "equivalent",
+      "compared_keys": [
+        "nsb2_resolved",
+        "nsb2_integrate_wavelength"
+      ],
+      "geometry": "synthetic isotropic radiance; NSB nside=1 galactic RING",
+      "left": 0.009000000000000001,
+      "level": 1,
+      "limitations": [
+        "Synthetic imposed spectrum only; not a Gaia population comparison."
+      ],
+      "n_sources_declared": 1,
+      "nsb": 0.009000000000000001,
+      "nsb2": 0.009000000000000001,
+      "observable": "TOA band-integrated photon radiance",
+      "population": "synthetic imposed constant spectrum",
+      "provenance": {
+        "density_photons_cm2_ns_sr_nm": 0.0001,
+        "nsb2_operators": [
+          "ResolvedField.integrate",
+          "integrate_wavelength",
+          "Bandpass"
+        ],
+        "nsb_map_sha256": "c58d7711acdc7ca20d47640395ba5b51c85860f210c2f8095b9632547e398051"
+      },
+      "reference": 0.009000000000000001,
+      "relative_difference": 0.0,
+      "right": 0.009000000000000001,
+      "signed_difference": 0.0,
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        360,
+        450
       ]
     }
   ],
@@ -952,9 +1132,10 @@
   "level2_execution_error": null,
   "limitations": [
     "Cross-implementation agreement is not empirical validation.",
-    "Level-2 cases are conditional, not equivalent.",
+    "Level-2 cases are conditional, not population-equivalent.",
     "XP 360\u2013570 candidate bytes are unavailable in this repository checkout.",
-    "No production Starlight coefficients were changed."
+    "No production Starlight coefficients were changed.",
+    "Level-1 NSB-vs-analytic cases alone do not establish NSB\u2194nsb2 equivalence; the imposed-spectrum cross cases do."
   ],
   "outcome": "B_restricted_equivalent_benchmark",
   "population_audit": {
@@ -1053,9 +1234,19 @@
   },
   "provenance": {
     "nsb2_commit_pinned": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+    "nsb2_identity": {
+      "evidence_status": "pinned_reference",
+      "module_path": "/tmp/nsb2-reference/nsb2/__init__.py",
+      "package_version": "0.2.0",
+      "pinned_commit": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+      "resolution_source": "git:/tmp/nsb2-reference/nsb2",
+      "resolved_commit": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+      "verification": "matched"
+    },
     "nsb2_package_version": "0.2.0",
-    "nsb_git": "32e38dd495b25ba83a86c65360ce3628fd209d73",
+    "nsb_git": "0a7a0c029a2748e73b8355f3a77297cc22fadebd",
     "nsb_package_version": null,
+    "pickles_template_reduction": "nanmedian over finite Pickles template alternatives (nsb2 instrument central of nanmin/nanmedian/nanmax); selected sources with no finite template reject the evaluation",
     "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43",
     "python": "3.14.4"
   },

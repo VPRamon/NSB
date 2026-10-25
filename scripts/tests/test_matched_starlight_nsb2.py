@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 import numpy as np
@@ -111,3 +112,143 @@ def test_protocol_pins_nsb2_commit_and_band():
     assert study.NSB2_COMMIT.startswith("bc9320d")
     assert study.BAND_NM == (300.0, 650.0)
     assert study.XP_CANDIDATE_SHA.startswith("fe331343")
+
+
+def test_reduce_pickles_all_finite_uses_nanmedian():
+    rates = np.array([[1.0, 3.0, 5.0]])
+    assert study.reduce_pickles_template_rates(rates) == pytest.approx(3.0)
+
+
+def test_reduce_pickles_mixed_finite_nonfinite_within_source():
+    rates = np.array([[1.0, np.nan, 5.0, np.inf]])
+    assert study.reduce_pickles_template_rates(rates) == pytest.approx(3.0)
+
+
+def test_reduce_pickles_rejects_source_with_all_nonfinite():
+    rates = np.array([[1.0, 2.0], [np.nan, np.nan]])
+    with pytest.raises(study.UnavailableSpectralTemplate, match="source index 1"):
+        study.reduce_pickles_template_rates(rates)
+
+
+def test_reduce_pickles_rejects_when_only_one_of_multiple_is_invalid():
+    rates = np.array([[2.0, 4.0], [np.nan, np.nan], [1.0, 1.0]])
+    with pytest.raises(study.UnavailableSpectralTemplate, match="source index 1"):
+        study.reduce_pickles_template_rates(rates)
+
+
+def test_reduce_pickles_empty_selection_is_legitimate_zero():
+    assert study.reduce_pickles_template_rates(np.zeros((0, 3))) == 0.0
+    assert study.reduce_pickles_template_rates([]) == 0.0
+
+
+def test_reduce_pickles_valid_numerical_zero_is_kept():
+    rates = np.array([[0.0, 0.0, 0.0], [2.0, 4.0, 6.0]])
+    assert study.reduce_pickles_template_rates(rates) == pytest.approx(4.0)
+
+
+def test_no_stale_nanmean_descriptions_in_published_evidence():
+    root = SCRIPT.parent.parent
+    for path in (
+        SCRIPT,
+        root / "docs/validation/matched-starlight-nsb2-v1.md",
+        root / "docs/validation/artifacts/matched-starlight-nsb2-v1.json",
+    ):
+        text = path.read_text()
+        assert "nanmean" not in text
+        assert "nanmedian" in text
+
+
+def test_committed_artifact_records_verified_nsb2_pin():
+    artifact = json.loads(
+        (SCRIPT.parent.parent / "docs/validation/artifacts/matched-starlight-nsb2-v1.json").read_text()
+    )
+    identity = artifact["provenance"]["nsb2_identity"]
+    assert identity["pinned_commit"] == study.NSB2_COMMIT
+    assert identity["resolved_commit"] == study.NSB2_COMMIT
+    assert identity["verification"] == "matched"
+    assert identity["evidence_status"] == "pinned_reference"
+    assert artifact["issue_298_closure"]["closes"] is True
+    assert artifact["aggregates"]["level1_cross_implementation"]["max_relative_difference"] == 0.0
+    # Level-2 conditional metrics unchanged by fail-closed template accounting.
+    faint = artifact["aggregates"]["level2_conditional_faint_only"]
+    assert faint["median_relative_difference"] == pytest.approx(0.8847676634377348)
+    assert faint["max_relative_difference"] == pytest.approx(0.9710947910998103)
+
+
+def test_nsb2_identity_matched_against_pin(monkeypatch):
+    monkeypatch.setattr(study, "git_rev", lambda path: study.NSB2_COMMIT)
+    monkeypatch.setattr(study, "package_version", lambda name: "0.2.0")
+    identity = study.resolve_nsb2_identity()
+    # resolve_nsb2_identity imports real nsb2; force matched via require after patching resolve
+    monkeypatch.setattr(
+        study,
+        "resolve_nsb2_identity",
+        lambda: {
+            "pinned_commit": study.NSB2_COMMIT,
+            "resolved_commit": study.NSB2_COMMIT,
+            "verification": "matched",
+            "resolution_source": "test",
+            "package_version": "0.2.0",
+            "module_path": "test",
+        },
+    )
+    got = study.require_nsb2_pin(allow_unverified=False)
+    assert got["verification"] == "matched"
+    assert got["evidence_status"] == "pinned_reference"
+
+
+def test_nsb2_identity_mismatched_is_rejected(monkeypatch):
+    monkeypatch.setattr(
+        study,
+        "resolve_nsb2_identity",
+        lambda: {
+            "pinned_commit": study.NSB2_COMMIT,
+            "resolved_commit": "deadbeef" * 5,
+            "verification": "mismatched",
+            "resolution_source": "test",
+            "package_version": "0.2.0",
+            "module_path": "test",
+        },
+    )
+    with pytest.raises(RuntimeError, match="does not match pinned"):
+        study.require_nsb2_pin(allow_unverified=False)
+
+
+def test_nsb2_identity_unverifiable_refuses_unless_option_b(monkeypatch):
+    monkeypatch.setattr(
+        study,
+        "resolve_nsb2_identity",
+        lambda: {
+            "pinned_commit": study.NSB2_COMMIT,
+            "resolved_commit": None,
+            "verification": "unverifiable",
+            "resolution_source": None,
+            "package_version": "0.2.0",
+            "module_path": "test",
+        },
+    )
+    with pytest.raises(RuntimeError, match="unverifiable"):
+        study.require_nsb2_pin(allow_unverified=False)
+    limited = study.require_nsb2_pin(allow_unverified=True)
+    assert limited["evidence_status"] == "provenance_limited_unverified"
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("nsb") is None or importlib.util.find_spec("nsb2") is None,
+    reason="nsb/nsb2 unavailable",
+)
+def test_level1_cross_implementation_agrees_with_analytic():
+    cases = {c["case_id"]: c for c in study.level1_cross_implementation_constant_spectrum()}
+    assert "L1_cross_nsb_vs_nsb2" in cases
+    for case_id in (
+        "L1_cross_nsb_vs_analytic",
+        "L1_cross_nsb2_vs_analytic",
+        "L1_cross_nsb_vs_nsb2",
+        "L1_cross_nsb2_integrate_vs_resolved",
+    ):
+        assert cases[case_id]["relative_difference"] == pytest.approx(0.0, abs=1e-6)
+
+
+def test_comparability_matrix_includes_cross_implementation_equivalent():
+    equiv = [row for row in study.COMPARABILITY_MATRIX if row["status"] == "equivalent"]
+    assert any("NSB StarlightMap and nsb2" in row["comparison"] for row in equiv)
