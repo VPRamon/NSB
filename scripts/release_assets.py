@@ -37,6 +37,8 @@ def extract_notes(changelog, tag):
     text = changelog[start:end].strip()
     if not any(line.strip() and not line.lstrip().startswith("#") for line in text.splitlines()):
         raise ValueError(f"empty changelog section for {version}")
+    if re.search(r"not yet published|publication still awaits maintainer approval", text, re.IGNORECASE):
+        raise ValueError(f"release notes for {version} contain a prepublication placeholder")
     return text + "\n"
 
 
@@ -95,6 +97,32 @@ def verify_artifacts(directory, tag):
     return files
 
 
+def verify_github_release(snapshot, files, tag, notes):
+    """Fail closed unless GitHub exposes the exact, completed release."""
+    version_for(tag)
+    if (snapshot.get("tagName") != tag or snapshot.get("name") != f"NSB {tag}"
+            or snapshot.get("isDraft") is not False
+            or snapshot.get("isPrerelease") is not False
+            or snapshot.get("body", "").strip() != notes.strip()):
+        raise ValueError("GitHub Release metadata differs from verified tag, notes or status")
+
+    expected = {path.name: path for path in files}
+    assets = snapshot.get("assets")
+    if (not isinstance(assets, list) or len(assets) != len(expected)
+            or {asset.get("name") for asset in assets} != set(expected)):
+        raise ValueError("GitHub Release asset inventory differs from validated artifacts")
+
+    for asset in assets:
+        path = expected[asset["name"]]
+        if asset.get("size") != path.stat().st_size:
+            raise ValueError(f"GitHub Release asset size mismatch: {path.name}")
+        digest = asset.get("digest")
+        if digest is not None:
+            expected_digest = "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+            if digest != expected_digest:
+                raise ValueError(f"GitHub Release asset SHA-256 mismatch: {path.name}")
+
+
 def verify_ci_run(data, sha):
     """Require completed CI on the exact main-branch commit before tagging."""
     if re.fullmatch(r"[0-9a-f]{40}", sha) is None:
@@ -143,6 +171,11 @@ def main(argv=None):
     verify.add_argument("--tag", required=True)
     verify.add_argument("--dist", type=Path, required=True)
     verify.add_argument("--published", action="store_true")
+    github_release = commands.add_parser("github-release")
+    github_release.add_argument("--tag", required=True)
+    github_release.add_argument("--dist", type=Path, required=True)
+    github_release.add_argument("--notes", type=Path, required=True)
+    github_release.add_argument("--release-json", type=Path, required=True)
     ci = commands.add_parser("ci")
     ci.add_argument("--sha", required=True)
     ci.add_argument("--runs", type=Path, required=True)
@@ -151,6 +184,11 @@ def main(argv=None):
         print(verify_ci_run(json.loads(args.runs.read_text()), args.sha))
     elif args.command == "notes":
         args.output.write_text(extract_notes(args.changelog.read_text(encoding="utf-8"), args.tag), encoding="utf-8")
+    elif args.command == "github-release":
+        files = verify_artifacts(args.dist, args.tag)
+        snapshot = json.loads(args.release_json.read_text(encoding="utf-8"))
+        verify_github_release(snapshot, files, args.tag, args.notes.read_text(encoding="utf-8"))
+        print(f"Verified GitHub Release {args.tag} and {len(files)} artifacts")
     else:
         files = verify_artifacts(args.dist, args.tag)
         if args.published:

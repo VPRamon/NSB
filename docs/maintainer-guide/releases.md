@@ -9,6 +9,26 @@ Require the corrected published siderust-py and Python siderust >=0.5.1,<0.6;
 by the Rust/Python requirements and release metadata preflight.
 Registry packaging compatibility alone does not establish release readiness.
 
+## v0.2.0 scientific release-scope decision
+
+Before tagging v0.2.0, the maintainer must explicitly approve publication as
+**reproducible scientific planning software**, not as an absolute, calibrated
+night-sky predictor. The v0.2.0 Automatic Airglow choice is experimental
+PALACE Oxygen, based on a Paranal-derived continuum, with zenith distance
+**at most 60 degrees** under its documented standard geometry. Unsupported
+directions fail explicitly; the explicit continuum-only model covers a
+different domain and is not a silent fallback.
+
+Independent held-out absolute predictive accuracy, global Airglow portability,
+and CTAO observatory calibration are **not admitted claims** of this release.
+The generic-core/site-calibration redesign (#200) and final Airglow audit
+(#154) remain follow-up work; their unresolved broader objectives must not
+be presented as completed by passing CI. Read
+[scientific validation](../scientific-validation.md) and
+[model maturity](../specifications/model-maturity.md), and confirm the release
+notes agree with runtime metadata. A release may proceed only if the maintainer
+accepts this narrow scientific scope and the exact commit passes the gates.
+
 The tag-triggered workflow validates metadata, API compatibility, runtime
 scientific assets, licensing and crate packaging; builds five ABI3 wheels
 (Linux x86_64/aarch64, macOS x86_64/arm64, Windows x86_64) and one sdist;
@@ -26,9 +46,18 @@ After successful publication and scientific recording, the final job checks
 the exact six Python artifacts, platform/ABI and embedded metadata, confirms
 the crates.io version, and compares SHA-256 hashes of all six files with PyPI.
 It extracts the matching **## [X.Y.Z]** section from the *tagged*
-CHANGELOG.md, rejecting missing, duplicate or empty sections. The resulting
-GitHub Release is titled **NSB vX.Y.Z**, with those notes and six assets.
-An existing GitHub Release is left untouched.
+CHANGELOG.md, rejecting missing, duplicate or empty sections. The resulting GitHub Release is titled **NSB vX.Y.Z**, with those notes and
+six assets. The workflow re-fetches the release and fails if its tag, title,
+notes, draft/prerelease status, asset inventory or sizes differ from the
+validated files (also checking SHA-256 where GitHub reports asset digests).
+An existing, identical GitHub Release is left untouched; a mismatching one
+is never overwritten.
+
+**A successful registry upload is not release completion.** Require the
+`Publish GitHub Release` job to finish with `success` (not `skipped`),
+verify the public GitHub Release for the exact tag, and check crates.io and
+PyPI availability. If publication is partial, use the recovery procedure
+below instead of moving the tag or rerunning its publication jobs.
 
 ## Recovery and safe reruns
 

@@ -7,16 +7,28 @@ tag-triggered publication workflow succeeds.
 
 ## [0.2.0]
 
-Release preparation; not yet published. Registry dependency compatibility is
-restored; publication still awaits maintainer approval. Require siderust-py and
-Python siderust >=0.5.1,<0.6, excluding the unsafe 0.5.0 query dispatcher
+NSB 0.2.0 extends the Rust, Python and CLI planning interfaces with
+component-separated spectral-band results, registered Airglow fits and
+reproducible numerical evidence. Registry dependency compatibility is restored.
+Python installations require siderust-py and Python siderust >=0.5.1,<0.6,
+excluding the unsafe 0.5.0 query dispatcher
 ([upstream #13](https://github.com/Siderust/siderust-py/issues/13)).
+
+**Scientific release scope:** NSB 0.2.0 is a reproducible scientific software
+and observation-planning release, not a site-calibrated predictor of absolute
+sky brightness. Automatic PALACE Oxygen remains **Experimental** and is limited
+to its validated model domain (including zenith distance <= 60 degrees).
+No independent, held-out absolute observational accuracy has been admitted for
+this configuration. The generic, observatory-independent Airglow redesign
+remains future work under [#200](https://github.com/VPRamon/NSB/issues/200).
+See [scientific validation](docs/scientific-validation.md) and
+[model maturity](docs/specifications/model-maturity.md).
 
 ### Changed
 
 - **Automatic Airglow resolves to PALACE Oxygen** (`ParanalPalaceOxygenV1`) as the
-  v0.2.0 reference planning fallback until a global climatological model (#157)
-  is admitted. This is a release-policy choice supported by physical completeness
+  v0.2.0 reference planning fallback until an independently admitted generic
+  model is available under #200. This is a release-policy choice supported by physical completeness
   and favorable retrospective Patat/FORS1 development evidence; it is **not** an
   independent absolute observational admission. Explicit continuum-only
   `ParanalPalaceV1` remains fully supported. Automatic Oxygen inherits the

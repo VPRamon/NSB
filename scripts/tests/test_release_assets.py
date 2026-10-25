@@ -2,6 +2,7 @@
 # Copyright (C) 2026 Vallés Puig, Ramon
 """No-network release automation regressions."""
 import hashlib
+from copy import deepcopy
 import importlib.util
 import io
 import tarfile
@@ -52,6 +53,48 @@ class ReleaseTests(unittest.TestCase):
                 release.extract_notes(broken, "v0.2.0")
         with self.assertRaises(ValueError):
             release.extract_notes(doc, "v0.3.0")
+        with self.assertRaisesRegex(ValueError, "prepublication placeholder"):
+            release.extract_notes("## [0.2.0]\nRelease preparation; not yet published\n", "v0.2.0")
+
+    def test_github_release_snapshot_verification(self):
+        files = self.artifacts()
+        notes = "### Changed\n- Release scope\n"
+        snapshot = {
+            "tagName": "v0.2.0",
+            "name": "NSB v0.2.0",
+            "body": notes,
+            "isDraft": False,
+            "isPrerelease": False,
+            "assets": [{"name": p.name, "size": p.stat().st_size,
+                        "digest": "sha256:" + hashlib.sha256(p.read_bytes()).hexdigest()}
+                       for p in files],
+        }
+        release.verify_github_release(snapshot, files, "v0.2.0", notes)
+
+        for key, value in [("tagName", "v0.2.1"), ("name", "NSB v0.2.1"),
+                           ("body", "not these notes"), ("isDraft", True),
+                           ("isPrerelease", True)]:
+            with self.subTest(key=key), self.assertRaisesRegex(ValueError, "metadata differs"):
+                release.verify_github_release({**snapshot, key: value}, files, "v0.2.0", notes)
+
+        missing_asset = deepcopy(snapshot)
+        missing_asset["assets"].pop()
+        with self.assertRaisesRegex(ValueError, "inventory"):
+            release.verify_github_release(missing_asset, files, "v0.2.0", notes)
+
+        changed_size = deepcopy(snapshot)
+        changed_size["assets"][0]["size"] += 1
+        with self.assertRaisesRegex(ValueError, "size mismatch"):
+            release.verify_github_release(changed_size, files, "v0.2.0", notes)
+
+        changed_digest = deepcopy(snapshot)
+        changed_digest["assets"][0]["digest"] = "sha256:" + "0" * 64
+        with self.assertRaisesRegex(ValueError, "SHA-256 mismatch"):
+            release.verify_github_release(changed_digest, files, "v0.2.0", notes)
+
+        no_digest = deepcopy(snapshot)
+        del no_digest["assets"][0]["digest"]
+        release.verify_github_release(no_digest, files, "v0.2.0", notes)
 
     def test_six_wheels_and_sdist_and_missing_file(self):
         files = self.artifacts()
@@ -158,9 +201,11 @@ class ReleaseTests(unittest.TestCase):
             self.assertIn(fragment, workflow)
         self.assertNotIn("name: crates-io", workflow)
         self.assertNotIn("--generate-notes", workflow)
-        self.assertIn('if gh release view "$RELEASE_TAG" --json name,body,assets', workflow)
-        self.assertIn("Existing GitHub Release differs from verified notes/assets", workflow)
-        self.assertIn('release["isDraft"] or release["isPrerelease"]', workflow)
+        self.assertIn('if gh release view "$RELEASE_TAG" "${release_fields[@]}"', workflow)
+        self.assertIn('gh release view "$RELEASE_TAG" "${release_fields[@]}" > created-release.json', workflow)
+        self.assertIn('python "$tool" github-release --tag "$RELEASE_TAG"', workflow)
+        self.assertIn("--release-json existing-release.json", workflow)
+        self.assertIn("--release-json created-release.json", workflow)
         self.assertNotIn("gh release edit", workflow)
         self.assertIn('[[ "$RECOVERY_MODE" == "pypi-sdist" ]]', workflow)
 

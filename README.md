@@ -44,10 +44,11 @@ the status and validated domain of each component.
 
 ## Install
 
-This source checkout targets **NSB 0.2.0**. Registry installation of that
-version requires the corresponding release to be published; before publication,
-use a source checkout to test the candidate. For reproducible applications, pin
-the exact released version and record the scientific asset and model identities.
+This checkout targets **NSB 0.2.0**. The versioned registry commands below
+work once the corresponding releases are available on crates.io and PyPI; use
+a source checkout to test an unreleased candidate. For reproducible
+applications, pin the exact released version and record the scientific asset
+and model identities.
 
 Choose the interface that fits your workflow:
 
