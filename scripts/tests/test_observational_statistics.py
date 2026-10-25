@@ -14,8 +14,15 @@ import numpy as np
 import pytest
 
 NOTEBOOK = Path(__file__).resolve().parents[2] / 'examples/observational-validation.ipynb'
-FUNCTIONS = {'errors', 'nightly_errors', 'condition_scores', 'scores'}
-namespace = {'np': np, 'combinations': combinations}
+FUNCTIONS = {'errors', 'nightly_errors', 'condition_scores', 'scores',
+             'radiance_interval', 'cluster_statistics_interpretation'}
+namespace = {'np': np, 'combinations': combinations,
+             'DISPLAY_NAMES': {'NSB continuum': 'NSB continuum',
+                               'NSB Automatic': 'NSB Automatic (Oxygen)',
+                               'nsb2': 'nsb2', 'baseline': 'Calibration baseline'},
+             'SCENARIOS': {'native': 'Native solar inputs',
+                           'matched': 'Matched measured F10.7'},
+             'UNIT': 'photons cm^-2 ns^-1 sr^-1'}
 notebook = json.loads(NOTEBOOK.read_text())
 nodes = [node for cell in notebook['cells'] if cell['cell_type'] == 'code'
          for node in ast.parse(''.join(cell['source'])).body
@@ -24,6 +31,7 @@ assert {node.name for node in nodes} == FUNCTIONS
 exec(compile(ast.Module(body=nodes, type_ignores=[]), str(NOTEBOOK), 'exec'), namespace)
 errors, nightly_errors, condition_scores, scores = (namespace[n] for n in
                                                    ('errors', 'nightly_errors', 'condition_scores', 'scores'))
+cluster_statistics_interpretation = namespace['cluster_statistics_interpretation']
 
 
 def sample():
@@ -107,3 +115,58 @@ def test_sparse_and_empty_conditions(mask, count, independent):
 def test_fewer_than_three_nights_rejected_for_unconditional_intervals():
     with pytest.raises(ValueError, match='three independent nights'):
         scores([10, 10], {'a': [12, 8]}, [1, 2])
+
+
+
+def test_incomplete_campaign_has_no_cached_scientific_conclusion():
+    y, p, nights = sample()
+    native = scores(y, p, nights)
+    message = cluster_statistics_interpretation({'native': native}, {}, [])
+    assert 'Conditional interpretation unavailable' in message
+    assert '0.05750' not in message
+    # Even a complete pair must not get a conclusion if predictions failed.
+    message = cluster_statistics_interpretation(
+        {'native': native, 'matched': native}, {}, [{'scenario': 'matched'}])
+    assert 'Conditional interpretation unavailable' in message
+
+
+def test_scientific_interpretation_uses_current_metrics_not_fixed_snapshot():
+    y = np.full(6, 10.0)
+    nights = np.array([1, 1, 2, 3, 4, 4])
+    predictions = {
+        'NSB continuum': np.array([12., 12., 14., 10., 9., 8.]),
+        'NSB Automatic': np.array([11., 12., 12., 10., 9., 8.]),
+        'nsb2': np.array([10., 10., 9., 11., 11., 10.]),
+        'baseline': np.full(6, 10.),
+    }
+    masks = {
+        'Airmass [1, 1.25]': np.array([True, True, True, False, False, False]),
+        'Airmass (1.25, 1.5]': np.array([False, False, False, True, True, True]),
+        'F27 <67 sfu (outside training)': np.zeros(6, dtype=bool),
+        'F27 67–166 sfu (within training)': np.array(
+            [True, True, True, False, False, False]),
+        'F27 >166 sfu (outside training)': np.array(
+            [False, False, False, True, True, True]),
+    }
+
+    def report(oxygen_offset):
+        current = {name: values.copy() for name, values in predictions.items()}
+        current['NSB Automatic'] += oxygen_offset
+        aggregates = {scenario: scores(y, current, nights, 200)
+                      for scenario in ('native', 'matched')}
+        conditions = {
+            'matched': {name: condition_scores(y, current, nights, mask, 200)
+                        for name, mask in masks.items()}
+        }
+        return cluster_statistics_interpretation(aggregates, conditions, []), aggregates
+
+    first, metrics = report(0.)
+    second, changed = report(2.)
+    expected = f"{metrics['matched']['models']['NSB Automatic']['mae']:.5f}"
+    updated = f"{changed['matched']['models']['NSB Automatic']['mae']:.5f}"
+    assert f"MAE is {expected}" in first
+    assert f"MAE is {updated}" in second
+    assert first != second
+    assert '0.05750' not in first  # No historical study estimate baked into the helper.
+    assert 'F27 <67 sfu has 0 spectra / 0 nights' in first
+    assert 'no blanket directional conclusion is justified' in first
