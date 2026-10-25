@@ -11,7 +11,6 @@ residual inspection; see docs/validation/spectral-window-diagnostics-v1.md.
 from __future__ import annotations
 
 import argparse
-import ast
 from datetime import UTC, date, timedelta
 import hashlib
 from io import BytesIO
@@ -22,7 +21,6 @@ import tarfile
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
-NOTEBOOK = ROOT / "examples/observational-validation.ipynb"
 ARTIFACT = ROOT / "docs/validation/artifacts/spectral-window-diagnostics-v1.json"
 PROTOCOL_VERSION = "spectral-window-diagnostics-v1"
 SEED = 182
@@ -52,15 +50,11 @@ CONTINUUM_CONTROL_AIR_NM = {
     "cont_mid_450_500": (450.0, 500.0),
 }
 
-DEFINITIONS = {
-    "measured_radiance", "exclusion", "load_cohort", "Models", "reference_integral",
-    "errors", "nightly_errors", "scores", "condition_scores", "photon_density",
-}
-CONSTANTS = {
-    "SITE", "COMPONENTS", "PATAT_SHA", "SOLAR_SHA", "COHORT_SHA",
-    "CALIBRATION_NIGHTS", "HC_ERG_CM", "ARCSEC2_PER_SR",
-}
-
+SITE = {"longitude": -70.4045, "latitude": -24.6272, "height": 2635.0}
+PATAT_SHA = "1f615fccb6dd464ab95b91f34adb4ba8ba3f4beebe97559204483c1da2c9965c"
+SOLAR_SHA = "7240df111ea45f26057b89d3e9880a58856d7b6d040ad16247db41f5546dac96"
+COHORT_SHA = "3efdd3a0f3af19bfbc7615864f928b33fe22bcdbd6c67568fe317c059d44a1d6"
+CALIBRATION_NIGHTS = frozenset((51643, 51725, 51761, 51785, 52847))
 
 # ---------------------------------------------------------------------------
 # Wavelength conventions (Morton 2000 / IAU standard optical conversion)
@@ -306,20 +300,29 @@ def multiplet_continuum_subtracted_excess(
     }
 
 
-def measured_band_integral(wave_angstrom, energy_flux, lower_nm, upper_nm) -> float:
-    """Exact λ·I_E Simpson operator matching the registered notebook."""
+def measured_band_integral(wavelength_angstrom, energy, lower, upper):
+    """Exact integral of lambda times piecewise-linear I_E, retaining noisy negatives.
+
+    erg/s/cm2/A/arcsec2 -> photons/cm2/ns/sr. On each clipped interval,
+    Simpson integration is exact for the quadratic product lambda*I_E.
+    This differs from trapezoid integration of pre-converted photon samples.
+    """
     from scipy.integrate import simpson
 
-    wave = np.asarray(wave_angstrom, float)
-    flux = np.asarray(energy_flux, float)
-    lo_a, hi_a = lower_nm * 10.0, upper_nm * 10.0
-    if not wave[0] <= lo_a < hi_a <= wave[-1]:
-        raise ValueError("Band outside spectral coverage")
-    edges = np.r_[lo_a, wave[(wave > lo_a) & (wave < hi_a)], hi_a]
+    wave = np.asarray(wavelength_angstrom, float)
+    flux = np.asarray(energy, float)
+    if (
+        wave.ndim != 1 or wave.size < 2 or flux.shape != wave.shape
+        or not np.isfinite(wave).all() or not np.isfinite(flux).all()
+        or np.any(np.diff(wave) <= 0)
+        or not wave[0] <= lower * 10 < upper * 10 <= wave[-1]
+    ):
+        raise ValueError("Finite increasing full-coverage spectral samples required")
+    edges = np.r_[lower * 10, wave[(wave > lower * 10) & (wave < upper * 10)], upper * 10]
+    # Each Simpson panel spans one original linear segment, including clipped edges.
     grid = np.sort(np.r_[edges, (edges[:-1] + edges[1:]) / 2])
     area = simpson(grid * np.interp(grid, wave, flux), x=grid)
     return float(area * 1e-8 / HC_ERG_CM * ARCSEC2_PER_SR * 1e-9)
-
 
 # ---------------------------------------------------------------------------
 # Synthetic instrumental LSF helpers (tests / leakage accounting)
@@ -382,7 +385,7 @@ def night_cluster_ci(values, nights, statistic, repetitions=BOOTSTRAP, seed=SEED
 
 
 # ---------------------------------------------------------------------------
-# Notebook cohort + NSB evaluation
+# Frozen Patat cohort + NSB evaluation
 # ---------------------------------------------------------------------------
 
 def verify_sha256(path: Path, expected: str) -> None:
@@ -429,49 +432,87 @@ def centered_f27(daily: dict[date, float], day: date) -> float:
     return float(np.mean(sample))
 
 
-def notebook_namespace() -> dict:
-    """Reuse frozen notebook measurement and cohort definitions."""
-    import nsb
-    import siderust
-    from astropy.utils import data as astropy_data, iers
-    astropy_data.conf.allow_internet = False
-    iers.conf.auto_download = False
-    import astropy.units as u
+# Frozen registration from observational-validation.ipynb at 017eae0.
+# Runtime reproduction does not read/execute the notebook. Parity tests protect
+# the cuts, input identities and measurement operator against accidental drift.
+def exclusion(row):
+    """Frozen sequential selection, including DARKFLG; boundaries are intentional."""
+    cuts = (
+        (row["dark"] != 0, "dark_flag"),
+        (row["grism"] != "300V", "grism"),
+        (row["filter"] != "FREE", "filter"),
+        (row["sun_alt"] >= -18, "twilight"),
+        (row["moon_alt"] >= -5, "moon"),
+        (not 1 <= row["airmass"] <= 1.5, "airmass"),
+        (abs(row["gal_lat"]) < 20, "galactic_latitude"),
+        (row["exposure"] < 60, "exposure"),
+        (row["wave"][0] > 3650 or row["wave"][-1] < 6500, "coverage"),
+    )
+    return next((reason for reject, reason in cuts if reject), None)
+
+
+def load_cohort(archive, *, enforce_registration=True):
     from astropy.io import fits
-    from astropy.time import Time
-    from scipy.integrate import simpson
 
-    nb = json.loads(NOTEBOOK.read_text())
-    selected = []
-    found = set()
-    for cell in nb["cells"]:
-        if cell["cell_type"] != "code":
-            continue
-        for node in ast.parse("".join(cell["source"])).body:
-            if isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name in DEFINITIONS:
-                if node.name in found:
-                    raise ValueError(f"Duplicate notebook definition: {node.name}")
-                selected.append(node)
-                found.add(node.name)
-            elif isinstance(node, ast.Assign) and len(node.targets) == 1:
-                target = node.targets[0]
-                if isinstance(target, ast.Name) and target.id in CONSTANTS:
-                    if target.id in found:
-                        raise ValueError(f"Duplicate notebook constant: {target.id}")
-                    selected.append(node)
-                    found.add(target.id)
-    missing = (DEFINITIONS | CONSTANTS) - found
-    if missing:
-        raise ValueError(f"Notebook registration changed: missing {sorted(missing)}")
-    scope = {
-        "np": np, "nsb": nsb, "siderust": siderust, "u": u, "fits": fits,
-        "Time": Time, "simpson": simpson, "UTC": UTC, "date": date,
-        "timedelta": timedelta, "tarfile": tarfile, "BytesIO": BytesIO,
-        "hashlib": hashlib,
+    rows, rejected = [], {}
+    with tarfile.open(archive) as tar:
+        members = sorted(
+            (m for m in tar.getmembers() if m.isfile() and m.name.startswith("fxSKY") and m.name.endswith(".fits")),
+            key=lambda m: m.name,
+        )
+        if len(members) != 1189 or len({m.name for m in members}) != len(members):
+            raise ValueError("Registered FITS inventory changed")
+        for member in members:
+            with fits.open(BytesIO(tar.extractfile(member).read())) as hdus:
+                hdr, flux = hdus[0].header, np.asarray(hdus[0].data, float)
+                if hdr["BUNIT"].strip() != "erg/s/cm2/A/arcsec2":
+                    raise ValueError(f"Unexpected flux unit: {member.name}")
+                wave = hdr["CRVAL1"] + (np.arange(hdr["NAXIS1"]) + 1 - hdr["CRPIX1"]) * hdr["CDELT1"]
+                fields = {
+                    "mjd": "MJD-OBS",
+                    "ra": "RA",
+                    "dec": "DEC",
+                    "airmass": "AIRMASS",
+                    "sun_alt": "ALTSUN",
+                    "moon_alt": "ALTMOON",
+                    "gal_lat": "GALAT",
+                    "header_sfu": "SUNFLUX",
+                    "exposure": "ORIGEXP",
+                    "dark": "DARKFLG",
+                }
+                row = {key: float(hdr[value]) for key, value in fields.items()}
+                if not np.isfinite(list(row.values())).all():
+                    raise ValueError(f"Nonfinite metadata: {member.name}")
+                row.update(
+                    id=member.name,
+                    night=int(row["mjd"]),
+                    wave=wave,
+                    energy=flux,
+                    grism=hdr["GRISM"].strip(),
+                    filter=hdr["FILTER"].strip(),
+                )
+            reason = exclusion(row)
+            if reason:
+                rejected[row["id"]] = reason
+                continue
+            row["observed"] = measured_band_integral(wave, flux, 365.0, 650.0)
+            row["split"] = "calibration" if row["night"] in CALIBRATION_NIGHTS else "evaluation"
+            if not np.isfinite(row["observed"]) or row["observed"] <= 0:
+                raise ValueError("Nonpositive integrated observational radiance")
+            rows.append(row)
+    identities = "\n".join(f"{r['id']}:{r['night']}:{r['split']}" for r in rows).encode()
+    identity_sha = hashlib.sha256(identities).hexdigest()
+    if enforce_registration:
+        if identity_sha != COHORT_SHA or len(rows) != 103:
+            raise ValueError(
+                "Selected observation identities/night partition differ from registration"
+            )
+    return rows, {
+        "selected": len(rows),
+        "nights": len({r["night"] for r in rows}),
+        "excluded_ids": rejected,
+        "identity_sha256": identity_sha,
     }
-    exec(compile(ast.Module(body=selected, type_ignores=[]), str(NOTEBOOK), "exec"), scope)
-    return scope
-
 
 def observe_windows(row: dict, windows: dict) -> dict[str, dict]:
     """Apply frozen observational operators to one spectrum."""
@@ -509,14 +550,9 @@ def observe_windows(row: dict, windows: dict) -> dict[str, dict]:
     return out
 
 
-def nsb_airglow_window(evaluator, query, lower_vac_nm, upper_vac_nm) -> float:
-    return float(evaluator.integrate_band(query, float(lower_vac_nm), float(upper_vac_nm)))
-
-
-def predict_nsb_windows(ns, model, row, windows, sfu=None) -> dict[str, dict]:
+def predict_nsb_windows(query, windows, sfu=None) -> dict[str, dict]:
     """NSB Airglow-only window integrals; Oxygen-only = Automatic − continuum."""
-    nsb = ns["nsb"]
-    query = model.query(row, nsb.ComponentMask.AIRGLOW)
+    import nsb
     configs = {
         "continuum": nsb.NsbModelConfig.generic_clear_sky().with_airglow_model(
             nsb.AirglowModel.PARANAL_PALACE_V1
@@ -531,8 +567,8 @@ def predict_nsb_windows(ns, model, row, windows, sfu=None) -> dict[str, dict]:
     out = {}
     for name, window in windows.items():
         lo, hi = window["vacuum_bounds_nm"]
-        cont = nsb_airglow_window(evaluators["continuum"], query, lo, hi)
-        auto = nsb_airglow_window(evaluators["automatic"], query, lo, hi)
+        cont = float(evaluators["continuum"].integrate_band(query, lo, hi))
+        auto = float(evaluators["automatic"].integrate_band(query, lo, hi))
         oxygen_only = auto - cont
         if window["kind"] == "oxygen_local_excess":
             out[name] = {
@@ -655,11 +691,17 @@ COMPARABILITY_MATRIX = [
 
 
 def build_artifact(args) -> dict:
-    ns = notebook_namespace()
-    verify_sha256(args.patat, ns["PATAT_SHA"])
-    verify_sha256(args.solar, ns["SOLAR_SHA"])
-    rows, selection = ns["load_cohort"](args.patat)
-    if selection["identity_sha256"] != ns["COHORT_SHA"]:
+    import nsb
+    import siderust
+    from astropy.time import Time
+    from astropy.utils import data as astropy_data, iers
+
+    astropy_data.conf.allow_internet = False
+    iers.conf.auto_download = False
+    verify_sha256(args.patat, PATAT_SHA)
+    verify_sha256(args.solar, SOLAR_SHA)
+    rows, selection = load_cohort(args.patat)
+    if selection["identity_sha256"] != COHORT_SHA:
         raise ValueError("Cohort fingerprint changed")
     if (len(rows), len({r["night"] for r in rows}),
         sum(r["split"] == "evaluation" for r in rows),
@@ -667,20 +709,13 @@ def build_artifact(args) -> dict:
         raise ValueError("Registered 103/22 + 94/17 partition changed")
 
     daily = solar_daily(args.solar)
-    from astropy.time import Time
     for row in rows:
         day = Time(row["mjd"], format="mjd").to_datetime().date()
         row["f27"] = centered_f27(daily, day)
 
     windows = oxygen_feature_windows()
-    # Lightweight Models instance: Airglow-only queries need no nsb2/starlight assets.
-    model = ns["Models"].__new__(ns["Models"])
-    model.nsb = ns["nsb"]
-    model.siderust = ns["siderust"]
-    model.observer = ns["siderust"].Observer(
-        lon_deg=ns["SITE"]["longitude"],
-        lat_deg=ns["SITE"]["latitude"],
-        height_m=ns["SITE"]["height"],
+    observer = siderust.Observer(
+        lon_deg=SITE["longitude"], lat_deg=SITE["latitude"], height_m=SITE["height"],
     )
 
     observed = {name: [] for name in windows}
@@ -693,8 +728,14 @@ def build_artifact(args) -> dict:
 
     for i, row in enumerate(rows):
         obs = observe_windows(row, windows)
-        nat = predict_nsb_windows(ns, model, row, windows, sfu=None)
-        mat = predict_nsb_windows(ns, model, row, windows, sfu=row["f27"])
+        query = nsb.PointQuery(
+            observer,
+            Time(row["mjd"], format="mjd", scale="utc").to_datetime(timezone=UTC),
+            siderust.Direction(ra_deg=row["ra"], dec_deg=row["dec"]),
+            components=nsb.ComponentMask.AIRGLOW,
+        )
+        nat = predict_nsb_windows(query, windows)
+        mat = predict_nsb_windows(query, windows, sfu=row["f27"])
         for name in windows:
             observed[name].append(obs[name]["value"])
             native[name].append(nat[name]["value"])
@@ -781,10 +822,10 @@ def build_artifact(args) -> dict:
             "synthetic_leakage_tests": "scripts/tests/test_spectral_window_diagnostics.py",
         },
         "inputs": {
-            "patat_sha256": ns["PATAT_SHA"],
-            "solar_sha256": ns["SOLAR_SHA"],
-            "cohort_sha256": ns["COHORT_SHA"],
-            "calibration_nights": sorted(ns["CALIBRATION_NIGHTS"]),
+            "patat_sha256": PATAT_SHA,
+            "solar_sha256": SOLAR_SHA,
+            "cohort_sha256": COHORT_SHA,
+            "calibration_nights": sorted(CALIBRATION_NIGHTS),
             "selection_identity_sha256": selection["identity_sha256"],
         },
         "protocol": {

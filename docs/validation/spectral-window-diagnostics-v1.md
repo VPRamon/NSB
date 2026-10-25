@@ -66,6 +66,14 @@ Changing them after seeing errors would require a labelled exploratory analysis.
 | `cont_blue_400_430` | Continuum control | Morton of air 400–430 | 400–430 | Descriptive only |
 | `cont_mid_450_500` | Continuum control | Morton of air 450–500 | 450–500 | Descriptive only |
 
+For single features the observed integral uses the converted air **centre ±2.5 nm**;
+the model uses the vacuum centre ±2.5 nm. These preserve the original frozen
+operators (air half-widths are not obtained by converting vacuum edges). The
+JSON's `air_bounds_nm` describes converted vacuum edges; the actual observed
+operator is defined here and in `continuum_subtracted_excess`. The difference
+in half-width is about 0.0007 nm and is not an LSF or peak-shape equivalence claim.
+Combined Or uses the converted vacuum edges for both bounds.
+
 Sidebands for single features: `[c−5, c−3] ∪ [c+3, c+5]` nm (air).
 Combined Or uses outer sidebands of the 630 and 636 air centres.
 
@@ -135,6 +143,23 @@ Interpretation rules:
 
 ## Reproduction
 
+The runner is self-contained validation code: it does not read, compile or
+execute notebook cells, instantiate the notebook's `Models` class, or import
+nsb2. It freezes the small Patat FITS reader, sequential cuts, split and input
+identities from notebook revision `017eae0`. The exact broadband measurement
+operator is reused for the continuum-control bands. Focused tests compare the
+notebook's registration, cuts and measurement operator; a changed registration
+requires an explicit scientific audit, not a silent update to this experiment.
+The notebook remains standalone, with no production or cross-repository imports.
+This small fixed experiment stays here alongside its pinned artifact; a generic
+validation framework or migration to `nsb-validation` would add dependencies
+without improving reproduction of this registered protocol.
+
+Reproduction requires Python 3.11+ (the runner uses `datetime.UTC` and
+`hashlib.file_digest`), an installed NSB wheel built from the reviewed commit,
+NumPy 2.x, SciPy 1.14+ and Astropy. No additional production dependencies.
+Acquire the inputs using the links and SHA-256 identities in the
+[verified F10.7 reproduction](../lessons-learned/solar-activity-f107-cadence.md#11-reproduction-and-independent-audit).
 Requires the checksum-pinned Patat archive and NOAA-mirrored observed daily F10.7
 listing (same identities as the observational notebook). No new downloads are
 introduced by the runner when local paths are supplied:
@@ -143,7 +168,8 @@ introduced by the runner when local paths are supplied:
 python scripts/spectral_window_diagnostics.py \
   --patat /path/to/skyspectra.tar \
   --solar /path/to/solar-observed.txt \
-  --output docs/validation/artifacts/spectral-window-diagnostics-v1.json
+  --output docs/validation/artifacts/spectral-window-diagnostics-v1.json \
+  --check-existing
 
 python -m pytest scripts/tests/test_spectral_window_diagnostics.py -q
 ```

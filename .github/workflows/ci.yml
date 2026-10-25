@@ -50,9 +50,10 @@ jobs:
 
       - name: Test observational notebook statistics and receipts
         run: |
-          python -m pip install "numpy>=2,<3" "pytest>=8,<10"
+          python -m pip install "numpy>=2,<3" "scipy>=1.14,<2" "pytest>=8,<10"
           python -m pytest scripts/tests/test_observational_statistics.py scripts/tests/test_observational_receipts.py -q
           python -m pytest scripts/tests/test_reproduce_f107_cadence.py -q
+          python -m pytest scripts/tests/test_spectral_window_diagnostics.py -q
 
       - uses: actions/setup-go@v6
         with:

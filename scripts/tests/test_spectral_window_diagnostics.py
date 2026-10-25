@@ -232,3 +232,73 @@ def test_protocol_constants_match_oxygen_documentation():
     assert study.SIDEBAND_OUTER_NM == 5.0
     assert study.SEED == 182
     assert study.BOOTSTRAP == 2000
+
+
+def test_frozen_notebook_registration_and_measurement_parity():
+    """Only tests inspect the notebook; the runner has no dynamic dependency."""
+    import ast
+    import json
+    from scipy.integrate import simpson
+
+    notebook = json.loads((SCRIPT.parents[1] / "examples/observational-validation.ipynb").read_text())
+    names = {"SITE", "PATAT_SHA", "SOLAR_SHA", "COHORT_SHA", "CALIBRATION_NIGHTS",
+             "HC_ERG_CM", "ARCSEC2_PER_SR", "exclusion", "measured_radiance"}
+    nodes = []
+    for cell in notebook["cells"]:
+        if cell["cell_type"] != "code":
+            continue
+        for node in ast.parse("".join(cell["source"])).body:
+            name = (node.name if isinstance(node, ast.FunctionDef) else
+                    node.targets[0].id if isinstance(node, ast.Assign)
+                    and isinstance(node.targets[0], ast.Name) else None)
+            if name in names:
+                nodes.append(node)
+    assert len(nodes) == len(names), "Audit notebook registration changes explicitly"
+    scope = {"np": np, "simpson": simpson}
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), "notebook-parity", "exec"), scope)
+    for name in names - {"exclusion", "measured_radiance"}:
+        assert scope[name] == getattr(study, name)
+    # Freeze sequential cuts, including their exact boundary comparisons.
+    runner = ast.parse(SCRIPT.read_text())
+    cut = next(n for n in runner.body if isinstance(n, ast.FunctionDef) and n.name == "exclusion")
+    original = next(n for n in nodes if isinstance(n, ast.FunctionDef) and n.name == "exclusion")
+    assert ast.dump(cut) == ast.dump(original)
+    wave = np.array([3600., 3660., 4000., 5577., 6495., 6510.])
+    flux = np.array([1., -0.1, 2., 1., 3., 1.]) * 1e-17
+    for lower, upper in [(365., 650.), (400., 430.), (450., 500.)]:
+        assert study.measured_band_integral(wave, flux, lower, upper) == scope["measured_radiance"](
+            wave, flux, lower, upper)
+
+
+def test_runner_does_not_read_notebook_or_construct_partial_models():
+    import ast
+
+    tree = ast.parse(SCRIPT.read_text())
+    assert not any(isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                   and n.func.id in {"exec", "compile"} for n in ast.walk(tree))
+    assert "notebook_namespace" not in study.__dict__
+    assert "Models" not in study.__dict__
+
+
+def test_night_cluster_ci_matches_independent_unequal_cluster_oracle():
+    values = np.array([1., 2., 4., 10.])
+    nights = np.array([1, 1, 2, 3])
+    rng = np.random.default_rng(182)
+    estimates = []
+    for _ in range(300):
+        draw = rng.choice(np.unique(nights), size=3, replace=True)
+        indices = np.concatenate([np.flatnonzero(nights == night) for night in draw])
+        estimates.append(np.mean(values[indices]))
+    expected = np.quantile(estimates, [.025, .975])
+    assert study.night_cluster_ci(values, nights, np.mean, 300) == pytest.approx(expected)
+
+
+def test_continuum_controls_never_emit_residual_metrics():
+    import json
+
+    artifact = json.loads((SCRIPT.parents[1] / "docs/validation/artifacts/spectral-window-diagnostics-v1.json").read_text())
+    for name in study.CONTINUUM_CONTROL_AIR_NM:
+        entry = artifact["per_window"][name]
+        assert entry["metrics_omitted_reason"] == "unsupported_as_airglow_residual"
+        assert "native_operational" not in entry
+        assert "matched_centered_f27_diagnostic" not in entry
