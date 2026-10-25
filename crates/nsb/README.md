@@ -103,7 +103,7 @@ assets are prepared during evaluator construction.
 ## Scientific interpretation
 
 `ComponentMask::DEFAULT` and `ComponentMask::ALL` are the same
-production-safe composition for the `0.1.x` model contract. Starlight enters
+production-safe composition for the current model contract. Starlight enters
 that composition only when a validated production map is embedded. The
 frozen candidate remains repository evidence; packages contain the approved
 compact binary and sidecar, with all scientific f64 values preserved.
@@ -159,9 +159,8 @@ rights. Credits do not imply endorsement by ESA, DPAC, CDS or the authors.
 
 The approved compact Starlight map is embedded for fully offline evaluation.
 `ALL`, `DEFAULT` and the standard Rust/Python evaluator include Starlight,
-Airglow, Moonlight and Zodiacal Light. The maintainer accepted the pinned
-calculated-output and independent-data findings under #103; source-specific
-licences and noncommercial data restrictions remain applicable.
+Airglow, Moonlight and Zodiacal Light. The exact bundled product is subject to the documented redistribution decision,
+scientific evidence and source-specific noncommercial data restrictions.
 
 See the [source terms, attribution, public contact directory and concern procedure](https://github.com/VPRamon/NSB/blob/main/docs/nsb_components/starlight/licensing/README.md)
 and the distributed `THIRD_PARTY_NOTICES.md`. Cite the original scientific
