@@ -16,6 +16,10 @@ import hashlib
 from io import BytesIO
 from itertools import combinations
 import json
+import importlib.metadata as metadata
+from importlib.machinery import EXTENSION_SUFFIXES
+import platform
+import subprocess
 from pathlib import Path
 import tarfile
 
@@ -33,7 +37,7 @@ NAMES = (
     "same_month_finalized_diagnostic",
 )
 DEFINITIONS = {
-    "measured_radiance", "exclusion", "load_cohort", "Models",
+    "measured_radiance", "exclusion", "load_cohort", "Models", "reference_integral",
     "errors", "nightly_errors", "scores", "condition_scores",
 }
 CONSTANTS = {
@@ -55,19 +59,24 @@ def verify_sha256(path: Path, expected: str) -> None:
 def solar_daily(path: Path) -> dict[date, float]:
     """Read the same observed, not adjusted, NOAA-mirrored listing as the notebook."""
     daily: dict[date, float] = {}
+    seen: set[date] = set()
     for line in path.read_text().splitlines():
         fields = line.split()
-        if len(fields) != 2 or fields[1] == ".":
+        if not fields:
             continue
         key = fields[0]
-        if len(key) != 8 or not key.isdigit():
-            continue
+        if len(key) != 8 or not key.isdigit() or len(fields) > 2:
+            raise ValueError(f"Malformed solar observation: {line!r}")
         day = date(int(key[:4]), int(key[4:6]), int(key[6:8]))
+        if day in seen:
+            raise ValueError(f"Duplicate observed day {day}")
+        seen.add(day)
+        # The pinned listing represents missing observations by a date alone.
+        if len(fields) == 1 or fields[1] == ".":
+            continue
         value = float(fields[1])
         if not np.isfinite(value) or value <= 0:
             raise ValueError(f"Invalid observed F10.7 for {day}")
-        if day in daily:
-            raise ValueError(f"Duplicate observed day {day}")
         daily[day] = value
     if not daily:
         raise ValueError("No usable daily observed solar data")
@@ -76,12 +85,17 @@ def solar_daily(path: Path) -> dict[date, float]:
 
 def complete_mean(daily: dict[date, float], first: date, last: date) -> float:
     """Require all daily samples, with inclusive endpoints."""
+    if first > last:
+        raise ValueError("Reversed solar interval")
     values = []
     day = first
     while day <= last:
         if day not in daily:
             raise ValueError(f"Incomplete solar interval: missing {day}")
-        values.append(daily[day])
+        value = daily[day]
+        if not np.isfinite(value) or value <= 0:
+            raise ValueError(f"Invalid observed F10.7 for {day}")
+        values.append(value)
         day += timedelta(days=1)
     return float(np.mean(values))
 
@@ -98,7 +112,8 @@ def candidate_flux(daily: dict[date, float], day: date) -> dict[str, float | Non
         "trailing27_latency1": complete_mean(daily, day - timedelta(days=27),
                                               day - timedelta(days=1)),
         "previous_month_mean": complete_mean(daily, previous_start, previous_end),
-        "latest_daily_latency1": daily[day - timedelta(days=1)],
+        "latest_daily_latency1": complete_mean(
+            daily, day - timedelta(days=1), day - timedelta(days=1)),
         "centered27_diagnostic": complete_mean(daily, day - timedelta(days=13),
                                                day + timedelta(days=13)),
         "same_month_finalized_diagnostic": complete_mean(
@@ -110,6 +125,9 @@ def notebook_namespace() -> dict:
     """Reuse frozen notebook definitions, rather than duplicate selection/scoring."""
     import nsb
     import siderust
+    from astropy.utils import data as astropy_data, iers
+    astropy_data.conf.allow_internet = False
+    iers.conf.auto_download = False
     import astropy.units as u
     from astropy.io import fits
     from astropy.time import Time
@@ -161,6 +179,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--patat", type=Path, required=True, help="Registered Patat FITS tar archive")
     parser.add_argument("--solar", type=Path, required=True, help="Observed daily Penticton listing")
+    parser.add_argument("--rieke", type=Path, required=True, help="STScI solar_spec.fits")
     parser.add_argument("--output", type=Path, required=True, help="Write regenerated JSON here")
     args = parser.parse_args()
 
@@ -168,6 +187,7 @@ def main() -> None:
     known = original["inputs"]
     verify_sha256(args.patat, known["patat_sha256"])
     verify_sha256(args.solar, known["solar_sha256"])
+    verify_sha256(args.rieke, known["rieke_sha256"])
     ns = notebook_namespace()
     for field, notebook_name in (("patat_sha256", "PATAT_SHA"),
                                  ("solar_sha256", "SOLAR_SHA"),
@@ -193,21 +213,49 @@ def main() -> None:
         lat_deg=ns["SITE"]["latitude"],
         height_m=ns["SITE"]["height"],
     )
-    # The registered notebook's Rieke 365–650 / 300–650 factor, already
-    # preserved in the archived evidence; do not re-download nsb2 assets.
-    model.fraction = float(known["rieke_fraction_365_650_over_300_650"])
+    # Recompute the registered source-grid photon integral from verified bytes.
+    from astropy.constants import h, c
+    u = ns["u"]
+    with ns["fits"].open(args.rieke) as hdus:
+        wave = hdus[1].data["WAVELENGTH"] * u.angstrom
+        energy = hdus[1].data["FLUX"] * u.erg / u.s / u.cm**2 / u.angstrom
+    photon = (energy * wave / (h * c)).to_value(1 / u.s / u.cm**2 / u.nm)
+    wave = wave.to_value(u.nm)
+    integral = ns["reference_integral"]
+    model.fraction = integral(wave, photon, 365, 650) / integral(wave, photon, 300, 650)
+    if not np.isclose(model.fraction, known["rieke_fraction_365_650_over_300_650"],
+                      rtol=0, atol=1e-14):
+        raise ValueError("Registered Rieke band fraction changed")
     daily = solar_daily(args.solar)
     solar_inputs: dict[str, list[float | None]] = {name: [] for name in NAMES}
     oxygen: dict[str, list[float]] = {name: [] for name in NAMES}
     continuum: dict[str, list[float]] = {name: [] for name in NAMES}
+    automatic_provenance = set()
     for row in rows:
         day = Time(row["mjd"], format="mjd").to_datetime().date()
         fluxes = candidate_flux(daily, day)
+        fixed_components = {}
         for name in NAMES:
             sfu = fluxes[name]
             solar_inputs[name].append(sfu)
-            oxygen[name].append(model.predict(row, "NSB Automatic", sfu)["total"])
-            continuum[name].append(model.predict(row, "NSB continuum", sfu)["total"])
+            for label, predictions in (("NSB Automatic", oxygen), ("NSB continuum", continuum)):
+                prediction = model.predict(row, label, sfu)
+                predictions[name].append(prediction["total"])
+                fixed = {k: v for k, v in prediction["components"].items() if k != "airglow"}
+                if label in fixed_components and fixed != fixed_components[label]:
+                    raise ValueError("Non-airglow components changed between solar scenarios")
+                fixed_components[label] = fixed
+                if sfu is None:
+                    explicit = model.predict(row, label, known["climatology_sfu"])
+                    if prediction["components"] != explicit["components"]:
+                        raise ValueError("Automatic differs from registered climatology")
+        # Inspect actual API metadata as well as numerical equivalence.
+        ev = ns["nsb"].NsbEvaluator(ns["nsb"].NsbModelConfig.generic_clear_sky())
+        component = ev.evaluate(model.query(row, ns["nsb"].ComponentMask.AIRGLOW)).components[0]
+        provenance = component.metadata.solar_activity_provenance
+        if "kind=climatology" not in (provenance or ""):
+            raise ValueError("Automatic no longer resolves to climatology")
+        automatic_provenance.add(provenance)
 
     y = np.array([rows[i]["observed"] for i in eval_ids])
     spectrum_oxygen = {n: np.array(v)[eval_ids] for n, v in oxygen.items()}
@@ -226,6 +274,7 @@ def main() -> None:
         metrics[name] = {
             "relative_mae": metric["mean_absolute_relative_error"],
             "relative_mae_ci95": metric["relative_mae_ci95"],
+            "bias_ci95": metric["bias_ci95"],
             "mae": metric["mae"],
             "night_weighted_mae": metric["night_weighted_mae"],
             "mean_signed_error": metric["mean_signed_error"],
@@ -242,6 +291,26 @@ def main() -> None:
                         f"{metrics[name][field]:.9g} != {reference[field]:.9g}"
                     )
 
+    conditions = {
+        "F27 67–166 sfu (within training)": mask,
+        "F27 <67 sfu (outside training)": f27 < 67,
+        "F27 >166 sfu (outside training)": f27 > 166,
+        "Airmass [1, 1.25]": np.array([rows[i]["airmass"] for i in eval_ids]) <= 1.25,
+        "Airmass (1.25, 1.5]": np.array([rows[i]["airmass"] for i in eval_ids]) > 1.25,
+    }
+    conditional = {}
+    for condition, condition_mask in conditions.items():
+        group = ns["condition_scores"](y, spectrum_oxygen, nights, condition_mask, 2000, 182)
+        conditional[condition] = {key: group[key] for key in ("n", "nights", "coverage", "models", "paired")}
+        for name, archived in original["conditional_oxygen_relative_mae"].items():
+            reference = archived[condition]
+            if (reference["n"], reference["nights"]) != (group["n"], group["nights"]):
+                raise ValueError(f"Conditional membership changed: {condition}")
+            if group["n"] and not np.isclose(
+                group["models"][name]["mean_absolute_relative_error"],
+                reference["relative_mae"], rtol=0, atol=1e-6):
+                raise ValueError(f"Conditional metric changed: {condition}/{name}")
+
     within_pairs = {
         name: {
             **candidate_minus_automatic(within, name),
@@ -251,10 +320,28 @@ def main() -> None:
         for name in NAMES if name != "operational_automatic"
     }
     result = {
+        "schema_version": 1,
+        "reproduction_status": "verified",
+        "code_revision": subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
+        "source_sha256": {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
+                          for path in (Path(__file__).resolve(), NOTEBOOK, ROOT / "Cargo.lock")},
+        "environment": {"python": platform.python_version(), "platform": platform.platform(),
+                        "packages": {name: metadata.version(name) for name in
+                                     ("nsb-py", "numpy", "scipy", "astropy", "siderust", "tempoch")},
+                        "nsb_extension_sha256": hashlib.sha256(
+                            next(path for path in Path(ns["nsb"].__file__).parent.iterdir()
+                                 if any(path.name.endswith(suffix) for suffix in EXTENSION_SUFFIXES)).read_bytes()).hexdigest()},
+        "bootstrap_method": "shared whole-night draws with replacement; pooled spectrum-weighted relative MAE; percentile 2.5/97.5 (NumPy linear); candidate minus Automatic",
+        "units": "photons cm^-2 ns^-1 sr^-1; relative metrics are fractions",
+        "automatic_provenance": sorted(automatic_provenance),
+        "rieke_fraction_365_650_over_300_650": model.fraction,
+        "within_training_domain_metrics": within["models"],
+        "conditional_metrics": conditional,
         "issue": 295,
         "input_sha256": {
             "patat": known["patat_sha256"], "solar": known["solar_sha256"],
-            "cohort": known["cohort_sha256"],
+            "cohort": known["cohort_sha256"], "rieke": known["rieke_sha256"],
         },
         "source_notebook": str(NOTEBOOK.relative_to(ROOT)),
         "cohort_status": "development; not independent holdout",
@@ -271,7 +358,7 @@ def main() -> None:
         "primary_oxygen_metrics": metrics,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    args.output.write_text(json.dumps(result, indent=2, sort_keys=True, allow_nan=False) + "\n")
     print(f"Verified published primary metrics; wrote {args.output}")
     for name, pair in within_pairs.items():
         print(f"{name}: paired relMAE={pair['difference'] * 100:+.2f} pp "

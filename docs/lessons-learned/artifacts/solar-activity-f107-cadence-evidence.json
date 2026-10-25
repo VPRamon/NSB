@@ -235,7 +235,13 @@
     "cohort_sha256": "3efdd3a0f3af19bfbc7615864f928b33fe22bcdbd6c67568fe317c059d44a1d6",
     "patat_sha256": "1f615fccb6dd464ab95b91f34adb4ba8ba3f4beebe97559204483c1da2c9965c",
     "rieke_fraction_365_650_over_300_650": 0.9296804289344205,
-    "solar_sha256": "7240df111ea45f26057b89d3e9880a58856d7b6d040ad16247db41f5546dac96"
+    "rieke_sha256": "2213b2c8a61d9aa147ecb88a19c0c64c134955494b07fa8ba7e3cb91660e3301",
+    "solar_sha256": "7240df111ea45f26057b89d3e9880a58856d7b6d040ad16247db41f5546dac96",
+    "source_urls": {
+      "patat": "https://web.archive.org/web/20160329190127id_/http://www.eso.org/~fpatat/science/skybright/DATA/skyspectra.tar",
+      "rieke": "https://archive.stsci.edu/hlsps/reference-atlases/cdbs/grid/solsys/solar_spec.fits",
+      "solar": "https://www.ngdc.noaa.gov/stp/space-weather/solar-data/solar-features/solar-radio/noontime-flux/penticton/penticton_observed/listings/listing_drao_noontime-flux-observed_daily.txt"
+    }
   },
   "issue": 295,
   "nsb_commit": "bcbeaf73c423b5ef0fc8c34ad08a47d0afb0c1d3",
@@ -321,6 +327,16 @@
         0.2101179216232932
       ]
     }
+  },
+  "reproduction_status": {
+    "aggregate_primary_metrics": "Verified from freshly retrieved checksum-pinned inputs; all original values reproduced exactly",
+    "bootstrap_draws": 2000,
+    "bootstrap_seed": 182,
+    "historical_publication_times": "Not archived; lag-one-calendar-day proxies have conditional, unverified causality",
+    "reproduced_on": "2026-10-25",
+    "script": "scripts/reproduce_f107_cadence.py",
+    "source_notebook": "examples/observational-validation.ipynb",
+    "within_domain_paired_intervals": "Computed and archived under verified_reproduction.within_training_domain_paired"
   },
   "solar_summary_evaluation": {
     "centered27_diagnostic": {
@@ -420,13 +436,2102 @@
     },
     "within_training_domain_finding": "All candidate-minus-operational relative-MAE intervals cross zero on the F27 67-166 subset (21 spectra / 8 nights)."
   },
-  "reproduction_status": {
-    "aggregate_primary_metrics": "Archived; the offline runner checks regenerated metrics against these values",
-    "within_domain_paired_intervals": "Not included in the original archive; regenerate per-spectrum, per-night intervals with scripts/reproduce_f107_cadence.py",
-    "historical_publication_times": "Not archived; lag-one-calendar-day proxies have conditional, unverified causality",
-    "script": "scripts/reproduce_f107_cadence.py",
+  "verified_reproduction": {
+    "automatic_provenance": [
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2000-04-09 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(30) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2000-04-10 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(30) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2000-06-30 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(30) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2000-07-03 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(31) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2000-07-31 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(31) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2000-08-01 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(31) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2000-08-02 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(31) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2000-08-05 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(31) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2000-08-26 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(31) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2000-08-28 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(31) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2000-08-29 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(31) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2002-02-13 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(28) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2002-02-14 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(28) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2002-02-15 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(28) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2002-02-16 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(28) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2003-03-26 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(31) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2003-03-29 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(31) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2003-07-27 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(31) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2003-12-22 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(31) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2003-12-24 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(31) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2004-01-15 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(31) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated",
+      "F10.7 129.20671119074768 sfu kind=climatology provider=nsb product=documented-climatology-fallback requested_date=2004-02-26 observation_date=n/a forecast_issued_at=n/a dataset=nsb-f107-bundled-offline snapshot=bundled-2026-08-27 checksum=9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4 resolution=climatology-fallback monthly_completeness=climatology observed_days=Some(0) forecast_days=Some(0) total_days=Some(29) uncertainty_sfu=None range=[None, None]; measured F10.7 does not make Airglow site-calibrated"
+    ],
+    "binding_build": {
+      "command": "maturin build --release --locked --out /tmp/nsb-308-wheels",
+      "revision": "a5e320240e4ea318e2622b3511c076731fc58e4a",
+      "scientific_implementation_matches_baseline": "bcbeaf73c423b5ef0fc8c34ad08a47d0afb0c1d3"
+    },
+    "bootstrap_draws": 2000,
+    "bootstrap_method": "shared whole-night draws with replacement; pooled spectrum-weighted relative MAE; percentile 2.5/97.5 (NumPy linear); candidate minus Automatic",
+    "code_revision": "a5e320240e4ea318e2622b3511c076731fc58e4a",
+    "cohort_status": "development; not independent holdout",
+    "conditional_metrics": {
+      "Airmass (1.25, 1.5]": {
+        "coverage": "night intervals",
+        "models": {
+          "centered27_diagnostic": {
+            "bias_ci95": [
+              -0.09051078487304974,
+              -0.03977273943815601
+            ],
+            "mae": 0.06317194874614053,
+            "mae_ci95": [
+              0.039772739438156006,
+              0.09051078487304974
+            ],
+            "mean_absolute_relative_error": 0.1726498408373541,
+            "mean_signed_error": -0.06317194874614053,
+            "median_absolute_error": 0.059617993569328204,
+            "median_absolute_relative_error": 0.17636201733704923,
+            "missing": 0,
+            "n": 28,
+            "night_weighted_mae": 0.06473841779097407,
+            "nights": 11,
+            "relative_bias": -0.1726498408373541,
+            "relative_mae_ci95": [
+              0.12611895902867434,
+              0.22303219542089173
+            ],
+            "relative_rmse": 0.19557509833862752,
+            "rmse": 0.07715505609443561
+          },
+          "latest_daily_latency1": {
+            "bias_ci95": [
+              -0.09085411874152571,
+              -0.039876535286231043
+            ],
+            "mae": 0.06390064772005769,
+            "mae_ci95": [
+              0.039900951108323174,
+              0.0908747899745929
+            ],
+            "mean_absolute_relative_error": 0.1729399594605506,
+            "mean_signed_error": -0.06387756553530671,
+            "median_absolute_error": 0.061506809901434506,
+            "median_absolute_relative_error": 0.171559707155932,
+            "missing": 0,
+            "n": 28,
+            "night_weighted_mae": 0.06664143429647225,
+            "nights": 11,
+            "relative_bias": -0.17286367207236203,
+            "relative_mae_ci95": [
+              0.12460889070846588,
+              0.22587045560609803
+            ],
+            "relative_rmse": 0.1981269481341394,
+            "rmse": 0.07872448981826223
+          },
+          "operational_automatic": {
+            "bias_ci95": [
+              -0.10121156199975319,
+              -0.05312483290303421
+            ],
+            "mae": 0.0773828463553782,
+            "mae_ci95": [
+              0.0531248329030342,
+              0.10121156199975317
+            ],
+            "mean_absolute_relative_error": 0.21285679182487097,
+            "mean_signed_error": -0.0773828463553782,
+            "median_absolute_error": 0.08748462471329035,
+            "median_absolute_relative_error": 0.23940823494622235,
+            "missing": 0,
+            "n": 28,
+            "night_weighted_mae": 0.07964993752692108,
+            "nights": 11,
+            "relative_bias": -0.21285679182487097,
+            "relative_mae_ci95": [
+              0.16348046105221595,
+              0.256714333505101
+            ],
+            "relative_rmse": 0.23185203142692404,
+            "rmse": 0.08968564614377665
+          },
+          "previous_month_mean": {
+            "bias_ci95": [
+              -0.0875020900588282,
+              -0.033742409308522715
+            ],
+            "mae": 0.05918482642275923,
+            "mae_ci95": [
+              0.03485841756792389,
+              0.08787330252371013
+            ],
+            "mean_absolute_relative_error": 0.1601253830033145,
+            "mean_signed_error": -0.058116493288825656,
+            "median_absolute_error": 0.05006376014398445,
+            "median_absolute_relative_error": 0.14776676411771866,
+            "missing": 0,
+            "n": 28,
+            "night_weighted_mae": 0.06034793761231508,
+            "nights": 11,
+            "relative_bias": -0.15661705343788063,
+            "relative_mae_ci95": [
+              0.10971676644493181,
+              0.2165805537283687
+            ],
+            "relative_rmse": 0.18680489022480765,
+            "rmse": 0.07440227782523455
+          },
+          "same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              -0.08907046437655866,
+              -0.039588780604828726
+            ],
+            "mae": 0.062378536568007105,
+            "mae_ci95": [
+              0.039588780604828726,
+              0.08907046437655866
+            ],
+            "mean_absolute_relative_error": 0.17063317534427877,
+            "mean_signed_error": -0.062378536568007105,
+            "median_absolute_error": 0.05927891538681904,
+            "median_absolute_relative_error": 0.17417160519819508,
+            "missing": 0,
+            "n": 28,
+            "night_weighted_mae": 0.06380016524441481,
+            "nights": 11,
+            "relative_bias": -0.17063317534427877,
+            "relative_mae_ci95": [
+              0.12490646671225619,
+              0.2193238625087778
+            ],
+            "relative_rmse": 0.1928160833735014,
+            "rmse": 0.07615605089075586
+          },
+          "trailing27_latency1": {
+            "bias_ci95": [
+              -0.0865334010639042,
+              -0.03430801825683715
+            ],
+            "mae": 0.05918438529111202,
+            "mae_ci95": [
+              0.035295370011761557,
+              0.08686185958376091
+            ],
+            "mean_absolute_relative_error": 0.16090136257170884,
+            "mean_signed_error": -0.058195451951410536,
+            "median_absolute_error": 0.051100390104085014,
+            "median_absolute_relative_error": 0.1528194917269007,
+            "missing": 0,
+            "n": 28,
+            "night_weighted_mae": 0.05996659190421862,
+            "nights": 11,
+            "relative_bias": -0.15764890357402941,
+            "relative_mae_ci95": [
+              0.11232729661170826,
+              0.2151476866924193
+            ],
+            "relative_rmse": 0.18574162851331455,
+            "rmse": 0.07389570004653785
+          }
+        },
+        "n": 28,
+        "nights": 11,
+        "paired": {
+          "centered27_diagnostic_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              -0.001751624545382548,
+              5.920166360285817e-05
+            ],
+            "bias_difference": -0.000793412178133425,
+            "mae_ci95": [
+              -5.920166360285916e-05,
+              0.0017516245453825477
+            ],
+            "mae_difference": 0.000793412178133425,
+            "relative_mae_ci95": [
+              -0.00038095946776492,
+              0.004957818733223922
+            ],
+            "relative_mae_difference": 0.0020166654930753314
+          },
+          "latest_daily_latency1_minus_centered27_diagnostic": {
+            "bias_ci95": [
+              -0.00430006486405417,
+              0.0022232085186671656
+            ],
+            "bias_difference": -0.000705616789166183,
+            "mae_ci95": [
+              -0.002193105169950439,
+              0.004307290351077927
+            ],
+            "mae_difference": 0.0007286989739171551,
+            "relative_mae_ci95": [
+              -0.00834253093643868,
+              0.010624574183902467
+            ],
+            "relative_mae_difference": 0.0002901186231965003
+          },
+          "latest_daily_latency1_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              -0.005566429959665193,
+              0.0016339042212572025
+            ],
+            "bias_difference": -0.001499028967299608,
+            "mae_ci95": [
+              -0.0016076253631063455,
+              0.00558969509566282
+            ],
+            "mae_difference": 0.00152211115205058,
+            "relative_mae_ci95": [
+              -0.00730294734535437,
+              0.014519788047728993
+            ],
+            "relative_mae_difference": 0.0023067841162718317
+          },
+          "operational_automatic_minus_centered27_diagnostic": {
+            "bias_ci95": [
+              -0.023798348377768064,
+              -0.004690048584243555
+            ],
+            "bias_difference": -0.014210897609237674,
+            "mae_ci95": [
+              0.004690048584243555,
+              0.023798348377768064
+            ],
+            "mae_difference": 0.014210897609237674,
+            "relative_mae_ci95": [
+              0.011465757109812652,
+              0.06860563495793144
+            ],
+            "relative_mae_difference": 0.040206950987516865
+          },
+          "operational_automatic_minus_latest_daily_latency1": {
+            "bias_ci95": [
+              -0.021988378789379634,
+              -0.004425478070723498
+            ],
+            "bias_difference": -0.013505280820071491,
+            "mae_ci95": [
+              0.004424920914539844,
+              0.02194297369494682
+            ],
+            "mae_difference": 0.01348219863532052,
+            "relative_mae_ci95": [
+              0.01360775593462606,
+              0.06407783432207999
+            ],
+            "relative_mae_difference": 0.039916832364320365
+          },
+          "operational_automatic_minus_previous_month_mean": {
+            "bias_ci95": [
+              -0.031208830490651814,
+              -0.007257898116099786
+            ],
+            "bias_difference": -0.019266353066552548,
+            "mae_ci95": [
+              0.006776473896387671,
+              0.03015542505999411
+            ],
+            "mae_difference": 0.01819801993261897,
+            "relative_mae_ci95": [
+              0.01995440363238895,
+              0.08525359710466761
+            ],
+            "relative_mae_difference": 0.05273140882155647
+          },
+          "operational_automatic_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              -0.02456519048590004,
+              -0.005814152273313289
+            ],
+            "bias_difference": -0.0150043097873711,
+            "mae_ci95": [
+              0.005814152273313288,
+              0.024565190485900036
+            ],
+            "mae_difference": 0.0150043097873711,
+            "relative_mae_ci95": [
+              0.014108992909148625,
+              0.07078678185481499
+            ],
+            "relative_mae_difference": 0.042223616480592197
+          },
+          "operational_automatic_minus_trailing27_latency1": {
+            "bias_ci95": [
+              -0.03126879950711744,
+              -0.007343125903632457
+            ],
+            "bias_difference": -0.01918739440396767,
+            "mae_ci95": [
+              0.007070444184907597,
+              0.030010864716690865
+            ],
+            "mae_difference": 0.018198461064266182,
+            "relative_mae_ci95": [
+              0.018918141425599867,
+              0.08546762980049334
+            ],
+            "relative_mae_difference": 0.05195542925316213
+          },
+          "previous_month_mean_minus_centered27_diagnostic": {
+            "bias_ci95": [
+              0.0021055573968661776,
+              0.007885925907472908
+            ],
+            "bias_difference": 0.005055455457314874,
+            "mae_ci95": [
+              -0.00705682102542808,
+              -0.001270119210822587
+            ],
+            "mae_difference": -0.003987122323381297,
+            "relative_mae_ci95": [
+              -0.021786139379199154,
+              -0.004156831151540863
+            ],
+            "relative_mae_difference": -0.012524457834039604
+          },
+          "previous_month_mean_minus_latest_daily_latency1": {
+            "bias_ci95": [
+              0.0011992045242904493,
+              0.010274142976569109
+            ],
+            "bias_difference": 0.005761072246481057,
+            "mae_ci95": [
+              -0.009624517593460648,
+              -0.00030418214597426724
+            ],
+            "mae_difference": -0.004715821297298452,
+            "relative_mae_ci95": [
+              -0.026191962407385774,
+              -0.001009896820615373
+            ],
+            "relative_mae_difference": -0.012814576457236104
+          },
+          "previous_month_mean_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              0.0007135008149953298,
+              0.007553282476266999
+            ],
+            "bias_difference": 0.004262043279181449,
+            "mae_ci95": [
+              -0.006489121230455087,
+              -2.073495854650926e-05
+            ],
+            "mae_difference": -0.0031937101452478717,
+            "relative_mae_ci95": [
+              -0.02007467641594036,
+              -0.0006494081556076345
+            ],
+            "relative_mae_difference": -0.010507792340964273
+          },
+          "trailing27_latency1_minus_centered27_diagnostic": {
+            "bias_ci95": [
+              0.0026747553917706077,
+              0.007474794716050951
+            ],
+            "bias_difference": 0.004976496794729994,
+            "mae_ci95": [
+              -0.006705171963252372,
+              -0.0018460177878757045
+            ],
+            "mae_difference": -0.0039875634550285075,
+            "relative_mae_ci95": [
+              -0.01922875719812391,
+              -0.005696392060421902
+            ],
+            "relative_mae_difference": -0.011748478265645262
+          },
+          "trailing27_latency1_minus_latest_daily_latency1": {
+            "bias_ci95": [
+              0.001075862587342629,
+              0.010547011784833804
+            ],
+            "bias_difference": 0.005682113583896177,
+            "mae_ci95": [
+              -0.010155433800931342,
+              -0.00022187395200831033
+            ],
+            "mae_difference": -0.0047162624289456626,
+            "relative_mae_ci95": [
+              -0.0276000347694193,
+              0.0007242414778905363
+            ],
+            "relative_mae_difference": -0.012038596888841763
+          },
+          "trailing27_latency1_minus_previous_month_mean": {
+            "bias_ci95": [
+              -0.0015609483270184958,
+              0.0016764388536391543
+            ],
+            "bias_difference": -7.895866258487982e-05,
+            "mae_ci95": [
+              -0.0017201325180172516,
+              0.0014797666645362162
+            ],
+            "mae_difference": -4.41131647210824e-07,
+            "relative_mae_ci95": [
+              -0.005635465334258986,
+              0.007008654338972625
+            ],
+            "relative_mae_difference": 0.0007759795683943416
+          },
+          "trailing27_latency1_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              0.0014996895449211384,
+              0.006784188711350353
+            ],
+            "bias_difference": 0.004183084616596569,
+            "mae_ci95": [
+              -0.005810597040768615,
+              -0.0009404567000220687
+            ],
+            "mae_difference": -0.0031941512768950825,
+            "relative_mae_ci95": [
+              -0.016721117242173563,
+              -0.0035037086729734546
+            ],
+            "relative_mae_difference": -0.009731812772569931
+          }
+        }
+      },
+      "Airmass [1, 1.25]": {
+        "coverage": "night intervals",
+        "models": {
+          "centered27_diagnostic": {
+            "bias_ci95": [
+              -0.07825331283080347,
+              -0.03714833636689439
+            ],
+            "mae": 0.055097635484084743,
+            "mae_ci95": [
+              0.04063716795534303,
+              0.07918380940533566
+            ],
+            "mean_absolute_relative_error": 0.1627885746127446,
+            "mean_signed_error": -0.0527920371726002,
+            "median_absolute_error": 0.03787914806765122,
+            "median_absolute_relative_error": 0.14088997288863409,
+            "missing": 0,
+            "n": 66,
+            "night_weighted_mae": 0.07680671145189769,
+            "nights": 13,
+            "relative_bias": -0.15512973275033173,
+            "relative_mae_ci95": [
+              0.12488914645432826,
+              0.23001433180063932
+            ],
+            "relative_rmse": 0.1959804422608172,
+            "rmse": 0.07012551959364205
+          },
+          "latest_daily_latency1": {
+            "bias_ci95": [
+              -0.08432711053556813,
+              -0.03957671179805673
+            ],
+            "mae": 0.05844530870245255,
+            "mae_ci95": [
+              0.043122076801474445,
+              0.0845325325413384
+            ],
+            "mean_absolute_relative_error": 0.1742322237506596,
+            "mean_signed_error": -0.0563119602927094,
+            "median_absolute_error": 0.04815084671269659,
+            "median_absolute_relative_error": 0.17136682300735884,
+            "missing": 0,
+            "n": 66,
+            "night_weighted_mae": 0.0820800587282719,
+            "nights": 13,
+            "relative_bias": -0.16721543250829393,
+            "relative_mae_ci95": [
+              0.1326847572257252,
+              0.24777410375710443
+            ],
+            "relative_rmse": 0.20879751266423438,
+            "rmse": 0.07355018295895786
+          },
+          "operational_automatic": {
+            "bias_ci95": [
+              -0.10261293512445822,
+              -0.06926857566104408
+            ],
+            "mae": 0.08318878903449249,
+            "mae_ci95": [
+              0.06926857566104404,
+              0.10261293512445822
+            ],
+            "mean_absolute_relative_error": 0.24983497666818558,
+            "mean_signed_error": -0.08318878903449249,
+            "median_absolute_error": 0.06932486710526434,
+            "median_absolute_relative_error": 0.23520940957074543,
+            "missing": 0,
+            "n": 66,
+            "night_weighted_mae": 0.09761259868959928,
+            "nights": 13,
+            "relative_bias": -0.24983497666818558,
+            "relative_mae_ci95": [
+              0.21842767114153147,
+              0.29751861576414196
+            ],
+            "relative_rmse": 0.27037936407430135,
+            "rmse": 0.09425063248890592
+          },
+          "previous_month_mean": {
+            "bias_ci95": [
+              -0.06913055577552048,
+              -0.02671027609775977
+            ],
+            "mae": 0.04756560487381417,
+            "mae_ci95": [
+              0.03396370161610974,
+              0.07072616742822502
+            ],
+            "mean_absolute_relative_error": 0.1392326287707279,
+            "mean_signed_error": -0.04258534041459498,
+            "median_absolute_error": 0.03454776085223371,
+            "median_absolute_relative_error": 0.11459997518049521,
+            "missing": 0,
+            "n": 66,
+            "night_weighted_mae": 0.06837125966976267,
+            "nights": 13,
+            "relative_bias": -0.12307923692657731,
+            "relative_mae_ci95": [
+              0.10360024944447167,
+              0.20112624470852347
+            ],
+            "relative_rmse": 0.17471771732594063,
+            "rmse": 0.06342565355667347
+          },
+          "same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              -0.07781706091742523,
+              -0.03753676010252296
+            ],
+            "mae": 0.05499891438518667,
+            "mae_ci95": [
+              0.0412977821813267,
+              0.07839325423773455
+            ],
+            "mean_absolute_relative_error": 0.1633667505932118,
+            "mean_signed_error": -0.05256927441798251,
+            "median_absolute_error": 0.04251253652565422,
+            "median_absolute_relative_error": 0.16624543545941423,
+            "missing": 0,
+            "n": 66,
+            "night_weighted_mae": 0.07756511651491395,
+            "nights": 13,
+            "relative_bias": -0.15520276610476366,
+            "relative_mae_ci95": [
+              0.12727553944603726,
+              0.22830961799982052
+            ],
+            "relative_rmse": 0.19452238844278957,
+            "rmse": 0.06930993035101063
+          },
+          "trailing27_latency1": {
+            "bias_ci95": [
+              -0.07093999686812773,
+              -0.02768306795025476
+            ],
+            "mae": 0.048565497514289145,
+            "mae_ci95": [
+              0.034882681470750965,
+              0.07249372058598165
+            ],
+            "mean_absolute_relative_error": 0.14257048968181743,
+            "mean_signed_error": -0.04363527806232526,
+            "median_absolute_error": 0.0347890329342955,
+            "median_absolute_relative_error": 0.1153623332713685,
+            "missing": 0,
+            "n": 66,
+            "night_weighted_mae": 0.07085676229595353,
+            "nights": 13,
+            "relative_bias": -0.1264384475244613,
+            "relative_mae_ci95": [
+              0.10584478764915807,
+              0.20880890979529015
+            ],
+            "relative_rmse": 0.17835318297527825,
+            "rmse": 0.0643064713387048
+          }
+        },
+        "n": 66,
+        "nights": 13,
+        "paired": {
+          "centered27_diagnostic_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              -0.001980665801829426,
+              0.0018906253026602798
+            ],
+            "bias_difference": -0.00022276275461768913,
+            "mae_ci95": [
+              -0.0020659011699950863,
+              0.0016421609929104528
+            ],
+            "mae_difference": 9.872109889807329e-05,
+            "relative_mae_ci95": [
+              -0.009040009300844571,
+              0.004716208800198155
+            ],
+            "relative_mae_difference": -0.0005781759804671938
+          },
+          "latest_daily_latency1_minus_centered27_diagnostic": {
+            "bias_ci95": [
+              -0.00750292021811671,
+              -0.0009688759057255069
+            ],
+            "bias_difference": -0.0035199231201092016,
+            "mae_ci95": [
+              0.0008730923069862508,
+              0.007144054240653391
+            ],
+            "mae_difference": 0.0033476732183678054,
+            "relative_mae_ci95": [
+              0.0028853853064701347,
+              0.02651627911206824
+            ],
+            "relative_mae_difference": 0.011443649137915013
+          },
+          "latest_daily_latency1_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              -0.008012926733912937,
+              -0.0009909747137526867
+            ],
+            "bias_difference": -0.0037426858747268907,
+            "mae_ci95": [
+              0.0008792271778866586,
+              0.007216250015406441
+            ],
+            "mae_difference": 0.0034463943172658787,
+            "relative_mae_ci95": [
+              0.0028912231156116882,
+              0.02293478584084841
+            ],
+            "relative_mae_difference": 0.01086547315744782
+          },
+          "operational_automatic_minus_centered27_diagnostic": {
+            "bias_ci95": [
+              -0.03460437059296567,
+              -0.02166192465580651
+            ],
+            "bias_difference": -0.030396751861892293,
+            "mae_ci95": [
+              0.020055065570252217,
+              0.0326548289675094
+            ],
+            "mae_difference": 0.028091153550407748,
+            "relative_mae_ci95": [
+              0.06375881913065572,
+              0.09982976004809228
+            ],
+            "relative_mae_difference": 0.08704640205544098
+          },
+          "operational_automatic_minus_latest_daily_latency1": {
+            "bias_ci95": [
+              -0.032221302686672615,
+              -0.01624504216532371
+            ],
+            "bias_difference": -0.02687682874178309,
+            "mae_ci95": [
+              0.01522548270099372,
+              0.029830589725163288
+            ],
+            "mae_difference": 0.024743480332039942,
+            "relative_mae_ci95": [
+              0.047450184815521906,
+              0.09042108189684926
+            ],
+            "relative_mae_difference": 0.07560275291752597
+          },
+          "operational_automatic_minus_previous_month_mean": {
+            "bias_ci95": [
+              -0.045235502815867266,
+              -0.030510403339098012
+            ],
+            "bias_difference": -0.04060344861989751,
+            "mae_ci95": [
+              0.02663689150495156,
+              0.04112510777931302
+            ],
+            "mae_difference": 0.03562318416067832,
+            "relative_mae_ci95": [
+              0.08662911083835832,
+              0.12646677099788614
+            ],
+            "relative_mae_difference": 0.11060234789745768
+          },
+          "operational_automatic_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              -0.03483361266666721,
+              -0.02188688991476355
+            ],
+            "bias_difference": -0.030619514616509982,
+            "mae_ci95": [
+              0.019759510960587815,
+              0.032896371723886375
+            ],
+            "mae_difference": 0.02818987464930582,
+            "relative_mae_ci95": [
+              0.06272336399894321,
+              0.09920819638218224
+            ],
+            "relative_mae_difference": 0.08646822607497379
+          },
+          "operational_automatic_minus_trailing27_latency1": {
+            "bias_ci95": [
+              -0.044433949055347935,
+              -0.029045483013913142
+            ],
+            "bias_difference": -0.03955351097216723,
+            "mae_ci95": [
+              0.0249405097314461,
+              0.04027971117865192
+            ],
+            "mae_difference": 0.034623291520203346,
+            "relative_mae_ci95": [
+              0.08056318057393617,
+              0.12385204582891524
+            ],
+            "relative_mae_difference": 0.10726448698636815
+          },
+          "previous_month_mean_minus_centered27_diagnostic": {
+            "bias_ci95": [
+              0.00727368402891142,
+              0.01237973502567309
+            ],
+            "bias_difference": 0.010206696758005215,
+            "mae_ci95": [
+              -0.011162603053106703,
+              -0.0039403666220610796
+            ],
+            "mae_difference": -0.007532030610270572,
+            "relative_mae_ci95": [
+              -0.03550098988680642,
+              -0.01273590548313143
+            ],
+            "relative_mae_difference": -0.0235559458420167
+          },
+          "previous_month_mean_minus_latest_daily_latency1": {
+            "bias_ci95": [
+              0.01032174518198256,
+              0.018173897154816144
+            ],
+            "bias_difference": 0.013726619878114417,
+            "mae_ci95": [
+              -0.016709839532066378,
+              -0.006033147645192466
+            ],
+            "mae_difference": -0.010879703828638378,
+            "relative_mae_ci95": [
+              -0.05697419764848908,
+              -0.01954584976813024
+            ],
+            "relative_mae_difference": -0.034999594979931714
+          },
+          "previous_month_mean_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              0.005798638627873659,
+              0.013130262215222148
+            ],
+            "bias_difference": 0.009983934003387526,
+            "mae_ci95": [
+              -0.011780765474853416,
+              -0.0036295552650322522
+            ],
+            "mae_difference": -0.007433309511372499,
+            "relative_mae_ci95": [
+              -0.040370207607922426,
+              -0.012186675984325844
+            ],
+            "relative_mae_difference": -0.024134121822483895
+          },
+          "trailing27_latency1_minus_centered27_diagnostic": {
+            "bias_ci95": [
+              0.006786096381011181,
+              0.010358611318797159
+            ],
+            "bias_difference": 0.009156759110274935,
+            "mae_ci95": [
+              -0.008877986242526325,
+              -0.0035578537884683164
+            ],
+            "mae_difference": -0.006532137969795598,
+            "relative_mae_ci95": [
+              -0.027310019143999543,
+              -0.011592191362057407
+            ],
+            "relative_mae_difference": -0.020218084930927166
+          },
+          "trailing27_latency1_minus_latest_daily_latency1": {
+            "bias_ci95": [
+              0.008914301933702769,
+              0.01700235646500272
+            ],
+            "bias_difference": 0.012676682230384137,
+            "mae_ci95": [
+              -0.015131882835692407,
+              -0.005025053025150577
+            ],
+            "mae_difference": -0.009879811188163404,
+            "relative_mae_ci95": [
+              -0.051857595929132624,
+              -0.01608804777053848
+            ],
+            "relative_mae_difference": -0.03166173406884218
+          },
+          "trailing27_latency1_minus_previous_month_mean": {
+            "bias_ci95": [
+              -0.004572355709538136,
+              0.0017231863496576843
+            ],
+            "bias_difference": -0.00104993764773028,
+            "mae_ci95": [
+              -0.0016502481565151689,
+              0.004589644158732898
+            ],
+            "mae_difference": 0.000999892640474974,
+            "relative_mae_ci95": [
+              -0.005079940585438308,
+              0.015139432122567928
+            ],
+            "relative_mae_difference": 0.003337860911089535
+          },
+          "trailing27_latency1_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              0.005636013486550461,
+              0.0114944431962439
+            ],
+            "bias_difference": 0.008933996355657246,
+            "mae_ci95": [
+              -0.009728210722479164,
+              -0.0035551685001008926
+            ],
+            "mae_difference": -0.006433416870897525,
+            "relative_mae_ci95": [
+              -0.03407181521053372,
+              -0.011143448850076997
+            ],
+            "relative_mae_difference": -0.02079626091139436
+          }
+        }
+      },
+      "F27 67–166 sfu (within training)": {
+        "coverage": "night intervals",
+        "models": {
+          "centered27_diagnostic": {
+            "bias_ci95": [
+              -0.11186168673309702,
+              -0.04574769722411548
+            ],
+            "mae": 0.0858183945635693,
+            "mae_ci95": [
+              0.045747697224115404,
+              0.11186168673309702
+            ],
+            "mean_absolute_relative_error": 0.24006451328054798,
+            "mean_signed_error": -0.0858183945635693,
+            "median_absolute_error": 0.10361508846314305,
+            "median_absolute_relative_error": 0.2592271271586248,
+            "missing": 0,
+            "n": 21,
+            "night_weighted_mae": 0.07170135936213157,
+            "nights": 8,
+            "relative_bias": -0.24006451328054798,
+            "relative_mae_ci95": [
+              0.16230520905977977,
+              0.2901047603140019
+            ],
+            "relative_rmse": 0.25708884050926145,
+            "rmse": 0.09718656310223577
+          },
+          "latest_daily_latency1": {
+            "bias_ci95": [
+              -0.11005098016781958,
+              -0.043900004740593176
+            ],
+            "mae": 0.08459305866099787,
+            "mae_ci95": [
+              0.04390000474059317,
+              0.11005098016781957
+            ],
+            "mean_absolute_relative_error": 0.23473969917724236,
+            "mean_signed_error": -0.08459305866099787,
+            "median_absolute_error": 0.10024081190844164,
+            "median_absolute_relative_error": 0.2594162670714664,
+            "missing": 0,
+            "n": 21,
+            "night_weighted_mae": 0.07193871872549831,
+            "nights": 8,
+            "relative_bias": -0.23473969917724236,
+            "relative_mae_ci95": [
+              0.15181157957484365,
+              0.28971612941554314
+            ],
+            "relative_rmse": 0.2556291560740641,
+            "rmse": 0.0968233325417339
+          },
+          "operational_automatic": {
+            "bias_ci95": [
+              -0.11271350257141206,
+              -0.043531582180688144
+            ],
+            "mae": 0.08598103205841238,
+            "mae_ci95": [
+              0.043531582180688144,
+              0.11271350257141206
+            ],
+            "mean_absolute_relative_error": 0.2394692877275425,
+            "mean_signed_error": -0.08598103205841238,
+            "median_absolute_error": 0.10291359476256984,
+            "median_absolute_relative_error": 0.2583089171000425,
+            "missing": 0,
+            "n": 21,
+            "night_weighted_mae": 0.07245651149953665,
+            "nights": 8,
+            "relative_bias": -0.2394692877275425,
+            "relative_mae_ci95": [
+              0.1487442533239329,
+              0.304008953185015
+            ],
+            "relative_rmse": 0.2634066022653193,
+            "rmse": 0.0987767624002754
+          },
+          "previous_month_mean": {
+            "bias_ci95": [
+              -0.1082717495702376,
+              -0.038472429516999467
+            ],
+            "mae": 0.0798870794910419,
+            "mae_ci95": [
+              0.03847242951699945,
+              0.1082717495702376
+            ],
+            "mean_absolute_relative_error": 0.2184973014297879,
+            "mean_signed_error": -0.0798870794910419,
+            "median_absolute_error": 0.08615006221526406,
+            "median_absolute_relative_error": 0.23653994114149468,
+            "missing": 0,
+            "n": 21,
+            "night_weighted_mae": 0.06385865996731875,
+            "nights": 8,
+            "relative_bias": -0.2184973014297879,
+            "relative_mae_ci95": [
+              0.13857274931388916,
+              0.2708166840483542
+            ],
+            "relative_rmse": 0.23684756342454463,
+            "rmse": 0.0927019755381811
+          },
+          "same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              -0.1098563531506485,
+              -0.04558473023135416
+            ],
+            "mae": 0.08452637021637775,
+            "mae_ci95": [
+              0.04558473023135409,
+              0.1098563531506485
+            ],
+            "mean_absolute_relative_error": 0.23689286252514077,
+            "mean_signed_error": -0.08452637021637775,
+            "median_absolute_error": 0.10245898621045663,
+            "median_absolute_relative_error": 0.2511851121001811,
+            "missing": 0,
+            "n": 21,
+            "night_weighted_mae": 0.07081862170144396,
+            "nights": 8,
+            "relative_bias": -0.23689286252514077,
+            "relative_mae_ci95": [
+              0.16156174331769727,
+              0.2851501079002055
+            ],
+            "relative_rmse": 0.25305006509188416,
+            "rmse": 0.09552029761226782
+          },
+          "trailing27_latency1": {
+            "bias_ci95": [
+              -0.11055798818974265,
+              -0.044366784498741714
+            ],
+            "mae": 0.08468129770782613,
+            "mae_ci95": [
+              0.04436678449874167,
+              0.11055798818974265
+            ],
+            "mean_absolute_relative_error": 0.2361021374496653,
+            "mean_signed_error": -0.08468129770782613,
+            "median_absolute_error": 0.10290062134983619,
+            "median_absolute_relative_error": 0.2530412731382419,
+            "missing": 0,
+            "n": 21,
+            "night_weighted_mae": 0.07066247530629031,
+            "nights": 8,
+            "relative_bias": -0.2361021374496653,
+            "relative_mae_ci95": [
+              0.1574331893896643,
+              0.2865239390605628
+            ],
+            "relative_rmse": 0.2538110710941968,
+            "rmse": 0.09618653262095923
+          }
+        },
+        "n": 21,
+        "nights": 8,
+        "paired": {
+          "centered27_diagnostic_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              -0.0019636606522781663,
+              -0.00021610726783521928
+            ],
+            "bias_difference": -0.0012920243471915421,
+            "mae_ci95": [
+              0.00021610726783521852,
+              0.0019636606522781654
+            ],
+            "mae_difference": 0.0012920243471915421,
+            "relative_mae_ci95": [
+              0.00011631730132896996,
+              0.005078992568183255
+            ],
+            "relative_mae_difference": 0.003171650755407207
+          },
+          "latest_daily_latency1_minus_centered27_diagnostic": {
+            "bias_ci95": [
+              -0.004729250598294841,
+              0.005422044952437788
+            ],
+            "bias_difference": 0.0012253359025714283,
+            "mae_ci95": [
+              -0.005422044952437792,
+              0.00472925059829483
+            ],
+            "mae_difference": -0.0012253359025714283,
+            "relative_mae_ci95": [
+              -0.01730783382339843,
+              0.010451181908266344
+            ],
+            "relative_mae_difference": -0.005324814103305625
+          },
+          "latest_daily_latency1_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              -0.005878388795081135,
+              0.00421628351160079
+            ],
+            "bias_difference": -6.668844462011381e-05,
+            "mae_ci95": [
+              -0.004216283511600791,
+              0.005878388795081134
+            ],
+            "mae_difference": 6.668844462011381e-05,
+            "relative_mae_ci95": [
+              -0.015380101932042181,
+              0.013983939115704289
+            ],
+            "relative_mae_difference": -0.002153163347898418
+          },
+          "operational_automatic_minus_centered27_diagnostic": {
+            "bias_ci95": [
+              -0.006493932861566593,
+              0.005108590361816501
+            ],
+            "bias_difference": -0.0001626374948430903,
+            "mae_ci95": [
+              -0.005108590361816502,
+              0.006493932861566583
+            ],
+            "mae_difference": 0.0001626374948430903,
+            "relative_mae_ci95": [
+              -0.019463774850137328,
+              0.02054535047103456
+            ],
+            "relative_mae_difference": -0.0005952255530054795
+          },
+          "operational_automatic_minus_latest_daily_latency1": {
+            "bias_ci95": [
+              -0.005605271773458713,
+              0.004448973526580884
+            ],
+            "bias_difference": -0.0013879733974145186,
+            "mae_ci95": [
+              -0.004448973526580885,
+              0.005605271773458711
+            ],
+            "mae_difference": 0.0013879733974145186,
+            "relative_mae_ci95": [
+              -0.010413899537263367,
+              0.016882666733877002
+            ],
+            "relative_mae_difference": 0.004729588550300146
+          },
+          "operational_automatic_minus_previous_month_mean": {
+            "bias_ci95": [
+              -0.02025491933683667,
+              0.0024081357165450785
+            ],
+            "bias_difference": -0.006093952567370484,
+            "mae_ci95": [
+              -0.0024081357165450794,
+              0.020254919336836662
+            ],
+            "mae_difference": 0.006093952567370484,
+            "relative_mae_ci95": [
+              -0.00761399561142835,
+              0.06684778068164692
+            ],
+            "relative_mae_difference": 0.020971986297754597
+          },
+          "operational_automatic_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              -0.007995804805318614,
+              0.004298215886778801
+            ],
+            "bias_difference": -0.0014546618420346324,
+            "mae_ci95": [
+              -0.004298215886778805,
+              0.007995804805318614
+            ],
+            "mae_difference": 0.0014546618420346324,
+            "relative_mae_ci95": [
+              -0.0177528480653757,
+              0.024649426651391724
+            ],
+            "relative_mae_difference": 0.0025764252024017276
+          },
+          "operational_automatic_minus_trailing27_latency1": {
+            "bias_ci95": [
+              -0.008092679222997322,
+              0.0044531527400262306
+            ],
+            "bias_difference": -0.0012997343505862513,
+            "mae_ci95": [
+              -0.004453152740026232,
+              0.00809267922299731
+            ],
+            "mae_difference": 0.0012997343505862513,
+            "relative_mae_ci95": [
+              -0.016372042666730813,
+              0.026160103243407392
+            ],
+            "relative_mae_difference": 0.0033671502778772067
+          },
+          "previous_month_mean_minus_centered27_diagnostic": {
+            "bias_ci95": [
+              0.000870332129945783,
+              0.013944323376429344
+            ],
+            "bias_difference": 0.005931315072527393,
+            "mae_ci95": [
+              -0.013944323376429377,
+              -0.0008703321299457833
+            ],
+            "mae_difference": -0.005931315072527393,
+            "relative_mae_ci95": [
+              -0.04833318157410101,
+              -0.004305409262419682
+            ],
+            "relative_mae_difference": -0.021567211850760076
+          },
+          "previous_month_mean_minus_latest_daily_latency1": {
+            "bias_ci95": [
+              -0.0032507031984813765,
+              0.01656784414608735
+            ],
+            "bias_difference": 0.004705979169955965,
+            "mae_ci95": [
+              -0.01656784414608735,
+              0.0032507031984813756
+            ],
+            "mae_difference": -0.004705979169955965,
+            "relative_mae_ci95": [
+              -0.05314042475644983,
+              0.007600170773878618
+            ],
+            "relative_mae_difference": -0.01624239774745445
+          },
+          "previous_month_mean_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              -0.000747790300791689,
+              0.012814932437757543
+            ],
+            "bias_difference": 0.004639290725335851,
+            "mae_ci95": [
+              -0.012814932437757543,
+              0.0007477903007916882
+            ],
+            "mae_difference": -0.004639290725335851,
+            "relative_mae_ci95": [
+              -0.04568124057612395,
+              -0.0006193544062171855
+            ],
+            "relative_mae_difference": -0.01839556109535287
+          },
+          "trailing27_latency1_minus_centered27_diagnostic": {
+            "bias_ci95": [
+              0.0004367963610732859,
+              0.0016433024756916978
+            ],
+            "bias_difference": 0.001137096855743161,
+            "mae_ci95": [
+              -0.0016433024756916984,
+              -0.00043679636107328616
+            ],
+            "mae_difference": -0.001137096855743161,
+            "relative_mae_ci95": [
+              -0.006398743259702122,
+              -0.0017144125833831695
+            ],
+            "relative_mae_difference": -0.003962375830882686
+          },
+          "trailing27_latency1_minus_latest_daily_latency1": {
+            "bias_ci95": [
+              -0.004305042761726347,
+              0.005707411626874444
+            ],
+            "bias_difference": -8.823904682826733e-05,
+            "mae_ci95": [
+              -0.0057074116268744455,
+              0.004305042761726346
+            ],
+            "mae_difference": 8.823904682826733e-05,
+            "relative_mae_ci95": [
+              -0.014840458272689677,
+              0.013879142416114296
+            ],
+            "relative_mae_difference": 0.001362438272422939
+          },
+          "trailing27_latency1_minus_previous_month_mean": {
+            "bias_ci95": [
+              -0.012617251718099255,
+              0.0001293876709876249
+            ],
+            "bias_difference": -0.004794218216784232,
+            "mae_ci95": [
+              -0.00012938767098762542,
+              0.012617251718099255
+            ],
+            "mae_difference": 0.004794218216784232,
+            "relative_mae_ci95": [
+              0.0009794638439117125,
+              0.04300801228992238
+            ],
+            "relative_mae_difference": 0.01760483601987739
+          },
+          "trailing27_latency1_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              -0.0009603432778312645,
+              0.001029669676262863
+            ],
+            "bias_difference": -0.00015492749144838114,
+            "mae_ci95": [
+              -0.0010296696762628638,
+              0.0009603432778312642
+            ],
+            "mae_difference": 0.00015492749144838114,
+            "relative_mae_ci95": [
+              -0.005440575386327366,
+              0.0021590933947015483
+            ],
+            "relative_mae_difference": -0.0007907250754754791
+          }
+        }
+      },
+      "F27 <67 sfu (outside training)": {
+        "coverage": "empty",
+        "models": {},
+        "n": 0,
+        "nights": 0,
+        "paired": {}
+      },
+      "F27 >166 sfu (outside training)": {
+        "coverage": "night intervals",
+        "models": {
+          "centered27_diagnostic": {
+            "bias_ci95": [
+              -0.06830519881486705,
+              -0.03257235097638963
+            ],
+            "mae": 0.0493571537124188,
+            "mae_ci95": [
+              0.03571752100717837,
+              0.06958658736818006
+            ],
+            "mean_absolute_relative_error": 0.14434091354788425,
+            "mean_signed_error": -0.047272640170528665,
+            "median_absolute_error": 0.035143079541153865,
+            "median_absolute_relative_error": 0.12545914590013657,
+            "missing": 0,
+            "n": 73,
+            "night_weighted_mae": 0.06249120288668702,
+            "nights": 9,
+            "relative_bias": -0.13741648117912744,
+            "relative_mae_ci95": [
+              0.10939814103604535,
+              0.19523775964186926
+            ],
+            "relative_rmse": 0.17430689561645213,
+            "rmse": 0.0633421159804653
+          },
+          "latest_daily_latency1": {
+            "bias_ci95": [
+              -0.07607275180155214,
+              -0.034955064772847974
+            ],
+            "mae": 0.05301581203619901,
+            "mae_ci95": [
+              0.03802617035450395,
+              0.07694228344114978
+            ],
+            "mean_absolute_relative_error": 0.15633030068105294,
+            "mean_signed_error": -0.05107817784145826,
+            "median_absolute_error": 0.04014913115990926,
+            "median_absolute_relative_error": 0.13088924775262958,
+            "missing": 0,
+            "n": 73,
+            "night_weighted_mae": 0.06981725145000346,
+            "nights": 9,
+            "relative_bias": -0.149957091518513,
+            "relative_mae_ci95": [
+              0.11686892440944067,
+              0.22106104200103546
+            ],
+            "relative_rmse": 0.1888759454967236,
+            "rmse": 0.06761057886984113
+          },
+          "operational_automatic": {
+            "bias_ci95": [
+              -0.09964935584712252,
+              -0.06575856558349856
+            ],
+            "mae": 0.08015860412329362,
+            "mae_ci95": [
+              0.06575856558349855,
+              0.0996493558471225
+            ],
+            "mean_absolute_relative_error": 0.2386334738207977,
+            "mean_signed_error": -0.08015860412329362,
+            "median_absolute_error": 0.06876922419796117,
+            "median_absolute_relative_error": 0.23281820963137886,
+            "missing": 0,
+            "n": 73,
+            "night_weighted_mae": 0.09099882985295543,
+            "nights": 9,
+            "relative_bias": -0.2386334738207977,
+            "relative_mae_ci95": [
+              0.20743397031767097,
+              0.28677284610291726
+            ],
+            "relative_rmse": 0.258367807248386,
+            "rmse": 0.09115804375446877
+          },
+          "previous_month_mean": {
+            "bias_ci95": [
+              -0.060844860605531154,
+              -0.022993570085241867
+            ],
+            "mae": 0.042724334139686494,
+            "mae_ci95": [
+              0.02988061081442768,
+              0.0633841243496318
+            ],
+            "mean_absolute_relative_error": 0.12444412182103154,
+            "mean_signed_error": -0.03781185767313022,
+            "median_absolute_error": 0.028628479826888154,
+            "median_absolute_relative_error": 0.10141999470886544,
+            "missing": 0,
+            "n": 73,
+            "night_weighted_mae": 0.055833653258816014,
+            "nights": 9,
+            "relative_bias": -0.10849402470396186,
+            "relative_mae_ci95": [
+              0.09078680952593832,
+              0.177771390117586
+            ],
+            "relative_rmse": 0.15762762914805192,
+            "rmse": 0.05734281454718043
+          },
+          "same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              -0.0679824836568381,
+              -0.03332726578190756
+            ],
+            "mae": 0.049335254777843666,
+            "mae_ci95": [
+              0.03645405231934307,
+              0.06933768187833438
+            ],
+            "mean_absolute_relative_error": 0.14500252514744968,
+            "mean_signed_error": -0.04713859398557687,
+            "median_absolute_error": 0.03798158104960653,
+            "median_absolute_relative_error": 0.1275553990159482,
+            "missing": 0,
+            "n": 73,
+            "night_weighted_mae": 0.0643961434073678,
+            "nights": 9,
+            "relative_bias": -0.13762138848666097,
+            "relative_mae_ci95": [
+              0.1122682615028914,
+              0.19461219291270335
+            ],
+            "relative_rmse": 0.1733487839654908,
+            "rmse": 0.062793567799068
+          },
+          "trailing27_latency1": {
+            "bias_ci95": [
+              -0.058291366856993085,
+              -0.02298602482189618
+            ],
+            "mae": 0.04224901879766948,
+            "mae_ci95": [
+              0.029859161843989186,
+              0.060936306633307694
+            ],
+            "mean_absolute_relative_error": 0.12269514499403875,
+            "mean_signed_error": -0.03741224321765224,
+            "median_absolute_error": 0.029337402264930812,
+            "median_absolute_relative_error": 0.10229308699683136,
+            "missing": 0,
+            "n": 73,
+            "night_weighted_mae": 0.05420761233920209,
+            "nights": 9,
+            "relative_bias": -0.10686249246909996,
+            "relative_mae_ci95": [
+              0.09046933469358215,
+              0.16870486474917548
+            ],
+            "relative_rmse": 0.15316872403563372,
+            "rmse": 0.05631838604354767
+          }
+        },
+        "n": 73,
+        "nights": 9,
+        "paired": {
+          "centered27_diagnostic_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              -0.0018121081930770194,
+              0.001885492578439749
+            ],
+            "bias_difference": -0.0001340461849517957,
+            "mae_ci95": [
+              -0.0021526575107741015,
+              0.0015831797229369474
+            ],
+            "mae_difference": 2.1898934575131923e-05,
+            "relative_mae_ci95": [
+              -0.009065365264076808,
+              0.004652967978441066
+            ],
+            "relative_mae_difference": -0.0006616115995654315
+          },
+          "latest_daily_latency1_minus_centered27_diagnostic": {
+            "bias_ci95": [
+              -0.009129550170186105,
+              -0.001432840820121343
+            ],
+            "bias_difference": -0.0038055376709295943,
+            "mae_ci95": [
+              0.0014374053796655322,
+              0.008640150000122832
+            ],
+            "mae_difference": 0.003658658323780213,
+            "relative_mae_ci95": [
+              0.004377125123133203,
+              0.030165916644472657
+            ],
+            "relative_mae_difference": 0.011989387133168689
+          },
+          "latest_daily_latency1_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              -0.009331692959946505,
+              -0.0010509025064324793
+            ],
+            "bias_difference": -0.00393958385588139,
+            "mae_ci95": [
+              0.00103944723084848,
+              0.008676953270995935
+            ],
+            "mae_difference": 0.003680557258355345,
+            "relative_mae_ci95": [
+              0.003284354223312401,
+              0.027374292203539315
+            ],
+            "relative_mae_difference": 0.011327775533603257
+          },
+          "operational_automatic_minus_centered27_diagnostic": {
+            "bias_ci95": [
+              -0.03392183729991015,
+              -0.030505833264974747
+            ],
+            "bias_difference": -0.032885963952764954,
+            "mae_ci95": [
+              0.027861998823098262,
+              0.0329800881749934
+            ],
+            "mae_difference": 0.03080145041087482,
+            "relative_mae_ci95": [
+              0.0882660706001699,
+              0.09951939893293699
+            ],
+            "relative_mae_difference": 0.09429256027291344
+          },
+          "operational_automatic_minus_latest_daily_latency1": {
+            "bias_ci95": [
+              -0.03238312349247756,
+              -0.02144785215850557
+            ],
+            "bias_difference": -0.02908042628183536,
+            "mae_ci95": [
+              0.02080729735098171,
+              0.030119095711780005
+            ],
+            "mae_difference": 0.027142792087094608,
+            "relative_mae_ci95": [
+              0.06339442911674499,
+              0.09109526501436978
+            ],
+            "relative_mae_difference": 0.08230317313974475
+          },
+          "operational_automatic_minus_previous_month_mean": {
+            "bias_ci95": [
+              -0.0440101740294325,
+              -0.0377209127469996
+            ],
+            "bias_difference": -0.0423467464501634,
+            "mae_ci95": [
+              0.031148658356566036,
+              0.04216916202405127
+            ],
+            "mae_difference": 0.037434269983607125,
+            "relative_mae_ci95": [
+              0.09954289319887209,
+              0.12607401286589975
+            ],
+            "relative_mae_difference": 0.11418935199976615
+          },
+          "operational_automatic_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              -0.03443324637413735,
+              -0.02952162615571683
+            ],
+            "bias_difference": -0.03302001013771675,
+            "mae_ci95": [
+              0.02658962797974534,
+              0.033574443705071254
+            ],
+            "mae_difference": 0.030823349345449953,
+            "relative_mae_ci95": [
+              0.08416453258912378,
+              0.09965926039454447
+            ],
+            "relative_mae_difference": 0.09363094867334801
+          },
+          "operational_automatic_minus_trailing27_latency1": {
+            "bias_ci95": [
+              -0.043512273330758224,
+              -0.04087022603195794
+            ],
+            "bias_difference": -0.04274636090564138,
+            "mae_ci95": [
+              0.03257893423260524,
+              0.041989589318544226
+            ],
+            "mae_difference": 0.03790958532562414,
+            "relative_mae_ci95": [
+              0.10358210229406796,
+              0.1271389955179146
+            ],
+            "relative_mae_difference": 0.11593832882675895
+          },
+          "previous_month_mean_minus_centered27_diagnostic": {
+            "bias_ci95": [
+              0.006557528119153426,
+              0.010758020688856479
+            ],
+            "bias_difference": 0.009460782497398443,
+            "mae_ci95": [
+              -0.009790901609234834,
+              -0.0028580795365784517
+            ],
+            "mae_difference": -0.006632819572732304,
+            "relative_mae_ci95": [
+              -0.02894048129663871,
+              -0.009172234715557283
+            ],
+            "relative_mae_difference": -0.019896791726852714
+          },
+          "previous_month_mean_minus_latest_daily_latency1": {
+            "bias_ci95": [
+              0.010745668682116504,
+              0.01708552597528496
+            ],
+            "bias_difference": 0.013266320168328037,
+            "mae_ci95": [
+              -0.016111024964025476,
+              -0.005573790908603136
+            ],
+            "mae_difference": -0.010291477896512517,
+            "relative_mae_ci95": [
+              -0.05251507163325191,
+              -0.0177385040633502
+            ],
+            "relative_mae_difference": -0.0318861788600214
+          },
+          "previous_month_mean_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              0.005294662199968448,
+              0.011960583080789858
+            ],
+            "bias_difference": 0.009326736312446647,
+            "mae_ci95": [
+              -0.010591224481078694,
+              -0.0025167332207916187
+            ],
+            "mae_difference": -0.006610920638157172,
+            "relative_mae_ci95": [
+              -0.03472779058483921,
+              -0.008136439223857567
+            ],
+            "relative_mae_difference": -0.020558403326418145
+          },
+          "trailing27_latency1_minus_centered27_diagnostic": {
+            "bias_ci95": [
+              0.00894858925404515,
+              0.010936984186309291
+            ],
+            "bias_difference": 0.009860396952876424,
+            "mae_ci95": [
+              -0.010031725778885217,
+              -0.0040013966047619184
+            ],
+            "mae_difference": -0.00710813491474932,
+            "relative_mae_ci95": [
+              -0.03121601687980333,
+              -0.012740883106405247
+            ],
+            "relative_mae_difference": -0.021645768553845507
+          },
+          "trailing27_latency1_minus_latest_daily_latency1": {
+            "bias_ci95": [
+              0.010738667639439911,
+              0.019645440649387166
+            ],
+            "bias_difference": 0.013665934623806018,
+            "mae_ci95": [
+              -0.01817350856314323,
+              -0.005813064098499998
+            ],
+            "mae_difference": -0.010766793238529533,
+            "relative_mae_ci95": [
+              -0.06026359826678605,
+              -0.018363375331590763
+            ],
+            "relative_mae_difference": -0.033635155687014195
+          },
+          "trailing27_latency1_minus_previous_month_mean": {
+            "bias_ci95": [
+              -0.0007746290878386664,
+              0.0035733485529932394
+            ],
+            "bias_difference": 0.00039961445547798125,
+            "mae_ci95": [
+              -0.0034577791486264465,
+              0.0006692522983741922
+            ],
+            "mae_difference": -0.00047531534201701586,
+            "relative_mae_ci95": [
+              -0.01127281544904351,
+              0.001766002834783733
+            ],
+            "relative_mae_difference": -0.001748976826992793
+          },
+          "trailing27_latency1_minus_same_month_finalized_diagnostic": {
+            "bias_ci95": [
+              0.007890832243485767,
+              0.01238105013066575
+            ],
+            "bias_difference": 0.009726350767924628,
+            "mae_ci95": [
+              -0.010943233594539449,
+              -0.004295972262852856
+            ],
+            "mae_difference": -0.007086235980174188,
+            "relative_mae_ci95": [
+              -0.03697129187038359,
+              -0.013322080594145644
+            ],
+            "relative_mae_difference": -0.02230738015341094
+          }
+        }
+      }
+    },
+    "environment": {
+      "nsb_extension_sha256": "1325eb61c81fb30ccb508b29db80d6c27088097baa07e1682ce6151ad227082c",
+      "packages": {
+        "astropy": "8.0.2",
+        "nsb-py": "0.2.0",
+        "numpy": "2.5.4",
+        "scipy": "1.18.1",
+        "siderust": "0.5.1",
+        "tempoch": "0.5.0"
+      },
+      "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43",
+      "python": "3.14.4"
+    },
+    "evaluation_nights": 17,
+    "evaluation_spectra": 94,
+    "full_cohort_paired": {
+      "centered27_diagnostic": {
+        "ci95": [
+          -0.08816426047550466,
+          -0.03929113910499293
+        ],
+        "difference": -0.07309422514159114
+      },
+      "latest_daily_latency1": {
+        "ci95": [
+          -0.07983662733536336,
+          -0.031934618315115265
+        ],
+        "difference": -0.06497290424210289
+      },
+      "previous_month_mean": {
+        "ci95": [
+          -0.11217504764600572,
+          -0.05661292893743499
+        ],
+        "difference": -0.09336419583229552
+      },
+      "same_month_finalized_diagnostic": {
+        "ci95": [
+          -0.08842626603962907,
+          -0.03994264829499455
+        ],
+        "difference": -0.07328898066388129
+      },
+      "trailing27_latency1": {
+        "ci95": [
+          -0.11009073239258643,
+          -0.05272412704742549
+        ],
+        "difference": -0.09078944851264709
+      }
+    },
+    "input_sha256": {
+      "cohort": "3efdd3a0f3af19bfbc7615864f928b33fe22bcdbd6c67568fe317c059d44a1d6",
+      "patat": "1f615fccb6dd464ab95b91f34adb4ba8ba3f4beebe97559204483c1da2c9965c",
+      "rieke": "2213b2c8a61d9aa147ecb88a19c0c64c134955494b07fa8ba7e3cb91660e3301",
+      "solar": "7240df111ea45f26057b89d3e9880a58856d7b6d040ad16247db41f5546dac96"
+    },
+    "issue": 295,
+    "primary_oxygen_metrics": {
+      "centered27_diagnostic": {
+        "bias_ci95": [
+          -0.0819193167537138,
+          -0.04004222080347328
+        ],
+        "continuum_mae": 0.11806681287328809,
+        "continuum_relative_mae": 0.35026901871715976,
+        "mae": 0.0575027500727822,
+        "mean_signed_error": -0.055883925726420716,
+        "night_weighted_mae": 0.06682539416924917,
+        "relative_mae": 0.1657259730626283,
+        "relative_mae_ci95": [
+          0.12972578796991083,
+          0.22612589591920645
+        ]
+      },
+      "latest_daily_latency1": {
+        "bias_ci95": [
+          -0.08585317474686546,
+          -0.04178469983079031
+        ],
+        "continuum_mae": 0.11912496476101958,
+        "continuum_relative_mae": 0.35382091956150347,
+        "mae": 0.06007030330344131,
+        "mean_signed_error": -0.05856554483305754,
+        "night_weighted_mae": 0.0708155889914128,
+        "relative_mae": 0.17384729396211654,
+        "relative_mae_ci95": [
+          0.13524882954556597,
+          0.23787734744461747
+        ]
+      },
+      "operational_automatic": {
+        "bias_ci95": [
+          -0.10014080089106416,
+          -0.0672920417573137
+        ],
+        "continuum_mae": 0.1213901653916147,
+        "continuum_relative_mae": 0.36102821969623355,
+        "mae": 0.08145935930028822,
+        "mean_signed_error": -0.08145935930028822,
+        "night_weighted_mae": 0.08227303298075835,
+        "relative_mae": 0.23882019820421943,
+        "relative_mae_ci95": [
+          0.2069842666415401,
+          0.27888319409046847
+        ]
+      },
+      "previous_month_mean": {
+        "bias_ci95": [
+          -0.0753025874211166,
+          -0.031057752489161452
+        ],
+        "continuum_mae": 0.1168227643350574,
+        "continuum_relative_mae": 0.3458432697538499,
+        "mae": 0.0510266495905212,
+        "mean_signed_error": -0.04721164127074879,
+        "night_weighted_mae": 0.05961012700399376,
+        "relative_mae": 0.1454560023719239,
+        "relative_mae_ci95": [
+          0.1107776968638931,
+          0.20621778746366076
+        ]
+      },
+      "same_month_finalized_diagnostic": {
+        "bias_ci95": [
+          -0.08080851084007754,
+          -0.04040502092733129
+        ],
+        "continuum_mae": 0.11802098605231438,
+        "continuum_relative_mae": 0.35037783059884603,
+        "mae": 0.057197099716239555,
+        "mean_signed_error": -0.0554911822924579,
+        "night_weighted_mae": 0.06741848613399186,
+        "relative_mae": 0.16553121754033814,
+        "relative_mae_ci95": [
+          0.13088815883667831,
+          0.22530867247225983
+        ]
+      },
+      "trailing27_latency1": {
+        "bias_ci95": [
+          -0.07617322576945566,
+          -0.03179077578090352
+        ],
+        "continuum_mae": 0.1168673400366008,
+        "continuum_relative_mae": 0.34615003375606535,
+        "mae": 0.05172857046908744,
+        "mean_signed_error": -0.04797235113566982,
+        "night_weighted_mae": 0.061951077264890665,
+        "relative_mae": 0.14803074969157234,
+        "relative_mae_ci95": [
+          0.11283557122741951,
+          0.2101179216232932
+        ]
+      }
+    },
+    "reproduction_status": "verified",
+    "rieke_fraction_365_650_over_300_650": 0.9296804289344205,
+    "schema_version": 1,
+    "seed": 182,
     "source_notebook": "examples/observational-validation.ipynb",
-    "bootstrap_seed": 182,
-    "bootstrap_draws": 2000
+    "source_sha256": {
+      "Cargo.lock": "ec909ebb098aa283b97403d943062024cbe18979c8fc5d2d1d023fe837c24b08",
+      "examples/observational-validation.ipynb": "67f88dee32da649b59a4f109e176a51573a59a1365313fd97765ce816bd83ba9",
+      "scripts/reproduce_f107_cadence.py": "25fb8174dd0a0a07f0c280e80206c0bbf9f839e4e3f2027cad981ab6cb705e39"
+    },
+    "temporal_availability": "lag-one-day calendar assumption only; historical publication times not verified",
+    "units": "photons cm^-2 ns^-1 sr^-1; relative metrics are fractions",
+    "within_training_domain_metrics": {
+      "centered27_diagnostic": {
+        "bias_ci95": [
+          -0.11186168673309702,
+          -0.04574769722411548
+        ],
+        "mae": 0.0858183945635693,
+        "mae_ci95": [
+          0.045747697224115404,
+          0.11186168673309702
+        ],
+        "mean_absolute_relative_error": 0.24006451328054798,
+        "mean_signed_error": -0.0858183945635693,
+        "median_absolute_error": 0.10361508846314305,
+        "median_absolute_relative_error": 0.2592271271586248,
+        "missing": 0,
+        "n": 21,
+        "night_weighted_mae": 0.07170135936213157,
+        "nights": 8,
+        "relative_bias": -0.24006451328054798,
+        "relative_mae_ci95": [
+          0.16230520905977977,
+          0.2901047603140019
+        ],
+        "relative_rmse": 0.25708884050926145,
+        "rmse": 0.09718656310223577
+      },
+      "latest_daily_latency1": {
+        "bias_ci95": [
+          -0.11005098016781958,
+          -0.043900004740593176
+        ],
+        "mae": 0.08459305866099787,
+        "mae_ci95": [
+          0.04390000474059317,
+          0.11005098016781957
+        ],
+        "mean_absolute_relative_error": 0.23473969917724236,
+        "mean_signed_error": -0.08459305866099787,
+        "median_absolute_error": 0.10024081190844164,
+        "median_absolute_relative_error": 0.2594162670714664,
+        "missing": 0,
+        "n": 21,
+        "night_weighted_mae": 0.07193871872549831,
+        "nights": 8,
+        "relative_bias": -0.23473969917724236,
+        "relative_mae_ci95": [
+          0.15181157957484365,
+          0.28971612941554314
+        ],
+        "relative_rmse": 0.2556291560740641,
+        "rmse": 0.0968233325417339
+      },
+      "operational_automatic": {
+        "bias_ci95": [
+          -0.11271350257141206,
+          -0.043531582180688144
+        ],
+        "mae": 0.08598103205841238,
+        "mae_ci95": [
+          0.043531582180688144,
+          0.11271350257141206
+        ],
+        "mean_absolute_relative_error": 0.2394692877275425,
+        "mean_signed_error": -0.08598103205841238,
+        "median_absolute_error": 0.10291359476256984,
+        "median_absolute_relative_error": 0.2583089171000425,
+        "missing": 0,
+        "n": 21,
+        "night_weighted_mae": 0.07245651149953665,
+        "nights": 8,
+        "relative_bias": -0.2394692877275425,
+        "relative_mae_ci95": [
+          0.1487442533239329,
+          0.304008953185015
+        ],
+        "relative_rmse": 0.2634066022653193,
+        "rmse": 0.0987767624002754
+      },
+      "previous_month_mean": {
+        "bias_ci95": [
+          -0.1082717495702376,
+          -0.038472429516999467
+        ],
+        "mae": 0.0798870794910419,
+        "mae_ci95": [
+          0.03847242951699945,
+          0.1082717495702376
+        ],
+        "mean_absolute_relative_error": 0.2184973014297879,
+        "mean_signed_error": -0.0798870794910419,
+        "median_absolute_error": 0.08615006221526406,
+        "median_absolute_relative_error": 0.23653994114149468,
+        "missing": 0,
+        "n": 21,
+        "night_weighted_mae": 0.06385865996731875,
+        "nights": 8,
+        "relative_bias": -0.2184973014297879,
+        "relative_mae_ci95": [
+          0.13857274931388916,
+          0.2708166840483542
+        ],
+        "relative_rmse": 0.23684756342454463,
+        "rmse": 0.0927019755381811
+      },
+      "same_month_finalized_diagnostic": {
+        "bias_ci95": [
+          -0.1098563531506485,
+          -0.04558473023135416
+        ],
+        "mae": 0.08452637021637775,
+        "mae_ci95": [
+          0.04558473023135409,
+          0.1098563531506485
+        ],
+        "mean_absolute_relative_error": 0.23689286252514077,
+        "mean_signed_error": -0.08452637021637775,
+        "median_absolute_error": 0.10245898621045663,
+        "median_absolute_relative_error": 0.2511851121001811,
+        "missing": 0,
+        "n": 21,
+        "night_weighted_mae": 0.07081862170144396,
+        "nights": 8,
+        "relative_bias": -0.23689286252514077,
+        "relative_mae_ci95": [
+          0.16156174331769727,
+          0.2851501079002055
+        ],
+        "relative_rmse": 0.25305006509188416,
+        "rmse": 0.09552029761226782
+      },
+      "trailing27_latency1": {
+        "bias_ci95": [
+          -0.11055798818974265,
+          -0.044366784498741714
+        ],
+        "mae": 0.08468129770782613,
+        "mae_ci95": [
+          0.04436678449874167,
+          0.11055798818974265
+        ],
+        "mean_absolute_relative_error": 0.2361021374496653,
+        "mean_signed_error": -0.08468129770782613,
+        "median_absolute_error": 0.10290062134983619,
+        "median_absolute_relative_error": 0.2530412731382419,
+        "missing": 0,
+        "n": 21,
+        "night_weighted_mae": 0.07066247530629031,
+        "nights": 8,
+        "relative_bias": -0.2361021374496653,
+        "relative_mae_ci95": [
+          0.1574331893896643,
+          0.2865239390605628
+        ],
+        "relative_rmse": 0.2538110710941968,
+        "rmse": 0.09618653262095923
+      }
+    },
+    "within_training_domain_paired": {
+      "centered27_diagnostic": {
+        "ci95": [
+          -0.02054535047103456,
+          0.019463774850137328
+        ],
+        "difference": 0.0005952255530054795,
+        "n": 21,
+        "nights": 8
+      },
+      "latest_daily_latency1": {
+        "ci95": [
+          -0.016882666733877002,
+          0.010413899537263367
+        ],
+        "difference": -0.004729588550300146,
+        "n": 21,
+        "nights": 8
+      },
+      "previous_month_mean": {
+        "ci95": [
+          -0.06684778068164692,
+          0.00761399561142835
+        ],
+        "difference": -0.020971986297754597,
+        "n": 21,
+        "nights": 8
+      },
+      "same_month_finalized_diagnostic": {
+        "ci95": [
+          -0.024649426651391724,
+          0.0177528480653757
+        ],
+        "difference": -0.0025764252024017276,
+        "n": 21,
+        "nights": 8
+      },
+      "trailing27_latency1": {
+        "ci95": [
+          -0.026160103243407392,
+          0.016372042666730813
+        ],
+        "difference": -0.0033671502778772067,
+        "n": 21,
+        "nights": 8
+      }
+    }
   }
 }

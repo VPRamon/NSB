@@ -137,14 +137,23 @@ they are not centred-equivalent.
 | Previous month | 21.85% | 12.44% |
 | Centred 27-day | 24.01% | 14.43% |
 
-**Within the PALACE training domain, the original investigation reported
-no candidate-minus-operational interval excluding zero** (8 nights;
-limited power; trailing −0.34 pp, rounded CI [−2.62, +1.64] pp).
-These within-domain paired intervals were **not all retained** in the original
-JSON. Reproduce their bounds with the accompanying offline script before
-quoting the result as independently audited. The much larger full-cohort gains
-are concentrated in the **extrapolated** high-F27 majority of this development
-sample.
+**Independently regenerated within-domain paired relative-MAE differences:**
+negative means lower error than Automatic; differences and endpoints below are
+percentage points, calculated from paired whole-night draws (2,000; seed 182).
+
+| Candidate minus Automatic | Difference [95% night CI], pp | Spectra / nights |
+|---|---:|---:|
+| Trailing 27-day | −0.337 [−2.616, +1.637] | 21 / 8 |
+| Previous-month mean | −2.097 [−6.685, +0.761] | 21 / 8 |
+| Latest daily | −0.473 [−1.688, +1.041] | 21 / 8 |
+| Centred 27-day (diagnostic) | +0.060 [−2.055, +1.946] | 21 / 8 |
+| Same-month finalized (diagnostic) | −0.258 [−2.465, +1.775] | 21 / 8 |
+
+Every interval contains zero. The missing intervals have now been computed from
+the checksum-verified spectra, rather than inferred from aggregate metrics.
+This does not demonstrate equivalence or exclude a useful effect: eight nights
+provide limited power. The much larger full-cohort gains are concentrated in
+the extrapolated high-F27 majority of this development sample.
 
 ## 7. Why candidates did not establish a useful improvement
 
@@ -155,9 +164,9 @@ sample.
    means beat centred F27 on the full cohort while being systematically *higher*
    than centred F27, i.e. they amplify experimental positive-scale extrapolation
    rather than recovering the PALACE fit statistic.
-3. **No independently archived within-domain demonstration.** Inside 67–166 sfu,
-   candidate proxies did not establish lower error than climatology in the
-   reported experiment; exact per-candidate paired bounds require reproduction.
+3. **No demonstrated within-domain improvement.** Inside 67–166 sfu,
+   independently regenerated paired intervals all contain zero. The full bounds
+   are archived, including the modest previous-month point improvement.
 4. **Continuum barely moves.** Broadband continuum errors are almost insensitive
    to the solar proxy; Oxygen drives the scenario differences.
 5. **Development-cohort dependence.** The Patat sample informed Oxygen
@@ -222,17 +231,75 @@ Inputs (checksum-pinned):
 - Solar daily listing SHA-256 `7240df111ea45f26057b89d3e9880a58856d7b6d040ad16247db41f5546dac96`
 - Cohort identity SHA-256 `3efdd3a0f3af19bfbc7615864f928b33fe22bcdbd6c67568fe317c059d44a1d6`
 
-**Archival limitation:** The original evidence JSON records aggregate statistics and global paired intervals, but omits most per-candidate paired intervals restricted to the 67–166 sfu training subset. The report's within-domain non-significance claim should not be treated as independently auditable from the archived JSON alone. The reproducibility command below computes the missing intervals when checksum-pinned per-spectrum inputs are available; do not invent numerical bounds.
+**Verified reproduction (2026-10-25):** All original primary metrics and
+conditional relative MAEs reproduced with absolute tolerance `1e-6` in fractional
+relative MAE / stated radiance units (the present run agrees exactly). The
+original archive omitted within-domain paired intervals; these are now archived
+under `verified_reproduction`, including all conditional model metrics and
+paired bounds. No bootstrap-method correction was necessary.
 
-Procedure:
+Registered selection: `DARKFLG=0`, `300V`, `FREE`, Sun altitude <−18°,
+Moon altitude <−5°, header airmass in [1, 1.5], |Galactic latitude| ≥20°,
+exposure ≥60 s, and complete 365–650 nm coverage. The five calibration nights
+(integer UTC MJD 51643, 51725, 51761, 51785, 52847) remain excluded from evaluation.
+The inventory is 1,189 FITS files; selection retains 103 spectra / 22 nights,
+with the unchanged evaluation partition of 94 spectra / 17 nights. Domain
+membership uses centred F27 for every scenario, never the candidate's value.
 
-1. Check out `bcbeaf73c423b5ef0fc8c34ad08a47d0afb0c1d3` (or later `main` with
-   Automatic → Oxygen unchanged).
-2. Build `nsb-py` from that commit (`maturin build --features python`).
-3. Load the registered Patat cohort and solar file (same operators as
-   `examples/observational-validation.ipynb`).
-4. Run `python scripts/reproduce_f107_cadence.py --patat /path/to/skyspectra.tar --solar /path/to/solar-observed.txt --output /tmp/f107-reproduced.json`. Requires the pinned Python NSB implementation and NumPy, SciPy, Astropy, and siderust; the script reuses the cohort/scoring definitions from `examples/observational-validation.ipynb`, and calculates paired 95% night-clustered intervals (2000 draws, seed 182).
-5. Compare the output against [`artifacts/solar-activity-f107-cadence-evidence.json`](artifacts/solar-activity-f107-cadence-evidence.json). Refuse mismatched inputs, registration, or primary published metrics.
+Inputs and acquisition:
 
-No runtime network dependency was added to NSB. The investigation did **not**
-change default resolver behaviour.
+- [Patat/FORS1 original ESO archive](https://www.eso.org/~fpatat/science/skybright/DATA/skyspectra.tar)
+  returned HTTP 404 during this audit. The notebook's
+  [registered archive mirror](https://web.archive.org/web/20160329190127id_/http://www.eso.org/~fpatat/science/skybright/DATA/skyspectra.tar)
+  returned the exact pinned bytes.
+- [NOAA observed Penticton listing](https://www.ngdc.noaa.gov/stp/space-weather/solar-data/solar-features/solar-radio/noontime-flux/penticton/penticton_observed/listings/listing_drao_noontime-flux-observed_daily.txt)
+  was retrieved and verified against the existing pin. Date-only rows denote
+  missing observations; incomplete required windows fail instead of averaging
+  available samples. Values are observed noontime sfu, not 1-AU-adjusted flux.
+- [STScI Rieke solar spectrum](https://archive.stsci.edu/hlsps/reference-atlases/cdbs/grid/solsys/solar_spec.fits)
+  was retrieved independently and pinned to SHA-256
+  `2213b2c8a61d9aa147ecb88a19c0c64c134955494b07fa8ba7e3cb91660e3301`.
+  The registered source-grid trapezoid photon integral reproduces the
+  365–650 / 300–650 fraction `0.9296804289344205`.
+
+Procedure (download inputs explicitly first; the runner disables Astropy network access):
+
+1. Check out this PR branch. The scientific Rust/Python implementation is
+   unchanged from baseline `bcbeaf73c423b5ef0fc8c34ad08a47d0afb0c1d3`.
+2. Build and install the bindings from this checkout:
+   `maturin build --release --locked --out /tmp/nsb-wheels`, then
+   `python -m pip install /tmp/nsb-wheels/*.whl` in an isolated environment.
+   Install NumPy, SciPy and Astropy. The verified run used Python 3.14.4,
+   nsb-py 0.2.0, NumPy 2.5.4, SciPy 1.18.1, Astropy 8.0.2, siderust 0.5.1,
+   and tempoch 0.5.0; Rust dependencies are fixed by `Cargo.lock`.
+3. Run:
+
+   ```sh
+   python scripts/reproduce_f107_cadence.py \
+     --patat /path/to/skyspectra.tar \
+     --solar /path/to/solar-observed.txt \
+     --rieke /path/to/solar_spec.fits \
+     --output /tmp/f107-reproduced.json
+   ```
+
+4. Compare with `verified_reproduction` in the evidence artifact. The runner
+   checks input hashes, cohort identity, counts, original primary and
+   conditional metrics, actual Automatic climatology provenance, equivalence
+   to explicit climatology, and invariant non-airglow component budgets. It
+   records source hashes, code revision, extension hash and package versions.
+   Identical inputs/environment produce identical JSON; no timestamps or
+   input filesystem paths enter the result.
+
+Bootstrap: sample 17 evaluation nights (8 for the training subset) with
+replacement, retain every spectrum in each sampled night, and divide error
+sums by the resampled spectrum count. All scenarios share draws. Subset
+intervals resample within the subset using seed 182. Percentile bounds use
+NumPy's linear 2.5th/97.5th percentiles. Relative MAE is the mean of per-spectrum
+absolute relative errors, not the ratio of aggregate MAE to mean observed flux.
+Intervals capture night-sampling variability conditional on the fixed model;
+they exclude calibration systematics and have no multiplicity adjustment.
+
+Normal CI runs synthetic statistics, window/integrity, evidence-consistency and
+relative-link checks without downloading scientific inputs. The command above
+is the separate full scientific reproduction. Neither NSB's runtime defaults
+nor PALACE coefficients changed.
