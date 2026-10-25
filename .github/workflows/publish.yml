@@ -41,6 +41,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      checks: read
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     steps:
@@ -54,10 +55,36 @@ jobs:
           python-version: "3.14"
 
       - name: Require successful CI for the exact release commit
+        # A tag push can arrive before the CI triggered by the main push completes.
+        # Wait for that exact run rather than treating "in_progress" as a failure.
+        timeout-minutes: 90
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&event=push&per_page=100" > /tmp/nsb-ci-runs.json
+          set -euo pipefail
+          runs_api="repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$GITHUB_SHA&event=push&per_page=100"
+
+          # Allow a short delay for GitHub to index the main-branch CI run.
+          ci_run_id=""
+          for attempt in {1..12}; do
+            gh api "$runs_api" > /tmp/nsb-ci-runs.json
+            ci_run_id="$(jq -r --arg sha "$GITHUB_SHA" '
+              [.workflow_runs[] | select(.head_sha == $sha and .head_branch == "main" and .event == "push")]
+              | sort_by(.created_at) | last | .id // empty
+            ' /tmp/nsb-ci-runs.json)"
+            [[ -n "$ci_run_id" ]] && break
+            echo "Waiting for main-branch CI to appear for $GITHUB_SHA (attempt $attempt/12)"
+            sleep 15
+          done
+          [[ -n "$ci_run_id" ]] || { echo "::error::No main-branch CI run exists for release commit $GITHUB_SHA"; exit 1; }
+
+          echo "Waiting for CI run $ci_run_id to finish before validating release $GITHUB_REF_NAME"
+          gh run watch "$ci_run_id" --exit-status --compact --interval 15
+
+          # Keep the existing independent security gate on exact SHA, branch, event,
+          # completed status and success conclusion after CI finishes.
+          gh api "$runs_api" > /tmp/nsb-ci-runs.json
           python scripts/release_assets.py ci --sha "$GITHUB_SHA" --runs /tmp/nsb-ci-runs.json
 
       - name: Reject tag-push release when PyPI already contains this version
