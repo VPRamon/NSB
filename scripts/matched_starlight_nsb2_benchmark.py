@@ -665,6 +665,57 @@ def _direct_url_commit(dist) -> str | None:
     return str(commit) if commit else None
 
 
+def git_toplevel(path: Path) -> Path | None:
+    try:
+        text = subprocess.check_output(
+            ["git", "-C", str(path), "rev-parse", "--show-toplevel"], text=True
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return Path(text) if text else None
+
+
+def _looks_like_nsb2_source_tree(root: Path) -> bool:
+    """Accept git metadata only when the repository is an nsb2 source checkout.
+
+    Prevents a site-packages install nested inside the NSB repo from reporting
+    NSB's HEAD as the nsb2 revision.
+    """
+    pyproject = root / "pyproject.toml"
+    if not pyproject.is_file():
+        return False
+    try:
+        text = pyproject.read_text(encoding="utf-8")
+    except OSError:
+        return False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("name") and "=" in stripped:
+            _, _, value = stripped.partition("=")
+            if value.strip().strip("\"'") == "nsb2":
+                return True
+            break
+    return False
+
+
+def _git_commit_owned_by_nsb2(module_file: Path) -> tuple[str | None, str | None]:
+    module_path = module_file.resolve()
+    for candidate in (module_path.parent, module_path.parent.parent):
+        toplevel = git_toplevel(candidate)
+        if toplevel is None:
+            continue
+        try:
+            module_path.relative_to(toplevel)
+        except ValueError:
+            continue
+        if not _looks_like_nsb2_source_tree(toplevel):
+            continue
+        commit = git_rev(toplevel)
+        if commit:
+            return commit, f"git:{toplevel}"
+    return None, None
+
+
 def resolve_nsb2_identity() -> dict:
     """Resolve the installed nsb2 revision without network access."""
     import importlib.metadata as metadata
@@ -678,13 +729,10 @@ def resolve_nsb2_identity() -> dict:
         "resolution_source": None,
         "verification": "unverifiable",
     }
-    module_root = Path(nsb2.__file__).resolve().parent
-    for candidate in (module_root, module_root.parent):
-        commit = git_rev(candidate)
-        if commit:
-            identity["resolved_commit"] = commit
-            identity["resolution_source"] = f"git:{candidate}"
-            break
+    commit, source = _git_commit_owned_by_nsb2(Path(nsb2.__file__))
+    if commit:
+        identity["resolved_commit"] = commit
+        identity["resolution_source"] = source
     if identity["resolved_commit"] is None:
         try:
             dist = metadata.distribution("nsb2")
@@ -709,13 +757,16 @@ def require_nsb2_pin(*, allow_unverified: bool = False) -> dict:
         identity["evidence_status"] = "pinned_reference"
         return identity
     if identity["verification"] == "mismatched":
-        raise RuntimeError(
-            "Installed nsb2 commit "
-            f"{identity['resolved_commit']} does not match pinned {NSB2_COMMIT}"
-        )
+        if not allow_unverified:
+            raise RuntimeError(
+                "Installed nsb2 commit "
+                f"{identity['resolved_commit']} does not match pinned {NSB2_COMMIT}"
+            )
+        identity["evidence_status"] = "provenance_limited_mismatched"
+        return identity
     if not allow_unverified:
         raise RuntimeError(
-            "Installed nsb2 revision is unverifiable (no git checkout or "
+            "Installed nsb2 revision is unverifiable (no nsb2-owned git checkout or "
             "direct_url vcs_info). Refusing to publish falsely pinned evidence. "
             "Use --allow-unverified-nsb2 only for explicitly provenance-limited runs."
         )

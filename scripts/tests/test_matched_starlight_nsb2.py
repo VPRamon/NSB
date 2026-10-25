@@ -176,10 +176,7 @@ def test_committed_artifact_records_verified_nsb2_pin():
 
 
 def test_nsb2_identity_matched_against_pin(monkeypatch):
-    monkeypatch.setattr(study, "git_rev", lambda path: study.NSB2_COMMIT)
-    monkeypatch.setattr(study, "package_version", lambda name: "0.2.0")
-    identity = study.resolve_nsb2_identity()
-    # resolve_nsb2_identity imports real nsb2; force matched via require after patching resolve
+    # Pin-policy only: do not import the optional nsb2 package.
     monkeypatch.setattr(
         study,
         "resolve_nsb2_identity",
@@ -212,6 +209,9 @@ def test_nsb2_identity_mismatched_is_rejected(monkeypatch):
     )
     with pytest.raises(RuntimeError, match="does not match pinned"):
         study.require_nsb2_pin(allow_unverified=False)
+    limited = study.require_nsb2_pin(allow_unverified=True)
+    assert limited["evidence_status"] == "provenance_limited_mismatched"
+    assert limited["resolved_commit"] == "deadbeef" * 5
 
 
 def test_nsb2_identity_unverifiable_refuses_unless_option_b(monkeypatch):
@@ -231,6 +231,34 @@ def test_nsb2_identity_unverifiable_refuses_unless_option_b(monkeypatch):
         study.require_nsb2_pin(allow_unverified=False)
     limited = study.require_nsb2_pin(allow_unverified=True)
     assert limited["evidence_status"] == "provenance_limited_unverified"
+
+
+def test_git_metadata_rejected_unless_nsb2_source_tree(tmp_path, monkeypatch):
+    # Enclosing NSB-like repo must not supply the nsb2 commit even if git walks up.
+    enclosing = tmp_path / "nsb-checkout"
+    enclosing.mkdir()
+    (enclosing / "pyproject.toml").write_text('[project]\nname = "nsb"\n', encoding="utf-8")
+    pkg = enclosing / ".venv" / "lib" / "site-packages" / "nsb2"
+    pkg.mkdir(parents=True)
+    (pkg / "__init__.py").write_text("# fake\n", encoding="utf-8")
+    monkeypatch.setattr(study, "git_toplevel", lambda path: enclosing)
+    monkeypatch.setattr(study, "git_rev", lambda path: "nsb-head-not-nsb2")
+    assert study._looks_like_nsb2_source_tree(enclosing) is False
+    assert study._git_commit_owned_by_nsb2(pkg / "__init__.py") == (None, None)
+
+    nsb2_root = tmp_path / "nsb2-reference"
+    nsb2_root.mkdir()
+    (nsb2_root / "pyproject.toml").write_text('[project]\nname = "nsb2"\n', encoding="utf-8")
+    (nsb2_root / "nsb2").mkdir()
+    module = nsb2_root / "nsb2" / "__init__.py"
+    module.write_text("# real\n", encoding="utf-8")
+    assert study._looks_like_nsb2_source_tree(nsb2_root) is True
+    monkeypatch.setattr(study, "git_toplevel", lambda path: nsb2_root)
+    monkeypatch.setattr(study, "git_rev", lambda path: study.NSB2_COMMIT)
+    assert study._git_commit_owned_by_nsb2(module) == (
+        study.NSB2_COMMIT,
+        f"git:{nsb2_root}",
+    )
 
 
 @pytest.mark.skipif(
