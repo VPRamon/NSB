@@ -57,7 +57,7 @@ published relative MAE figures (23.88% vs 16.57%).
 
 Definitions were frozen **before** interpreting final metrics.
 
-| ID | Definition | Causal at observation UTC date \(T\)? | Role |
+| ID | Definition | Available at observation UTC date \(T\)? | Role |
 |---|---|---|---|
 | `operational_automatic` | NSB Automatic resolver (no override) | Patat cohort: climatology available in advance; not generally causal for historical monthly observations from later snapshots | Operational baseline on this cohort |
 | `trailing27_latency1` | Mean of observed daily F10.7 on \([T-27,T-1]\) | Conditional on every included daily record having been published by prediction time; publication timestamps not checked | Simulated lag-one-day research candidate |
@@ -137,11 +137,13 @@ they are not centred-equivalent.
 | Previous month | 21.85% | 12.44% |
 | Centred 27-day | 24.01% | 14.43% |
 
-**Within the documented PALACE solar training domain, every causal
-candidate-minus-operational relative-MAE interval crosses zero** (8 nights;
-descriptive power is limited but the point estimates are near zero, e.g.
-trailing −0.34 pp, CI [−2.62, +1.64] pp). The large full-cohort gains are
-concentrated in the **extrapolated** high-F27 majority of this development
+**Within the PALACE training domain, the original investigation reported
+no candidate-minus-operational interval excluding zero** (8 nights;
+limited power; trailing −0.34 pp, rounded CI [−2.62, +1.64] pp).
+These within-domain paired intervals were **not all retained** in the original
+JSON. Reproduce their bounds with the accompanying offline script before
+quoting the result as independently audited. The much larger full-cohort gains
+are concentrated in the **extrapolated** high-F27 majority of this development
 sample.
 
 ## 7. Why candidates did not establish a useful improvement
@@ -153,9 +155,9 @@ sample.
    means beat centred F27 on the full cohort while being systematically *higher*
    than centred F27, i.e. they amplify experimental positive-scale extrapolation
    rather than recovering the PALACE fit statistic.
-3. **No within-domain demonstration.** Inside 67–166 sfu, causal alternatives do
-   not establish lower error than climatology under the frozen night-clustered
-   criterion.
+3. **No independently archived within-domain demonstration.** Inside 67–166 sfu,
+   candidate proxies did not establish lower error than climatology in the
+   reported experiment; exact per-candidate paired bounds require reproduction.
 4. **Continuum barely moves.** Broadband continuum errors are almost insensitive
    to the solar proxy; Oxygen drives the scenario differences.
 5. **Development-cohort dependence.** The Patat sample informed Oxygen
@@ -182,8 +184,9 @@ Outcome A for this evidence set.
 
 ## 9. Lessons for future development
 
-1. Always label **operational**, **causal historical**, and **retrospective
-   centred** solar scenarios separately in tables and prose.
+1. Always distinguish **genuinely prospective**, **historical with verified
+   availability**, **hypothetically lagged**, and **retrospective centred** solar
+   scenarios separately in tables and prose.
 2. Never promote a matched-F10.7 notebook number as an operational forecast skill.
 3. Stratify solar-input experiments by the **model’s training domain** before
    claiming resolver improvements (#294).
