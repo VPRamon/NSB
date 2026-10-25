@@ -148,7 +148,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo run -p nsb-data-tools --locked -- dataset starlight promote \
+          cargo run -p nsb-data-tools --bin nsb-data --locked -- dataset starlight promote \
             --repository-root . \
             --release-candidate docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml \
             --redistribution-decision docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json \
@@ -747,7 +747,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo run -p nsb-data-tools --locked -- dataset starlight promote \
+          cargo run -p nsb-data-tools --bin nsb-data --locked -- dataset starlight promote \
             --repository-root . \
             --release-candidate docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml \
             --redistribution-decision docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json \
