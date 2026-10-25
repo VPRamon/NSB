@@ -19,15 +19,14 @@ CURRENT_MARKDOWN = (
     "docs/python.md",
     "docs/scientific-validation.md",
     "docs/user-guide/getting-started.md",
-    "notebooks/README.md",
     "examples/README.md",
     "CONTRIBUTING.md",
     "SECURITY.md",
 )
 CURRENT_NOTEBOOKS = (
-    "notebooks/NSB_Validation.ipynb",
-    "notebooks/CTAO_API_Example.ipynb",
-    "examples/scientific-reproducibility.ipynb",
+    "examples/observational-validation.ipynb",
+    "examples/ctao-sky-background.ipynb",
+    "examples/airglow-solar-activity.ipynb",
 )
 LINK = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 OUTDATED = (
