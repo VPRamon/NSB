@@ -117,33 +117,26 @@ independent observational accuracy.
 
 ## Independent observational evidence
 
-The authoritative reports live in
-[nsb-validation](https://github.com/VPRamon/nsb-validation). Internal numerical
-regressions, synthetic solver checks and physical assumptions are separate from
-observational admission. No new campaign certifies this release candidate.
+The [scientific validation and limitations guide](../scientific-validation.md)
+summarizes the released product's fitness for use, observational comparisons
+and their known applicability limits. Internal numerical regressions, synthetic
+solver checks and cross-implementation comparisons must not be mistaken for
+independent observational admission.
 
-- [Patat/FORS1 benchmark](https://github.com/VPRamon/nsb-validation/blob/main/reports/patat-fors1-spectral-v1/report.md):
-  103 conditionally admitted spectra on 22 nights; held-out evaluation uses 94
-  spectra on 17 nights over 365–650 nm. The evaluated NSB revision is
-  `1b2556727205694c7765ef0d254c5d1b301582ec`, not the upcoming release.
-  Relative MAE is approximately 0.361 for NSB, 0.171 for nsb2 and 0.152 for the
-  calibration-night baseline. Missing airglow lines drive substantial
-  underprediction; Starlight redistribution and component compatibility require
-  the report's explicit approximations.
-- [Oxygen development diagnostic](https://github.com/VPRamon/nsb-validation/blob/main/reports/airglow-diagnostic-v1.md):
-  newer oxygen-model scores reuse the inspected cohort and are development
-  evidence, not independent generalization or validation of the next release.
-- [DESI pilot](https://github.com/VPRamon/nsb-validation/blob/main/reports/desi-dr1-pilot-v1/report.md):
-  three independent nights, not 21 independent observations from seven bands.
-  Instrument response, diffuse calibration, spectral completeness and observable
-  equivalence prevent admitted absolute predictive accuracy.
-- [LVM admission](https://github.com/VPRamon/nsb-validation/blob/main/reports/lvm-absolute-admission-v1/report.md):
-  reconstruction/acquisition has progressed, but diffuse calibration,
-  uncertainty and complete observable equivalence still block absolute accuracy.
+A previously evaluated NSB revision (`1b2556727205694c7765ef0d254c5d1b301582ec`,
+**not v0.2.0**) was assessed on 94 held-out Patat/FORS1 spectra across 17
+nights in 365–650 nm. Reported relative mean absolute errors were approximately
+0.361 for that NSB revision, 0.171 for nsb2 and 0.152 for a calibration-night
+baseline. That observation cohort subsequently informed Oxygen development,
+so newer Oxygen scores on it are development diagnostics rather than fresh
+independent validation. DESI comparisons cover three independent nights and do
+not establish absolute predictions. LVM absolute equivalence remains unadmitted
+because of diffuse calibration, uncertainty and complete-observable constraints.
 
-No independent campaign establishes CTAO site calibration or complete optical
-predictive accuracy. See the [consumer contract](validation-consumer.md) for
-identifying a new campaign without relabelling historical results.
+No independent campaign in this release establishes CTAO site calibration or
+general absolute optical predictive accuracy. The
+[consumer protocol](validation-consumer.md) describes requirements for an
+independent campaign without changing the interpretation of historical results.
 
 ## Commands
 

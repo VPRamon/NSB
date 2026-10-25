@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use NSB in scientific work, cite this software and the upstream data/models relevant to your analysis."
+type: software
+title: "NSB: Night-Sky Background Evaluation and Observation Planning"
+abstract: "Rust, Python, and command-line software for modeling optical night-sky photon radiance and planning astronomical observations."
+authors:
+  - family-names: "Vallés Puig"
+    given-names: "Ramon"
+repository-code: "https://github.com/VPRamon/NSB"
+url: "https://github.com/VPRamon/NSB"
+license: "AGPL-3.0-only"
+version: "0.2.0"
+keywords:
+  - astronomy
+  - sky brightness
+  - night-sky background
+  - observing planning

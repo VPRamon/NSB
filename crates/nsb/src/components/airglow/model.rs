@@ -52,7 +52,7 @@ pub enum AirglowModel {
     /// Continuum plus PALACE Og/Or oxygen lines, vacuum 300–650 nm.
     ///
     /// This is the temporary Automatic planning fallback until a global
-    /// climatological model (#157) is admitted. The default change is a
+    /// climatological model is admitted. The default change is a
     /// release-policy reference-model choice; maturity remains experimental and
     /// does not constitute independent absolute observational admission.
     /// Zenith distance is limited to ≤60° (Oxygen domain).

@@ -15,43 +15,39 @@ Sun-altitude, and target-altitude constraints. Use the same Rust-powered scienti
 engine from **Rust**, **Python**, or the **command line**.
 
 <p align="center">
-  <a href="https://github.com/VPRamon/NSB/pull/212#issuecomment-6014811662">
-    <img src="https://github.com/user-attachments/assets/485394ae-8629-4851-ba57-50daadb436a1" width="860" alt="Diagnostic all-sky integrated starlight heatmap in Galactic Mollweide projection">
-  </a>
+  <img src="https://github.com/user-attachments/assets/485394ae-8629-4851-ba57-50daadb436a1" width="860" alt="All-sky integrated starlight radiance in Galactic Mollweide projection">
 </p>
 <p align="center"><sub>
-  Diagnostic Galactic starlight heatmap from <a href="https://github.com/VPRamon/NSB/pull/212">PR #212</a>.
-  This visualizes a starlight data product, <strong>not</strong> a total NSB prediction.
+  Integrated starlight data product in Galactic coordinates; not a total NSB prediction.
 </sub></p>
 
-## Airglow defaults and examples
+## Scientific scope
 
-**v0.2.0 Automatic Airglow resolves to PALACE Oxygen** (`ParanalPalaceOxygenV1`).
-Oxygen remains **Experimental**, requires the standard continuum geometry and
-zenith distance **≤60°**, and raises explicit domain errors outside that range.
-Planning tracks and sky scans must stay within this domain or deliberately select
-continuum; NSB never silently substitutes it.
+NSB combines zodiacal light, integrated starlight, airglow and scattered
+moonlight. The default configuration is a **planning model**, not an
+observatory-calibrated prediction of absolute night-sky brightness.
 
-Select historical continuum explicitly with Rust
-`config.with_airglow_model(AirglowModel::ParanalPalaceV1)`, Python
-`config.with_airglow_model(nsb.AirglowModel.PARANAL_PALACE_V1)`, or CLI
-`--airglow-model paranal-palace-v1`.
+In v0.2.0, Automatic Airglow selects the experimental PALACE Oxygen model
+(`ParanalPalaceOxygenV1`), valid for the standard continuum geometry and
+**zenith distances up to 60°**. Outside that domain NSB returns an explicit
+error rather than substituting a different model. Select
+`ParanalPalaceV1` for continuum-only calculations and broader geometries;
+that is a different physical model, not a calibrated substitute.
 
-See [notebooks](notebooks/README.md) for a standalone observational demonstration
-and a concise [CTAO API example](notebooks/CTAO_API_Example.ipynb).
-Complete observational experiments, datasets and scientific admission material live
-in [nsb-validation](https://github.com/VPRamon/nsb-validation), including its
-[CTAO benchmark](https://github.com/VPRamon/nsb-validation/pull/23).
-The default is a release-policy choice, not independent observational admission:
-Patat informed development and LVM absolute equivalence remains pending.
+The integrated Starlight product is a provenance-checked 300–650 nm map;
+its cross-implementation validation does not establish absolute observational
+accuracy. CTAO site profiles are planning presets, not site calibrations.
+See the [scientific validation and limitations](docs/scientific-validation.md)
+before interpreting predictions or using them in a scientific publication.
+The [model maturity contract](docs/specifications/model-maturity.md) specifies
+the status and validated domain of each component.
 
 ## Install
 
-NSB **`0.2.0`** is a release candidate using published Rust/Python dependencies.
-Publication still requires maintainer approval. The corrected Siderust Python
-bridge/runtime 0.5.1 is required; affected 0.5.0 is excluded.
-The latest published NSB release is `0.1.1`; commands targeting `0.2.0` apply
-once it is published. Build this checkout to test the candidate.
+This source checkout targets **NSB 0.2.0**. Registry installation of that
+version requires the corresponding release to be published; before publication,
+use a source checkout to test the candidate. For reproducible applications, pin
+the exact released version and record the scientific asset and model identities.
 
 Choose the interface that fits your workflow:
 
@@ -61,8 +57,8 @@ Choose the interface that fits your workflow:
 | **Rust** | `cargo add nsb` | Rust 1.89+ |
 | **CLI** | Build from the repository (below) | Rust 1.89+ |
 
-For reproducible applications, pin the `0.1.1` release with
-`cargo add nsb@0.1.1` or `python -m pip install nsb-py==0.1.1`.
+For reproducible applications after v0.2.0 publication, install
+`cargo add nsb@0.2.0` or `python -m pip install nsb-py==0.2.0`.
 
 The PyPI **distribution** is `nsb-py`, but its **import** is `nsb`.
 The crates.io **library** is `nsb`. The executable is also named `nsb`,
@@ -195,6 +191,7 @@ For scientific use, review [model maturity](docs/specifications/model-maturity.m
 | [Python bindings](docs/python.md) | Installation, point evaluation, window planning and API types |
 | [Getting started](docs/user-guide/getting-started.md) | CLI usage, site selection and first Rust workflows |
 | [Observatory configuration](docs/user-guide/observatory-customization.md) | Named sites, custom coordinates and site profiles |
+| [Scientific validation](docs/scientific-validation.md) | Evidence, limitations, uncertainties and fitness for scientific use |
 | [Scientific model](docs/specifications/scientific-model.md) | Physical contributions and modeling assumptions |
 | [CLI output schemas](docs/specifications/cli-schemas.md) | Versioned JSON/CSV for automation |
 | [Documentation hub](docs/README.md) | Full user, developer and maintainer documentation |
@@ -224,7 +221,8 @@ scientific authors.
 
 Read the [Starlight source terms and attribution](docs/nsb_components/starlight/licensing/README.md)
 and [third-party notices](THIRD_PARTY_NOTICES.md) before redistributing data
-or using model outputs for scientific claims.
+or using model outputs for scientific claims. Cite the software using
+[CITATION.cff](CITATION.cff) and record the exact release and model configuration.
 
 ### Experimental single scattering
 

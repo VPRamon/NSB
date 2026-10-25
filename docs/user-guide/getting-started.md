@@ -30,11 +30,11 @@ South planning profile:
 cargo run --locked -p nsb-cli -- \
   --format table \
   point \
-  --time 2026-06-18T23:00:00Z \
+  --time 2026-06-19T03:00:00Z \
   --site CTAO-S \
   --site-profile cta-south \
-  --ra 83.6331 \
-  --dec 22.0145 \
+  --ra 266.41683 \
+  --dec -29.00781 \
   --components all
 ```
 
@@ -49,16 +49,19 @@ Paranal:
 cargo run --locked -p nsb-cli -- \
   --format json \
   point \
-  --time 2026-06-18T23:00:00Z \
+  --time 2026-06-19T03:00:00Z \
   --lon 12.5 \
   --lat 41.9 \
   --height 800 \
-  --ra 83.6331 \
-  --dec 22.0145
+  --ra 266.41683 \
+  --dec -29.00781 \
+  --components zodiacal
 ```
 
 Longitude is east-positive, latitude is north-positive, and height is the
-ellipsoidal height in metres.
+ellipsoidal height in metres. The arbitrary-coordinate example isolates
+zodiacal light; it is not an observing recommendation and does not invoke
+the experimental Airglow geometry outside its domain.
 
 ## Window search
 
@@ -72,12 +75,17 @@ cargo run --locked -p nsb-cli -- \
   --end 2026-06-19T06:00:00Z \
   --site CTAO-S \
   --site-profile cta-south \
-  --ra 83.6331 \
-  --dec 22.0145 \
+  --ra 266.41683 \
+  --dec -29.00781 \
+  --airglow-model paranal-palace-v1 \
   --max-nsb 0.25 \
   --sun-altitude-max -18 \
   --target-altitude-min 20
 ```
+
+The broad time-window example explicitly selects the continuum-only model:
+Automatic Oxygen is experimental and limited to zenith distance ≤60°.
+Switching models must be reported with any scientific result.
 
 Window search uses adaptive discovery by default, with exact physical radiance
 probes and inward crossing brackets. Empirical model-resolution

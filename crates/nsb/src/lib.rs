@@ -38,7 +38,7 @@
 //! [`NsbModelConfig::generic_clear_sky`], [`NsbModelConfig::default`], and
 //! [`NsbEvaluator::new`] use [`AirglowSelection::Automatic`]. Explicit
 //! [`NsbModelConfig::with_airglow_model`] selection wins and never silently
-//! switches models. Until the global climatological model is admitted (#157),
+//! switches models. Until a globally validated climatological model is admitted,
 //! automatic policy resolves to the temporary Paranal-derived planning fallback
 //! with typed fallback metadata in [`NsbComponentMetadata::airglow_selection`].
 //! Physical evaluation outcomes live in

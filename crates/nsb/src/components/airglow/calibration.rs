@@ -367,7 +367,7 @@ mod tests {
     use siderust::checksum::{sha256, to_hex};
 
     impl AirglowContinuum {
-        /// Legacy single-wavelength entry point retained for reference tests.
+        /// Test-only scalar reference for independently checking prepared PALACE samples.
         pub(crate) fn sample(
             &self,
             sample: usize,
@@ -462,7 +462,7 @@ mod tests {
     }
 
     #[test]
-    fn prepared_palace_sampling_preserves_legacy_arithmetic_bit_for_bit() {
+    fn prepared_palace_sampling_preserves_reference_arithmetic_bit_for_bit() {
         let model = load_builtin_standard().unwrap();
         for (month, bin, solar) in [(1, 2, 100.0), (7, 9, 160.0), (12, 12, 67.0)] {
             let prepared = model.prepare_sample(month, bin, solar).unwrap();

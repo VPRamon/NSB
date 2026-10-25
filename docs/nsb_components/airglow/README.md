@@ -51,13 +51,13 @@ Required behavior:
 
 - **Explicit wins.** An explicit selection never silently switches to another
   model. Supported identities include continuum-only `ParanalPalaceV1` and
-  Oxygen-enabled `ParanalPalaceOxygenV1`. Future climatology (#157) adds a new
+  Oxygen-enabled `ParanalPalaceOxygenV1`. A future independently validated global climatology would add a new
   `#[non_exhaustive]` variant when scientifically ready — no speculative public
   placeholder is frozen.
 - **Automatic is deterministic.** `generic_clear_sky()`, `Default`, and
   `NsbEvaluator::new` use `AirglowSelection::Automatic`, which resolves to
   **`ParanalPalaceOxygenV1`** as of v0.2.0.
-- **Automatic is not a globally validated climatology.** Until #157 admits a
+- **Automatic is not a globally validated climatology.** Until independent evidence admits a
   global climatological planning model, automatic policy is a **temporary
   Paranal-derived PALACE Oxygen planning fallback**. That fallback is
   machine-visible via `used_automatic_fallback` and typed
@@ -74,7 +74,7 @@ Required behavior:
   selection metadata only; `airglow_evaluation` remains `None`.
 
 `AirglowModel` remains the durable scientific identity enum
-(`#[non_exhaustive]`). Future #157 climatology can extend the enum and refine
+(`#[non_exhaustive]`). A future globally validated climatology can extend the enum and refine
 automatic resolution without replacing the `AirglowSelection` configuration
 shape. The concrete continuum/evaluator remains internal.
 
@@ -243,7 +243,7 @@ NSB therefore uses PALACE's middle continuum-layer height of 88 km as the
 scalar Van Rhijn default, accepts validated
 checksum-pinned caller profiles with provenance/licence/applicability, and makes
 no claim that selecting advanced geometry improves accuracy by itself.
-Measurement-led CTAO profiles belong to issue #38. Durable source evidence,
+Measurement-led CTAO profiles require independently admitted site-calibration evidence. Durable source evidence,
 candidate-data assessment, licence notes, and cross-model validation numbers are
 retained in the
 [optical vertical-profile decision record](validation/optical-vertical-profile-decision-v1.md).
@@ -319,7 +319,7 @@ with explicit uncalibrated provenance. Automatic F10.7, an explicit value, or a
 pinned dataset changes solar-activity provenance only. Likewise, selecting an
 atmosphere/extinction model, Airglow geometry, observer coordinates, or user
 scale does not change maturity to `Calibrated`. Dedicated CTAO site calibration
-remains issue #38 and is deliberately separate.
+requires independent site-calibration evidence and is deliberately separate.
 
 ## Scientific boundary
 
@@ -328,7 +328,7 @@ by itself a more accurate prediction. Site/science use requiring calibrated
 precision requires documented measurements, admitted calibration evidence, and
 validation of the full model under the intended conditions. The current runtime
 has no path that promotes generic/CTAO Airglow to `Calibrated`; CTAO promotion
-remains blocked by issue #38. Machine-actionable Airglow geometry, F10.7
+remains blocked pending independent site calibration. Machine-actionable Airglow geometry, F10.7
 resolution, and attenuation stages are complete, while scientific
 representativeness remains explicitly limited.
 

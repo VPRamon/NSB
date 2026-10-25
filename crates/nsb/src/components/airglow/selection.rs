@@ -6,8 +6,8 @@
 //! - configuration/selection metadata (known before evaluation);
 //! - evaluation outcome (known only after a time-dependent query).
 //!
-//! The global climatological planning model from #157 is deferred; automatic
-//! selection currently resolves to the temporary Paranal-derived PALACE Oxygen
+//! The global climatological planning model is not yet admitted; automatic
+//! selection currently resolves to the current Paranal-derived PALACE Oxygen
 //! planning fallback with that fallback machine-visible via typed reason enums.
 
 use super::model::AirglowModel;
@@ -15,7 +15,7 @@ use crate::error::Result;
 
 /// How the Airglow scientific model is chosen for an evaluator.
 ///
-/// Automatic selection is a durable policy hook for future #157 climatology and
+/// Automatic selection is a durable policy hook for future validated global climatology and
 /// site-calibration refinement. Explicit selection always wins and never falls
 /// back to another model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,8 +23,8 @@ use crate::error::Result;
 pub enum AirglowSelection {
     /// Deterministic automatic selection policy.
     ///
-    /// Until a global climatological model is admitted (#157), this resolves to
-    /// the temporary Paranal-derived PALACE Oxygen planning fallback
+    /// Until a global climatological model is admitted, this resolves to
+    /// the current Paranal-derived PALACE Oxygen planning fallback
     /// ([`AirglowModel::ParanalPalaceOxygenV1`]). That fallback is always
     /// reported in selection metadata and is not presented as a globally
     /// validated climatology. Explicit [`AirglowModel::ParanalPalaceV1`] remains
@@ -74,11 +74,11 @@ impl AirglowSelectionKind {
     }
 }
 
-/// Why automatic Airglow policy deliberately selected a temporary fallback.
+/// Why automatic Airglow policy deliberately selected a explicit planning fallback.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum AirglowFallbackReason {
-    /// Global climatological planning model is not yet admitted (#157 deferred).
+    /// Global climatological planning model is not yet admitted (not yet admitted).
     GlobalPlanningModelUnavailable,
 }
 
@@ -133,7 +133,7 @@ impl AirglowPhysicalOutcome {
 ///
 /// [`crate::NsbEvaluator::describe_components`] may populate this without
 /// inventing a physical evaluation outcome. When automatic selection later
-/// becomes context-dependent (#157), `resolved_model` / fallback fields may be
+/// becomes context-dependent, `resolved_model` / fallback fields may be
 /// `None` until evaluation resolves them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -195,7 +195,7 @@ impl ResolvedAirglowSelection {
 /// Resolve configuration selection to a concrete supported model.
 ///
 /// Explicit selections never fall back. Automatic selection is deterministic and
-/// currently resolves to the temporary Paranal-derived PALACE Oxygen planning
+/// currently resolves to the current Paranal-derived PALACE Oxygen planning
 /// fallback ([`AirglowModel::ParanalPalaceOxygenV1`]). This is a release-policy
 /// reference-model choice supported by physical completeness and retrospective
 /// Patat evidence; it is not an independent absolute observational admission.
