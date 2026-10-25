@@ -126,11 +126,10 @@ evaluation remains authoritative at accepted samples and refined crossings.
 
 | Area | Responsibility |
 | --- | --- |
-| `cli` | Clap command and argument definitions for `point`, `window`, `sites`, and `config` |
+| `cli` | Clap command and argument definitions for `point`, `window`, and `sites` |
 | `parsing` | UTC, observer, target, component, radiance, and site-alias conversion into typed library values |
-| `commands` | Thin command handlers that invoke the library or configuration utilities |
+| `commands` | Thin command handlers that invoke the scientific library |
 | `output` | Stable table, JSON, and CSV presentation |
-| `config` | Serializable configuration schema used by `config init` and `config validate` |
 | `logging` | Operational log-level resolution and initialization |
 
 The CLI owns user-friendly aliases and formatting. It must not duplicate component
