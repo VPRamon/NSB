@@ -158,9 +158,12 @@ experimental status and domain limits as Automatic.
 To **disable Airglow entirely**, omit it from the evaluated component mask:
 Rust `PointQuery::with_components(ComponentMask::DEFAULT & !ComponentMask::AIRGLOW)`,
 Python a `components` mask excluding `nsb.ComponentMask.AIRGLOW`, or
-CLI `--components zodiacal,moon` (add `starlight` if desired and available).
-Excluding the component is different from selecting continuum-only; neither
-operation silently changes other components.
+CLI `--components zodiacal,starlight,moon` when bundled production Starlight
+is available (`--components zodiacal,moon` otherwise).
+The CLI `--components` option replaces the entire component mask rather than
+subtracting one component: explicitly list every component to retain.
+Excluding Airglow removes its contribution; selecting continuum-only still
+evaluates Airglow using `ParanalPalaceV1`.
 
 ## Evaluation stack
 
