@@ -76,9 +76,14 @@ evidence, not an independent test of generalization or CTAO site calibration.
 The restricted-band Starlight contribution uses an explicit research-only
 spectral proxy. See [scientific validation](../docs/scientific-validation.md).
 
-Execution displays tables and figures inline and does not export JSON, checksum
-or image files. Observations, predictions, metrics and failure details remain in
-kernel memory. Patat and solar input hashes and the registered sample identity
+Execution displays tables and figures inline. The appendix also writes versioned
+`manifest.json`, `metrics.json` and `predictions.csv` audit receipts to
+`observational-validation-receipts/` relative to the kernel working directory
+(configurable as `RECEIPTS`). See the [receipt contract and independent metric
+reconstruction procedure](../docs/observational-receipts.md). A complete, aligned
+two-scenario campaign is required for export; no raw spectra are copied.
+Observations, predictions, metrics and failure details also remain in kernel
+memory. Patat and solar input hashes and the registered sample identity
 are still verified. Missing inputs are downloaded using Astropy's cache; existing
 files under `CACHE` are reused after verification. FITS spectra are read directly
 from the TAR without extracting a directory.
