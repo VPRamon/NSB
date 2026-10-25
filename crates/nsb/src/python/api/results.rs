@@ -20,12 +20,18 @@ pub(in crate::python) struct PyNsbComponentMetadata {
     airglow_physical_outcome: Option<String>,
     airglow_physical_zero_reason: Option<String>,
     solar_activity_provenance: Option<String>,
+    oxygen_f107_numerical_range: Option<String>,
+    oxygen_f107_applied_sfu: Option<f64>,
+    oxygen_f107_training_range_low_sfu: Option<f64>,
+    oxygen_f107_training_range_high_sfu: Option<f64>,
+    oxygen_f107_limitation: Option<String>,
 }
 
 impl From<NsbComponentMetadata> for PyNsbComponentMetadata {
     fn from(value: NsbComponentMetadata) -> Self {
         let selection = value.airglow_selection.as_ref();
         let evaluation = value.airglow_evaluation.as_ref();
+        let oxygen = value.oxygen_f107_domain.as_ref();
         Self {
             status: value.status.as_str().to_owned(),
             provenance: value.provenance.into_owned(),
@@ -52,6 +58,15 @@ impl From<NsbComponentMetadata> for PyNsbComponentMetadata {
                 .solar_activity
                 .as_ref()
                 .map(|solar| solar.provenance_fragment()),
+            oxygen_f107_numerical_range: oxygen
+                .map(|domain| domain.numerical_range().as_str().to_owned()),
+            oxygen_f107_applied_sfu: oxygen.map(|domain| domain.applied_sfu),
+            oxygen_f107_training_range_low_sfu: oxygen.map(|domain| domain.training_range_low_sfu),
+            oxygen_f107_training_range_high_sfu: oxygen
+                .map(|domain| domain.training_range_high_sfu),
+            oxygen_f107_limitation: oxygen.map(|_| {
+                crate::components::airglow::OxygenF107DomainDiagnostic::LIMITATION.to_owned()
+            }),
         }
     }
 }

@@ -56,6 +56,7 @@ mod geometry;
 mod model;
 mod output;
 mod oxygen;
+mod oxygen_f107_domain;
 mod selection;
 pub(crate) mod temporal;
 pub(crate) mod units;
@@ -73,6 +74,7 @@ pub use geometry::{
 pub(crate) use model::Airglow;
 pub use model::AirglowModel;
 pub(crate) use output::AirglowOutputs;
+pub use oxygen_f107_domain::{OxygenF107DomainDiagnostic, OxygenF107NumericalRange};
 pub(crate) use selection::{
     load_continuum_for_model, resolve_airglow_selection, ResolvedAirglowSelection,
 };

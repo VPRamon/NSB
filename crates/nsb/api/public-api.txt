@@ -38,6 +38,12 @@ pub nsb::components::airglow::AirglowSelectionKind::Automatic
 pub nsb::components::airglow::AirglowSelectionKind::Explicit
 impl nsb::components::airglow::AirglowSelectionKind
 pub const fn nsb::components::airglow::AirglowSelectionKind::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::components::airglow::OxygenF107NumericalRange
+pub nsb::components::airglow::OxygenF107NumericalRange::AboveTrainingInterval
+pub nsb::components::airglow::OxygenF107NumericalRange::BelowTrainingInterval
+pub nsb::components::airglow::OxygenF107NumericalRange::WithinTrainingInterval
+impl nsb::components::airglow::OxygenF107NumericalRange
+pub const fn nsb::components::airglow::OxygenF107NumericalRange::as_str(self) -> &'static str
 #[non_exhaustive] pub enum nsb::components::airglow::VerticalEmissionProfileError
 pub nsb::components::airglow::VerticalEmissionProfileError::ChecksumMismatch
 pub nsb::components::airglow::VerticalEmissionProfileError::ChecksumMismatch::computed: alloc::string::String
@@ -80,6 +86,13 @@ pub nsb::components::airglow::AirglowWavelengthApplicability::max: qtty_core::un
 pub nsb::components::airglow::AirglowWavelengthApplicability::min: qtty_core::units::length::Nanometers
 impl nsb::components::airglow::AirglowWavelengthApplicability
 pub fn nsb::components::airglow::AirglowWavelengthApplicability::new(min: qtty_core::units::length::Nanometers, max: qtty_core::units::length::Nanometers, band: impl core::convert::Into<alloc::string::String>) -> Self
+#[non_exhaustive] pub struct nsb::components::airglow::OxygenF107DomainDiagnostic
+pub nsb::components::airglow::OxygenF107DomainDiagnostic::applied_sfu: f64
+pub nsb::components::airglow::OxygenF107DomainDiagnostic::training_range_high_sfu: f64
+pub nsb::components::airglow::OxygenF107DomainDiagnostic::training_range_low_sfu: f64
+impl nsb::components::airglow::OxygenF107DomainDiagnostic
+pub const nsb::components::airglow::OxygenF107DomainDiagnostic::LIMITATION: &str
+pub fn nsb::components::airglow::OxygenF107DomainDiagnostic::numerical_range(&self) -> nsb::components::airglow::OxygenF107NumericalRange
 #[non_exhaustive] pub struct nsb::components::airglow::ValidatedZenithDomain
 pub nsb::components::airglow::ValidatedZenithDomain::max: qtty_core::units::angular::Degrees
 pub nsb::components::airglow::ValidatedZenithDomain::min: qtty_core::units::angular::Degrees
@@ -916,6 +929,7 @@ pub nsb::NsbComponentMetadata::airglow_evaluation: core::option::Option<nsb::com
 pub nsb::NsbComponentMetadata::airglow_geometry: core::option::Option<nsb::components::airglow::AirglowGeometryMetadata>
 pub nsb::NsbComponentMetadata::airglow_selection: core::option::Option<nsb::components::airglow::AirglowSelectionMetadata>
 pub nsb::NsbComponentMetadata::band_diagnostic: nsb::BandDiagnostic
+pub nsb::NsbComponentMetadata::oxygen_f107_domain: core::option::Option<nsb::components::airglow::OxygenF107DomainDiagnostic>
 pub nsb::NsbComponentMetadata::provenance: alloc::borrow::Cow<'static, str>
 pub nsb::NsbComponentMetadata::solar_activity: core::option::Option<nsb::solar_activity::ResolvedSolarActivity>
 pub nsb::NsbComponentMetadata::status: nsb::ComponentCalibrationStatus
