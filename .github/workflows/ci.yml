@@ -192,6 +192,7 @@ jobs:
           shutil.copytree("docs/nsb_components/starlight", root / "docs/nsb_components/starlight")
           shutil.copy2("Cargo.lock", root / "Cargo.lock")
           shutil.copy2("pyproject.toml", root / "pyproject.toml")
+          shutil.copy2("README_PYPI.md", root / "README_PYPI.md")
           shutil.copy2("LICENSE", root / "LICENSE")
           (root / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/nsb"]\nresolver = "2"\n')
           # Explicit synthetic authorization exists only in this isolated test
@@ -294,6 +295,7 @@ jobs:
               names = source.getnames()
               assert any(n.endswith("/crates/nsb/THIRD_PARTY_NOTICES.md") for n in names)
               assert any(n.endswith("/crates/nsb/LICENSE") for n in names)
+              assert any(n.endswith("/README_PYPI.md") for n in names)
               assert any(n.endswith("/starlight_nside128.compact.release.bin") for n in names)
               assert not any(n.endswith("/starlight_nside128.csv") or n.endswith("/merge_report.json") or "redistribution-review-decision" in n for n in names)
               source.extractall("sdist-build", filter="data")
