@@ -29,8 +29,26 @@ nsb-data-tools (network acquisition)
 PALACE was fitted using **centred 27-day** F10.7 averages. NSB currently feeds it
 the resolver's established **monthly-mean planning approximation** and never a
 raw daily observation or daily forecast value. Metadata and the PALACE
-validation report disclose this cadence mismatch; a dedicated centred 27-day
-resolver remains future work.
+validation report disclose this cadence mismatch.
+
+### Operational versus retrospective solar inputs
+
+These quantities must not be confused in docs or validation tables:
+
+| Quantity | Available at prediction time? | Role in NSB |
+|---|---|---|
+| Monthly planning mean (this resolver) | Yes, under the precedence and no-future-forecast rules below | **Operational** Automatic / Dataset Airglow input |
+| Latest daily observed F10.7 | Only after product publication latency | Diagnostic / building block; **not** selected as Airglow input |
+| Trailing historical average (e.g. prior 27 days) | Yes, if restricted to already-published observations | Research candidate only; **not** an automatic substitute for PALACE's centred training statistic ([issue #295](https://github.com/VPRamon/NSB/issues/295)) |
+| Centred 27-day mean | **No** — uses future days | Retrospective matched/diagnostic experiments only |
+| Bundled climatology (~129.207 sfu) | Yes | Fallback when no time-valid monthly evidence exists (e.g. dates before the bundled monthly observed coverage) |
+
+Issue #295 investigated causal alternatives on the Patat development cohort and
+did **not** find a within-training-domain (67–166 sfu) justification to change
+the default resolver. See
+[`lessons-learned/issue-295-solar-activity-cadence.md`](../../../lessons-learned/issue-295-solar-activity-cadence.md).
+A dedicated centred 27-day **runtime** mode remains out of scope unless new
+in-domain evidence appears.
 
 NSB consumes F10.7 **as republished by NOAA/NWS SWPC** machine-readable
 products. Product identity is retained on every record so users can audit which

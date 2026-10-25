@@ -1,0 +1,423 @@
+{
+  "candidate_definitions": {
+    "centered27_diagnostic": "mean daily observed F10.7 on [T-13, T+13]; non-causal",
+    "latest_daily_latency1": "daily observed F10.7 on T-1",
+    "operational_automatic": "NSB Automatic F10.7 resolver; Patat-era \u2192 climatology",
+    "previous_month_mean": "mean daily observed F10.7 of previous calendar month",
+    "trailing27_latency1": "mean daily observed F10.7 on [T-27, T-1]"
+  },
+  "conditional_oxygen_relative_mae": {
+    "centered27_diagnostic": {
+      "Airmass (1.25, 1.5]": {
+        "coverage": "night intervals",
+        "mae": 0.06317194874614053,
+        "mean_signed_error": -0.06317194874614053,
+        "n": 28,
+        "nights": 11,
+        "relative_mae": 0.1726498408373541
+      },
+      "Airmass [1, 1.25]": {
+        "coverage": "night intervals",
+        "mae": 0.055097635484084743,
+        "mean_signed_error": -0.0527920371726002,
+        "n": 66,
+        "nights": 13,
+        "relative_mae": 0.1627885746127446
+      },
+      "F27 67\u2013166 sfu (within training)": {
+        "coverage": "night intervals",
+        "mae": 0.0858183945635693,
+        "mean_signed_error": -0.0858183945635693,
+        "n": 21,
+        "nights": 8,
+        "relative_mae": 0.24006451328054798
+      },
+      "F27 <67 sfu (outside training)": {
+        "coverage": "empty",
+        "n": 0,
+        "nights": 0
+      },
+      "F27 >166 sfu (outside training)": {
+        "coverage": "night intervals",
+        "mae": 0.0493571537124188,
+        "mean_signed_error": -0.047272640170528665,
+        "n": 73,
+        "nights": 9,
+        "relative_mae": 0.14434091354788425
+      }
+    },
+    "latest_daily_latency1": {
+      "Airmass (1.25, 1.5]": {
+        "coverage": "night intervals",
+        "mae": 0.06390064772005769,
+        "mean_signed_error": -0.06387756553530671,
+        "n": 28,
+        "nights": 11,
+        "relative_mae": 0.1729399594605506
+      },
+      "Airmass [1, 1.25]": {
+        "coverage": "night intervals",
+        "mae": 0.05844530870245255,
+        "mean_signed_error": -0.0563119602927094,
+        "n": 66,
+        "nights": 13,
+        "relative_mae": 0.1742322237506596
+      },
+      "F27 67\u2013166 sfu (within training)": {
+        "coverage": "night intervals",
+        "mae": 0.08459305866099787,
+        "mean_signed_error": -0.08459305866099787,
+        "n": 21,
+        "nights": 8,
+        "relative_mae": 0.23473969917724236
+      },
+      "F27 <67 sfu (outside training)": {
+        "coverage": "empty",
+        "n": 0,
+        "nights": 0
+      },
+      "F27 >166 sfu (outside training)": {
+        "coverage": "night intervals",
+        "mae": 0.05301581203619901,
+        "mean_signed_error": -0.05107817784145826,
+        "n": 73,
+        "nights": 9,
+        "relative_mae": 0.15633030068105294
+      }
+    },
+    "operational_automatic": {
+      "Airmass (1.25, 1.5]": {
+        "coverage": "night intervals",
+        "mae": 0.0773828463553782,
+        "mean_signed_error": -0.0773828463553782,
+        "n": 28,
+        "nights": 11,
+        "relative_mae": 0.21285679182487097
+      },
+      "Airmass [1, 1.25]": {
+        "coverage": "night intervals",
+        "mae": 0.08318878903449249,
+        "mean_signed_error": -0.08318878903449249,
+        "n": 66,
+        "nights": 13,
+        "relative_mae": 0.24983497666818558
+      },
+      "F27 67\u2013166 sfu (within training)": {
+        "coverage": "night intervals",
+        "mae": 0.08598103205841238,
+        "mean_signed_error": -0.08598103205841238,
+        "n": 21,
+        "nights": 8,
+        "relative_mae": 0.2394692877275425
+      },
+      "F27 <67 sfu (outside training)": {
+        "coverage": "empty",
+        "n": 0,
+        "nights": 0
+      },
+      "F27 >166 sfu (outside training)": {
+        "coverage": "night intervals",
+        "mae": 0.08015860412329362,
+        "mean_signed_error": -0.08015860412329362,
+        "n": 73,
+        "nights": 9,
+        "relative_mae": 0.2386334738207977
+      }
+    },
+    "previous_month_mean": {
+      "Airmass (1.25, 1.5]": {
+        "coverage": "night intervals",
+        "mae": 0.05918482642275923,
+        "mean_signed_error": -0.058116493288825656,
+        "n": 28,
+        "nights": 11,
+        "relative_mae": 0.1601253830033145
+      },
+      "Airmass [1, 1.25]": {
+        "coverage": "night intervals",
+        "mae": 0.04756560487381417,
+        "mean_signed_error": -0.04258534041459498,
+        "n": 66,
+        "nights": 13,
+        "relative_mae": 0.1392326287707279
+      },
+      "F27 67\u2013166 sfu (within training)": {
+        "coverage": "night intervals",
+        "mae": 0.0798870794910419,
+        "mean_signed_error": -0.0798870794910419,
+        "n": 21,
+        "nights": 8,
+        "relative_mae": 0.2184973014297879
+      },
+      "F27 <67 sfu (outside training)": {
+        "coverage": "empty",
+        "n": 0,
+        "nights": 0
+      },
+      "F27 >166 sfu (outside training)": {
+        "coverage": "night intervals",
+        "mae": 0.042724334139686494,
+        "mean_signed_error": -0.03781185767313022,
+        "n": 73,
+        "nights": 9,
+        "relative_mae": 0.12444412182103154
+      }
+    },
+    "trailing27_latency1": {
+      "Airmass (1.25, 1.5]": {
+        "coverage": "night intervals",
+        "mae": 0.05918438529111202,
+        "mean_signed_error": -0.058195451951410536,
+        "n": 28,
+        "nights": 11,
+        "relative_mae": 0.16090136257170884
+      },
+      "Airmass [1, 1.25]": {
+        "coverage": "night intervals",
+        "mae": 0.048565497514289145,
+        "mean_signed_error": -0.04363527806232526,
+        "n": 66,
+        "nights": 13,
+        "relative_mae": 0.14257048968181743
+      },
+      "F27 67\u2013166 sfu (within training)": {
+        "coverage": "night intervals",
+        "mae": 0.08468129770782613,
+        "mean_signed_error": -0.08468129770782613,
+        "n": 21,
+        "nights": 8,
+        "relative_mae": 0.2361021374496653
+      },
+      "F27 <67 sfu (outside training)": {
+        "coverage": "empty",
+        "n": 0,
+        "nights": 0
+      },
+      "F27 >166 sfu (outside training)": {
+        "coverage": "night intervals",
+        "mae": 0.04224901879766948,
+        "mean_signed_error": -0.03741224321765224,
+        "n": 73,
+        "nights": 9,
+        "relative_mae": 0.12269514499403875
+      }
+    }
+  },
+  "coverage": {
+    "evaluation_nights": 17,
+    "evaluation_spectra": 94,
+    "nights": 22,
+    "spectra": 103,
+    "unavailable": {
+      "centered27_diagnostic": 0,
+      "latest_daily_latency1": 0,
+      "operational_automatic": 0,
+      "previous_month_mean": 0,
+      "trailing27_latency1": 0
+    }
+  },
+  "decision_criteria_frozen_before_results": {
+    "cohort_status": "development cohort; not independent holdout",
+    "improvement_requires": [
+      "candidate uses no future information",
+      "paired relative-MAE difference vs operational_automatic has night-clustered 95% CI entirely below 0",
+      "improvement not confined solely to outside-training solar domain without disclosure",
+      "no Oxygen/continuum coefficient changes"
+    ],
+    "practical_margin_pp": 10.0,
+    "primary_metric": "mean_absolute_relative_error on 94 evaluation spectra",
+    "primary_model": "NSB Automatic (Oxygen)"
+  },
+  "failures_count": 0,
+  "inputs": {
+    "automatic_matches_explicit_climatology": true,
+    "climatology_sfu": 129.20671119074768,
+    "cohort_sha256": "3efdd3a0f3af19bfbc7615864f928b33fe22bcdbd6c67568fe317c059d44a1d6",
+    "patat_sha256": "1f615fccb6dd464ab95b91f34adb4ba8ba3f4beebe97559204483c1da2c9965c",
+    "rieke_fraction_365_650_over_300_650": 0.9296804289344205,
+    "solar_sha256": "7240df111ea45f26057b89d3e9880a58856d7b6d040ad16247db41f5546dac96"
+  },
+  "issue": 295,
+  "nsb_commit": "bcbeaf73c423b5ef0fc8c34ad08a47d0afb0c1d3",
+  "outcome": "B_no_demonstrated_improvement",
+  "primary_oxygen_metrics": {
+    "centered27_diagnostic": {
+      "bias_ci95": [
+        -0.0819193167537138,
+        -0.04004222080347328
+      ],
+      "continuum_mae": 0.11806681287328809,
+      "continuum_relative_mae": 0.35026901871715976,
+      "mae": 0.0575027500727822,
+      "mean_signed_error": -0.055883925726420716,
+      "night_weighted_mae": 0.06682539416924917,
+      "relative_mae": 0.1657259730626283,
+      "relative_mae_ci95": [
+        0.12972578796991083,
+        0.22612589591920645
+      ]
+    },
+    "latest_daily_latency1": {
+      "bias_ci95": [
+        -0.08585317474686546,
+        -0.04178469983079031
+      ],
+      "continuum_mae": 0.11912496476101958,
+      "continuum_relative_mae": 0.35382091956150347,
+      "mae": 0.06007030330344131,
+      "mean_signed_error": -0.05856554483305754,
+      "night_weighted_mae": 0.0708155889914128,
+      "relative_mae": 0.17384729396211654,
+      "relative_mae_ci95": [
+        0.13524882954556597,
+        0.23787734744461747
+      ]
+    },
+    "operational_automatic": {
+      "bias_ci95": [
+        -0.10014080089106416,
+        -0.0672920417573137
+      ],
+      "continuum_mae": 0.1213901653916147,
+      "continuum_relative_mae": 0.36102821969623355,
+      "mae": 0.08145935930028822,
+      "mean_signed_error": -0.08145935930028822,
+      "night_weighted_mae": 0.08227303298075835,
+      "relative_mae": 0.23882019820421943,
+      "relative_mae_ci95": [
+        0.2069842666415401,
+        0.27888319409046847
+      ]
+    },
+    "previous_month_mean": {
+      "bias_ci95": [
+        -0.0753025874211166,
+        -0.031057752489161452
+      ],
+      "continuum_mae": 0.1168227643350574,
+      "continuum_relative_mae": 0.3458432697538499,
+      "mae": 0.0510266495905212,
+      "mean_signed_error": -0.04721164127074879,
+      "night_weighted_mae": 0.05961012700399376,
+      "relative_mae": 0.1454560023719239,
+      "relative_mae_ci95": [
+        0.1107776968638931,
+        0.20621778746366076
+      ]
+    },
+    "trailing27_latency1": {
+      "bias_ci95": [
+        -0.07617322576945566,
+        -0.03179077578090352
+      ],
+      "continuum_mae": 0.1168673400366008,
+      "continuum_relative_mae": 0.34615003375606535,
+      "mae": 0.05172857046908744,
+      "mean_signed_error": -0.04797235113566982,
+      "night_weighted_mae": 0.061951077264890665,
+      "relative_mae": 0.14803074969157234,
+      "relative_mae_ci95": [
+        0.11283557122741951,
+        0.2101179216232932
+      ]
+    }
+  },
+  "solar_summary_evaluation": {
+    "centered27_diagnostic": {
+      "max_sfu": 206.70000000000002,
+      "mean_sfu": 184.73628841607567,
+      "median_sfu": 201.57777777777778,
+      "min_sfu": 105.10370370370369,
+      "n": 94,
+      "outside_training": 73
+    },
+    "latest_daily_latency1": {
+      "max_sfu": 208.3,
+      "mean_sfu": 180.06170212765952,
+      "median_sfu": 195.0,
+      "min_sfu": 108.8,
+      "n": 94,
+      "outside_training": 63
+    },
+    "operational_automatic": {
+      "max_sfu": 129.20671119074768,
+      "mean_sfu": 129.20671119074765,
+      "median_sfu": 129.20671119074768,
+      "min_sfu": 129.20671119074768,
+      "n": 94,
+      "outside_training": 0
+    },
+    "previous_month_mean": {
+      "max_sfu": 227.27419354838713,
+      "mean_sfu": 203.86429731673036,
+      "median_sfu": 227.27419354838713,
+      "min_sfu": 114.1032258064516,
+      "n": 94,
+      "outside_training": 77
+    },
+    "trailing27_latency1": {
+      "max_sfu": 226.42962962962963,
+      "mean_sfu": 202.23896769109538,
+      "median_sfu": 224.89629629629633,
+      "min_sfu": 104.48148148148148,
+      "n": 94,
+      "outside_training": 73
+    }
+  },
+  "stdout_summary": [
+    "operational_automatic: relMAE=23.88% [20.70,27.89] MAE=0.08146 nightMAE=0.08227 bias=-0.08146",
+    "trailing27_latency1: relMAE=14.80% [11.28,21.01] MAE=0.05173 nightMAE=0.06195 bias=-0.04797",
+    "previous_month_mean: relMAE=14.55% [11.08,20.62] MAE=0.05103 nightMAE=0.05961 bias=-0.04721",
+    "latest_daily_latency1: relMAE=17.38% [13.52,23.79] MAE=0.06007 nightMAE=0.07082 bias=-0.05857",
+    "centered27_diagnostic: relMAE=16.57% [12.97,22.61] MAE=0.05750 nightMAE=0.06683 bias=-0.05588"
+  ],
+  "supplement_same_month_and_pairs": {
+    "note": "same_month_finalized_diagnostic is what Automatic would return for a completed historical month if monthly observed indices covered the Patat era; not causal mid-month.",
+    "oxygen_relative_mae": {
+      "centered27_diagnostic": 0.1657259730626283,
+      "latest_daily_latency1": 0.17384729396211654,
+      "operational_automatic": 0.23882019820421943,
+      "previous_month_mean": 0.1454560023719239,
+      "same_month_finalized_diagnostic": 0.16553121754033814,
+      "trailing27_latency1": 0.14803074969157234
+    },
+    "paired_vs_operational_relative_mae": {
+      "centered27_diagnostic": {
+        "ci95": [
+          -0.08816426047550466,
+          -0.03929113910499293
+        ],
+        "difference": -0.07309422514159114
+      },
+      "latest_daily_latency1": {
+        "ci95": [
+          -0.07983662733536336,
+          -0.031934618315115265
+        ],
+        "difference": -0.06497290424210289
+      },
+      "previous_month_mean": {
+        "ci95": [
+          -0.11217504764600572,
+          -0.05661292893743499
+        ],
+        "difference": -0.09336419583229552
+      },
+      "same_month_finalized_diagnostic": {
+        "ci95": [
+          -0.08842626603962907,
+          -0.03994264829499455
+        ],
+        "difference": -0.07328898066388129
+      },
+      "trailing27_latency1": {
+        "ci95": [
+          -0.11009073239258643,
+          -0.05272412704742549
+        ],
+        "difference": -0.09078944851264709
+      }
+    },
+    "within_training_domain_finding": "All candidate-minus-operational relative-MAE intervals cross zero on the F27 67-166 subset (21 spectra / 8 nights)."
+  }
+}
