@@ -17,6 +17,10 @@ from test_observational_statistics import namespace as statistics
 
 FUNCTIONS = {
     "align",
+    "cohort_identity",
+    "condition_masks",
+    "paired_interpretation",
+    "validate_receipt_metrics",
     "baseline",
     "receipt_json",
     "receipt_provenance",
@@ -39,7 +43,7 @@ namespace = {
     "MODELS": ("NSB continuum", "NSB Automatic", "nsb2"),
     "SEED": 182,
     "REPETITIONS": 2000,
-    "conditions": {"all": None},
+    "PRACTICAL_MARGIN": 0.1,
 }
 # Execute only named helper definitions from the repository-owned notebook, as in the statistics tests.
 exec(compile(ast.Module(body=nodes, type_ignores=[]), str(NOTEBOOK), "exec"), namespace)  # noqa: S102
@@ -54,7 +58,7 @@ def campaign():
             "night": night,
             "split": split,
             "observed": (8.0, 12.0)[i] if i < 2 else 10.0,
-            "airmass": 1.1 if i % 2 else 1.4,
+            "airmass": 1.4 if i == 2 else 1.1,
             "f27": 100.0 if i % 2 else 180.0,
             "header_sfu": 110.0,
         }
@@ -86,12 +90,13 @@ def campaign():
             np.full(4, 10.0), evaluation, [1, 1, 2, 3]
         )
         conditional[scenario] = {
-            "all": namespace["condition_scores"](
+            name: namespace["condition_scores"](
                 np.full(4, 10.0),
                 {k: v for k, v in evaluation.items() if k != "baseline"},
                 [1, 1, 2, 3],
-                np.ones(4, dtype=bool),
+                mask,
             )
+            for name, mask in namespace["condition_masks"](rows[2:]).items()
         }
     return {
         "rows": rows,
@@ -101,6 +106,7 @@ def campaign():
         "availability": {"native": "available", "matched": "available"},
         "failures": [],
         "provenance": {
+            "cohort": {"identity_sha256": namespace["cohort_identity"](rows)},
             "revisions": {"nsb-py": None},
             "unavailable": {"nsb-py_revision": "not exposed"},
         },
@@ -376,3 +382,187 @@ def test_provenance_explicit_missing_fields_and_no_local_install_details(monkeyp
     assert result["bootstrap"]["repetitions"] == 2000
     assert "/private/" not in json.dumps(result)
     assert "private machine" not in json.dumps(result)
+    monkeypatch.setitem(ns, "selection", {})
+    assert ns["receipt_provenance"]()["cohort"]["identity_sha256"] is None
+
+
+@pytest.mark.parametrize(
+    "problem",
+    [
+        "evaluation_prediction",
+        "observed",
+        "calibration_baseline",
+        "aggregate_mae",
+        "per_night",
+        "night_weighted",
+        "paired_difference",
+        "paired_interval",
+        "individual_interval",
+        "conditional",
+        "conditional_interval",
+        "condition_metadata",
+        "solar_metadata",
+        "missing_metric_field",
+        "extra_metric_field",
+        "interpretation",
+    ],
+)
+@pytest.mark.parametrize("scenario", ["native", "matched"])
+def test_stale_scientific_results_invalidate_manifest(
+    tmp_path, campaign, problem, scenario
+):
+    export_receipts(tmp_path, **campaign)
+    aggregate = campaign["metrics"][scenario]
+    first_pair = next(iter(aggregate["paired"].values()))
+    populated = campaign["conditional_metrics"][scenario]["Airmass [1, 1.25]"]
+    if problem == "evaluation_prediction":
+        campaign["predictions"][scenario]["nsb2"][2]["total"] += 1
+    elif problem == "observed":
+        campaign["rows"][2]["observed"] += 1
+    elif problem == "calibration_baseline":
+        campaign["rows"][0]["observed"] += 1
+    elif problem == "aggregate_mae":
+        aggregate["models"]["nsb2"]["mae"] += 0.01
+    elif problem == "per_night":
+        aggregate["per_night"][1]["nsb2"]["mean_signed_error"] += 0.01
+    elif problem == "night_weighted":
+        aggregate["models"]["nsb2"]["night_weighted_mae"] += 0.01
+    elif problem == "paired_difference":
+        first_pair["bias_difference"] += 0.01
+    elif problem == "paired_interval":
+        first_pair["relative_mae_ci95"][0] += 0.01
+    elif problem == "individual_interval":
+        aggregate["models"]["nsb2"]["bias_ci95"][1] += 0.01
+    elif problem == "conditional":
+        populated["models"]["nsb2"]["mae"] += 0.01
+    elif problem == "conditional_interval":
+        next(iter(populated["paired"].values()))["bias_ci95"][0] += 0.01
+    elif problem == "condition_metadata":
+        # Export must rebuild masks from current rows, not use cached notebook masks.
+        campaign["rows"][2]["airmass"] = 1.1
+    elif problem == "solar_metadata":
+        campaign["rows"][2]["f27"] = 100.0
+    elif problem == "missing_metric_field":
+        del aggregate["models"]["nsb2"]["mae"]
+    elif problem == "extra_metric_field":
+        aggregate["models"]["nsb2"]["invented_metric"] = 1.0
+    elif problem == "interpretation":
+        first_pair["interpretation"] = "unjustified scientific claim"
+    before = namespace["receipt_json"](campaign)
+    with pytest.raises(ValueError, match="Inconsistent receipt metrics"):
+        export_receipts(tmp_path, **campaign)
+    assert not (tmp_path / "manifest.json").exists()
+    assert namespace["receipt_json"](campaign) == before
+
+
+@pytest.mark.parametrize(
+    "problem",
+    [
+        "night",
+        "partition",
+        "id",
+        "order",
+        "wrong_hash",
+        "missing_hash",
+        "missing_cohort",
+        "null_cohort",
+        "null_hash",
+        "short_hash",
+        "nonhex_hash",
+        "nonstring_hash",
+        "null_provenance",
+    ],
+)
+def test_cohort_identity_rechecked_on_every_export(tmp_path, campaign, problem):
+    export_receipts(tmp_path, **campaign)
+    cohort = campaign["provenance"]["cohort"]
+    if problem == "night":
+        campaign["rows"][2]["night"] = 100
+    elif problem == "partition":
+        # Change a whole night: it remains disjoint and preserves evaluation count.
+        campaign["rows"][0]["split"] = campaign["rows"][1]["split"] = "evaluation"
+        campaign["rows"][2]["split"] = campaign["rows"][3]["split"] = "calibration"
+    elif problem == "id":
+        campaign["rows"][2]["id"] = "changed-id"
+        for scenario in campaign["predictions"].values():
+            for records in scenario.values():
+                records[2]["id"] = "changed-id"
+    elif problem == "order":
+        campaign["rows"][2:4] = reversed(campaign["rows"][2:4])
+    elif problem == "wrong_hash":
+        cohort["identity_sha256"] = "0" * 64
+    elif problem == "missing_hash":
+        del cohort["identity_sha256"]
+    elif problem == "missing_cohort":
+        del campaign["provenance"]["cohort"]
+    elif problem == "null_cohort":
+        campaign["provenance"]["cohort"] = None
+    elif problem == "null_hash":
+        cohort["identity_sha256"] = None
+    elif problem == "short_hash":
+        cohort["identity_sha256"] = "0" * 63
+    elif problem == "nonhex_hash":
+        cohort["identity_sha256"] = "z" * 64
+    elif problem == "nonstring_hash":
+        cohort["identity_sha256"] = 1
+    elif problem == "null_provenance":
+        campaign["provenance"] = None
+    with pytest.raises(ValueError, match="cohort identity|cohort identity_sha256"):
+        export_receipts(tmp_path, **campaign)
+    assert not (tmp_path / "manifest.json").exists()
+
+
+def test_registered_identity_encoding_and_nonmutating_validation(tmp_path, campaign):
+    # Independent encoding oracle (not the shared identity helper).
+    encoded = "\n".join(
+        f"{r['id']}:{r['night']}:{r['split']}" for r in campaign["rows"]
+    ).encode("utf-8")
+    assert (
+        campaign["provenance"]["cohort"]["identity_sha256"]
+        == hashlib.sha256(encoded).hexdigest()
+    )
+    for result in campaign["metrics"].values():
+        for pair in result["paired"].values():
+            pair["interpretation"] = namespace["paired_interpretation"](
+                pair["relative_mae_ci95"]
+            )
+    before = namespace["receipt_json"](campaign)
+    export_receipts(tmp_path, **campaign)
+    assert namespace["receipt_json"](campaign) == before
+
+
+def test_roundoff_tolerance_is_relative_and_tight(tmp_path, campaign):
+    metric = campaign["metrics"]["native"]["models"]["nsb2"]
+    metric["mae"] = np.nextafter(metric["mae"], np.inf)
+    export_receipts(
+        tmp_path, **campaign
+    )  # One representational rounding step is accepted.
+    metric["mae"] *= 1 + 1e-12
+    with pytest.raises(ValueError, match="Inconsistent receipt metrics"):
+        export_receipts(tmp_path, **campaign)
+    assert not (tmp_path / "manifest.json").exists()
+    with pytest.raises(ValueError):
+        namespace["validate_receipt_metrics"](1e-30, 0.0, "zero bias")
+
+
+@pytest.mark.parametrize(
+    "problem", ["duplicate_id", "invalid_partition", "overlapping_nights"]
+)
+def test_existing_cohort_checks_retained_with_matching_hash(
+    tmp_path, campaign, problem
+):
+    export_receipts(tmp_path, **campaign)
+    if problem == "duplicate_id":
+        campaign["rows"][1]["id"] = campaign["rows"][0]["id"]
+    elif problem == "invalid_partition":
+        campaign["rows"][0]["split"] = "holdout"
+    else:
+        campaign["rows"][0]["night"] = 1
+    campaign["provenance"]["cohort"]["identity_sha256"] = namespace["cohort_identity"](
+        campaign["rows"]
+    )
+    with pytest.raises(
+        ValueError, match="Unique nonempty|Invalid cohort partition|Disjoint nonempty"
+    ):
+        export_receipts(tmp_path, **campaign)
+    assert not (tmp_path / "manifest.json").exists()

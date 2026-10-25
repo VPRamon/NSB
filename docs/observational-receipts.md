@@ -18,7 +18,20 @@ The generated directory is ignored by Git. Keep the three files together:
 Both scenarios and all models must be available and aligned to the entire cohort.
 Failed, duplicate, extra, missing, negative or nonfinite predictions prevent
 export; zero/nonpositive observed denominators are rejected. No intersection or
-favorable subset is reported. An export attempt first removes any old manifest,
+favorable subset is reported. Before publication, the exporter recomputes the
+ordered cohort SHA-256 with the same helper used during selection and requires
+it to match `provenance.cohort.identity_sha256`; missing or invalid identity
+metadata is rejected. It rebuilds condition masks from the exported evaluation
+rows and reruns the existing `scores()` and `condition_scores()` helpers on the
+aligned vectors and fixed calibration median. Every aggregate, per-night,
+paired and conditional field (including intervals and any reported interpretations)
+is checked without changing the supplied results. Floating-point comparisons
+allow only `8 * numpy.finfo(float).eps` relative roundoff with zero absolute
+tolerance; counts, field sets and text must match exactly. The extra computation
+replays existing statistics and does not introduce a new estimator or alter the
+serialized results. Schema 1 and successful receipt bytes remain unchanged.
+
+An export attempt first removes any old manifest,
 then validates and serializes all results in memory, writes CSV/metrics and
 publishes the manifest last. If it fails, remaining files are **not a valid
 receipt set**. The final campaign guard also removes an old manifest before reporting failure.
