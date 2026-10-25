@@ -52,6 +52,7 @@ jobs:
         run: |
           python -m pip install "numpy>=2,<3" "pytest>=8,<10"
           python -m pytest scripts/tests/test_observational_statistics.py scripts/tests/test_observational_receipts.py -q
+          python -m pytest scripts/tests/test_reproduce_f107_cadence.py -q
 
       - uses: actions/setup-go@v6
         with:

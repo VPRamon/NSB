@@ -38,6 +38,7 @@ the same Rust evaluator and uses canonical `siderust.Observer` and
 - [Runtime components](user-guide/components.md)
 - [NSB component guides](nsb_components/README.md)
 - [Scientific validation and limitations](scientific-validation.md)
+- [Lessons learned: decisions and mistakes to avoid](lessons-learned/README.md)
 - [Observatory configuration and customisation](user-guide/observatory-customization.md)
 
 ### Developers
@@ -68,6 +69,7 @@ the same Rust evaluator and uses canonical `siderust.Observer` and
 | [Scientific-metadata specification](specifications/scientific-metadata.md) | Provenance, maturity, uncertainty, validated domain, and diagnostic-band semantics |
 | [Validation specification](specifications/validation.md) | Evidence, tolerances, limitations, and remaining validation gaps |
 | [Validation reports index](validation/README.md) | Reproducible numerical evidence and its historical interpretation |
+| [Lessons learned index](lessons-learned/README.md) | Negative findings, repeated failure modes, and the evidence needed to reopen decisions |
 | [CTAO site-profile specification](specifications/ctao-site-profiles.md) | Exact assumptions and limitations of CTAO planning presets |
 | [Jones 2013 moonlight](nsb_components/moonlight/jones2013-validation.md) | Spectral moonlight implementation and validation boundaries |
 | [CLI schema specification](specifications/cli-schemas.md) | Stable JSON and CSV output contracts |
@@ -104,6 +106,8 @@ fallback.
 - Architecture and extension guidance live under `docs/developer-guide/`.
 - Data-generation and maintainer procedures live under `docs/maintainer-guide/`.
 - Current cross-component contracts live under `docs/specifications/`.
+- Negative or inconclusive investigations with reusable engineering lessons live
+  under `docs/lessons-learned/`, indexed by topic and linked from their contracts.
 - Component-specific science, generation, and validation live under
   `docs/nsb_components/`.
 - Release procedures live under `docs/maintainer-guide/`.
