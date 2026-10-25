@@ -133,6 +133,8 @@ jobs:
         run: cargo test --workspace --lib --bins --all-features --locked
       - name: Run all workspace targets acceptance gate
         run: cargo test --workspace --all-targets --all-features --locked
+      - name: Run opt-in spectral Starlight evaluator example offline
+        run: cargo run --locked --offline -p nsb --example spectral_starlight_evaluator
       - name: Test coverage gate
         run: scripts/test-coverage-gate.sh
 

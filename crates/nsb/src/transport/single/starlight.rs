@@ -5,6 +5,8 @@
 //! Numerical resolution changes are not physical uncertainty bounds. Discontinuous
 //! maps can fail smooth quadrature; the pixel-aware path conserves parent areas
 //! and refines the attenuation/phase kernel with independent wavelength checks.
+mod direct;
+pub(crate) use direct::direct_bin;
 mod healpix;
 pub use healpix::{HealpixConvergence, HealpixSettings};
 
@@ -131,7 +133,7 @@ impl<'a> StarlightSky<'a> {
             .ok_or_else(|| invalid("nonfinite Starlight Galactic transformation"))
     }
 
-    pub(in crate::transport) fn toa(&self, direction: Horizontal) -> Result<BandRadiance> {
+    pub(crate) fn toa(&self, direction: Horizontal) -> Result<BandRadiance> {
         self.map
             .integrate_band(self.galactic(direction)?, self.band[0], self.band[1])
             .map(|v| v.0)
@@ -182,6 +184,25 @@ impl Default for WavelengthSettings {
             relative_tolerance: 1e-5,
             absolute_tolerance: BandRadiance::new(1e-12),
         }
+    }
+}
+
+impl WavelengthSettings {
+    pub(crate) fn validate(self) -> Result<()> {
+        let n = self.nodes;
+        let r = self.refinements;
+        if !(2..=16).contains(&n)
+            || !(1..=4).contains(&r)
+            || n * (1 << r) > 64
+            || !self.relative_tolerance.is_finite()
+            || !(0.0..=1e-4).contains(&self.relative_tolerance)
+            || self.relative_tolerance == 0.0
+            || !self.absolute_tolerance.is_finite()
+            || !(0.0..=1e-12).contains(&self.absolute_tolerance.value())
+        {
+            return Err(invalid("invalid Starlight wavelength quadrature settings"));
+        }
+        Ok(())
     }
 }
 
@@ -314,19 +335,9 @@ fn evaluate_starlight(
     integration: Integration,
     wavelength: WavelengthSettings,
 ) -> Result<StarlightTransport> {
+    wavelength.validate()?;
     let n = wavelength.nodes;
     let r = wavelength.refinements;
-    if !(2..=16).contains(&n)
-        || !(1..=4).contains(&r)
-        || n * (1 << r) > 64
-        || !wavelength.relative_tolerance.is_finite()
-        || !(0.0..=1e-4).contains(&wavelength.relative_tolerance)
-        || wavelength.relative_tolerance == 0.0
-        || !wavelength.absolute_tolerance.is_finite()
-        || !(0.0..=1e-12).contains(&wavelength.absolute_tolerance.value())
-    {
-        return Err(invalid("invalid Starlight wavelength quadrature settings"));
-    }
     let layers = atmosphere.edges().len() - 1;
     let (scalar_work, shared_work) = match integration {
         Integration::Smooth(solver) => {

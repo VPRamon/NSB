@@ -295,6 +295,32 @@ mod tests {
     }
 
     #[test]
+    fn spectral_evaluation_rejects_missing_product() {
+        use crate::transport::single::starlight::StarlightGeometry;
+        use crate::units::qtty::{Degrees, Nanometers};
+        use siderust::coordinates::spherical::direction::Horizontal;
+        let evaluator = NsbEvaluator::with_config(
+            crate::evaluator::types::test_support::without_starlight_product(
+                NsbModelConfig::generic_clear_sky(),
+            ),
+        )
+        .unwrap();
+        let error = evaluator
+            .evaluate_spectral_starlight(
+                StarlightGeometry {
+                    observer: paranal(),
+                    tt: tempoch::JulianDate::new(2459680.8),
+                    ut1: tempoch::JulianDate::new(2459680.7992),
+                },
+                Horizontal::new(Degrees::new(60.), Degrees::new(0.)),
+                [360., 390.].map(Nanometers::new),
+                crate::SpectralStarlightMode::Identity,
+            )
+            .unwrap_err();
+        assert!(matches!(error, NsbError::Unsupported(_)));
+    }
+
+    #[test]
     fn config_returns_borrow_not_owned_clone() {
         let evaluator = NsbEvaluator::new().unwrap();
         let borrowed: &NsbModelConfig = evaluator.config();

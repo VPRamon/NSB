@@ -9,6 +9,10 @@
 mod core;
 mod metadata;
 mod point;
+mod spectral_starlight;
+pub use spectral_starlight::{
+    SpectralStarlightMode, SpectralStarlightResult, StarlightDirect, StarlightIncident,
+};
 mod types;
 
 pub use core::NsbEvaluator;

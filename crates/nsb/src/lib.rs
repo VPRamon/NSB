@@ -101,7 +101,8 @@ pub use error::{NsbError, Result};
 pub use evaluator::{
     BandDiagnostic, CalibrationStatus as ComponentCalibrationStatus, ComponentMask, NsbComponent,
     NsbComponentDescriptor, NsbComponentMetadata, NsbEvaluator, NsbModelConfig, NsbResult,
-    Observer, PointQuery, Target,
+    Observer, PointQuery, SpectralStarlightMode, SpectralStarlightResult, StarlightDirect,
+    StarlightIncident, Target,
 };
 pub use planning::{SiteWindowContext, ThresholdQuery, ThresholdQueryResult};
 pub use site::{CalibrationStatus, GenericClearSky, SiteProfile, SiteProfileTag};
