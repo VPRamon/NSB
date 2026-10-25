@@ -78,6 +78,29 @@ pub(crate) fn evaluate(
         total += out.integrated;
         b_total += out.b_flux_s10;
         v_total += out.v_flux_s10;
+        let mut metadata = airglow_metadata(
+            evaluator.airglow_resolved(),
+            evaluator.model_config().site_profile(),
+            query.observer,
+            Some(&solar),
+            evaluator.model_config().airglow_geometry(),
+            out.physical_outcome,
+            out.physical_zero_reason,
+        );
+        if evaluator.airglow_resolved().model == crate::AirglowModel::ParanalPalaceOxygenV1 {
+            let domain = crate::components::airglow::OxygenF107DomainDiagnostic::from_resolved(
+                &solar,
+                evaluator.airglow_continuum(),
+            );
+            use std::fmt::Write;
+            write!(
+                metadata.provenance.to_mut(),
+                "; {}",
+                domain.provenance_fragment()
+            )
+            .expect("writing to a String cannot fail");
+            metadata.oxygen_f107_domain = Some(domain);
+        }
         components.push(NsbComponent {
             name: "airglow",
             integrated: out.integrated,
@@ -88,15 +111,7 @@ pub(crate) fn evaluate(
             statistical_uncertainty: None,
             systematic_uncertainty: None,
             total_uncertainty: None,
-            metadata: airglow_metadata(
-                evaluator.airglow_resolved(),
-                evaluator.model_config().site_profile(),
-                query.observer,
-                Some(&solar),
-                evaluator.model_config().airglow_geometry(),
-                out.physical_outcome,
-                out.physical_zero_reason,
-            ),
+            metadata,
         });
     }
     if query.components.contains(ComponentMask::MOON) {

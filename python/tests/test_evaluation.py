@@ -94,3 +94,26 @@ def test_automatic_and_explicit_oxygen_identity_and_domain(observer, direction, 
                 components=nsb.ComponentMask.AIRGLOW,
                 sun_altitude_ceiling_deg=None, target_altitude_floor_deg=None))
     assert continuum.integrate_band(query, 300, 650) > 0
+
+
+@pytest.mark.parametrize("sfu, classification", [
+    (66.999, "below-training-interval"),
+    (67., "within-training-interval"),
+    (166., "within-training-interval"),
+    (166.001, "above-training-interval"),
+])
+def test_oxygen_f107_numerical_metadata(observer, direction, point_time, sfu, classification):
+    cfg = nsb.NsbModelConfig.generic_clear_sky().with_solar_radio_flux_sfu(sfu)
+    query = nsb.PointQuery(observer, point_time, direction, components=nsb.ComponentMask.AIRGLOW)
+    metadata = nsb.NsbEvaluator(cfg).evaluate(query).components[0].metadata
+    assert metadata.oxygen_f107_applied_sfu == sfu
+    assert metadata.oxygen_f107_training_range_low_sfu == 67.
+    assert metadata.oxygen_f107_training_range_high_sfu == 166.
+    assert metadata.oxygen_f107_numerical_range == classification
+    assert "do not establish actual centred-27-day" in metadata.oxygen_f107_limitation
+    assert "kind=explicit" in metadata.solar_activity_provenance
+    assert metadata.status == "experimental"
+    continuum = cfg.with_airglow_model(nsb.AirglowModel.PARANAL_PALACE_V1)
+    omitted = nsb.NsbEvaluator(continuum).evaluate(query).components[0].metadata
+    assert omitted.oxygen_f107_numerical_range is None
+    assert omitted.oxygen_f107_limitation is None

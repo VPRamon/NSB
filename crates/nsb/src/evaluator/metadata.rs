@@ -7,7 +7,8 @@ use crate::components::airglow::calibration::{
 use crate::components::airglow::{
     AirglowEvaluationOutcome, AirglowFallbackReason, AirglowPhysicalOutcome,
     AirglowPhysicalZeroReason, AirglowSelectionKind, AirglowSelectionMetadata,
-    ResolvedAirglowSelection, NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG,
+    OxygenF107DomainDiagnostic, ResolvedAirglowSelection,
+    NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG,
 };
 use crate::components::moonlight::MoonlightModel;
 use crate::components::starlight::{StarlightProduct, StarlightProvenance};
@@ -113,6 +114,14 @@ pub struct NsbComponentMetadata {
     pub airglow_evaluation: Option<AirglowEvaluationOutcome>,
     /// Optional resolved F10.7 provenance for airglow evaluations.
     pub solar_activity: Option<crate::solar_activity::ResolvedSolarActivity>,
+    /// Optional Oxygen-only F10.7 training-domain diagnostic for the applied scalar.
+    ///
+    /// Present only for [`crate::AirglowModel::ParanalPalaceOxygenV1`] when F10.7
+    /// was resolved for the evaluation. Distinguishes numerical interval membership
+    /// from centred-27-day covariate compatibility and from claims about actual
+    /// solar conditions. Absent for continuum-only Airglow. Never upgrades
+    /// experimental maturity or site calibration.
+    pub oxygen_f107_domain: Option<OxygenF107DomainDiagnostic>,
     /// Optional emitting-volume geometry provenance for Airglow evaluations.
     pub airglow_geometry: Option<crate::components::airglow::AirglowGeometryMetadata>,
 }
@@ -151,6 +160,7 @@ pub(crate) fn zodiacal_metadata(
         airglow_selection: None,
         airglow_evaluation: None,
         solar_activity: None,
+        oxygen_f107_domain: None,
         airglow_geometry: None,
     }
 }
@@ -280,6 +290,7 @@ fn airglow_metadata_inner(
         airglow_selection: Some(selection),
         airglow_evaluation: evaluation,
         solar_activity: solar.cloned(),
+        oxygen_f107_domain: None,
         airglow_geometry: Some(geometry.metadata()),
     };
     if site_profile.airglow_profile.is_some() {
@@ -327,6 +338,7 @@ pub(super) fn starlight_metadata(
             airglow_selection: None,
             airglow_evaluation: None,
             solar_activity: None,
+            oxygen_f107_domain: None,
             airglow_geometry: None,
         },
     }
@@ -377,6 +389,7 @@ fn starlight_map_metadata(
         airglow_selection: None,
         airglow_evaluation: None,
         solar_activity: None,
+        oxygen_f107_domain: None,
         airglow_geometry: None,
     }
 }
@@ -403,6 +416,7 @@ pub(crate) fn moonlight_metadata(
                 airglow_selection: None,
                 airglow_evaluation: None,
                 solar_activity: None,
+                oxygen_f107_domain: None,
                 airglow_geometry: None,
             }
         }
@@ -421,6 +435,7 @@ pub(crate) fn moonlight_metadata(
                 airglow_selection: None,
                 airglow_evaluation: None,
                 solar_activity: None,
+                oxygen_f107_domain: None,
                 airglow_geometry: None,
             }
         }

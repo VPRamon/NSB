@@ -111,6 +111,10 @@ convention; PALACE uses vacuum wavelengths. The observed mean oxygen excess is
 Na-window excess is 0.00395. These are measured spectral features, not a
 subtraction of NSB's broadband prediction. Blends, continuum-fit choice,
 calibration and unresolved source contributions limit their interpretation.
+The frozen, reproducible form of this restricted comparison — including the
+comparability audit that rejects full total-sky spectral MAE — is
+[spectral-window-diagnostics-v1](../../../validation/spectral-window-diagnostics-v1.md)
+([#296](https://github.com/VPRamon/NSB/issues/296)).
 
 The oxygen-window excess is about 54% of the original mean total deficit
 (0.12210). This is a comparison of scales, **not a precisely identified causal

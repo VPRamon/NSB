@@ -1,0 +1,563 @@
+{
+  "broadband_observation_mean_365_650": 0.32425448509788407,
+  "broadband_observation_mean_reference": 0.32425,
+  "comparability_matrix": [
+    {
+      "comparison": "Observed continuum-subtracted O I excess vs NSB Oxygen-only",
+      "included_components_model": "NSB PALACE Oxygen delta-line contribution only",
+      "included_components_observation": "Local spectral excess above fitted continuum (Oxygen + blends + residual continuum mismatch + unmodeled lines)",
+      "instrumental_operator": "Linear sideband continuum 3\u20135 nm from feature; integrate excess over \u00b12.5 nm (combined Or: multiplet window with outer sidebands). No LSF convolution: integrated flux comparison; FORS1 300V FWHM not in FITS headers.",
+      "missing_components": "Na, OH, O2, N; any blend inside the window; continuum renormalization",
+      "quantity": "Band-integrated photon radiance excess / Oxygen line contribution",
+      "rationale": "Physically motivated scale comparison used in oxygen-and-calibration-v1; not an independent absolute Oxygen admission (#280).",
+      "spectral_frame": "Observation air (Morton 2000); model vacuum (PALACE)",
+      "status": "conditional",
+      "units": "photons cm^-2 ns^-1 sr^-1"
+    },
+    {
+      "comparison": "Observed total-sky continuum-control bands vs NSB continuum Airglow",
+      "included_components_model": "NSB continuum Airglow only",
+      "included_components_observation": "Total sky (Airglow+Zodiacal+Starlight+\u2026)",
+      "instrumental_operator": "Registered exact \u03bb\u00b7I_E Simpson band integral",
+      "missing_components": "Zodiacal, Starlight, Oxygen lines, other emitters",
+      "quantity": "Band-integrated photon radiance",
+      "rationale": "Descriptive scale comparison only; must not be labelled Airglow prediction error.",
+      "spectral_frame": "Observation air; model vacuum bounds via Morton",
+      "status": "unsupported_as_airglow_residual",
+      "units": "photons cm^-2 ns^-1 sr^-1"
+    },
+    {
+      "comparison": "Observed total sky vs NSB Automatic Airglow spectral density",
+      "included_components_model": "Airglow only",
+      "included_components_observation": "Total sky",
+      "instrumental_operator": "n/a",
+      "missing_components": "Zodiacal, Starlight; Starlight lacks arbitrary-band spectrum",
+      "quantity": "Full-resolution spectral MAE",
+      "rationale": "Inequivalent physical quantities; rejected under issue #296.",
+      "spectral_frame": "mixed",
+      "status": "unsupported",
+      "units": "photons cm^-2 ns^-1 sr^-1 / nm or similar"
+    },
+    {
+      "comparison": "nsb2 isolated Oxygen emission groups",
+      "included_components_model": "Combined SkyCalc Airglow (continuum+lines)",
+      "included_components_observation": "n/a",
+      "instrumental_operator": "n/a",
+      "missing_components": "Separable Oxygen channel",
+      "quantity": "Oxygen-only spectral windows",
+      "rationale": "nsb2 exposes combined SkyCalc Airglow; Oxygen cannot be isolated without an admitted continuum channel.",
+      "spectral_frame": "SkyCalc combined Airglow",
+      "status": "unsupported",
+      "units": "photons cm^-2 ns^-1 sr^-1"
+    }
+  ],
+  "inputs": {
+    "calibration_nights": [
+      51643,
+      51725,
+      51761,
+      51785,
+      52847
+    ],
+    "cohort_sha256": "3efdd3a0f3af19bfbc7615864f928b33fe22bcdbd6c67568fe317c059d44a1d6",
+    "patat_sha256": "1f615fccb6dd464ab95b91f34adb4ba8ba3f4beebe97559204483c1da2c9965c",
+    "selection_identity_sha256": "3efdd3a0f3af19bfbc7615864f928b33fe22bcdbd6c67568fe317c059d44a1d6",
+    "solar_sha256": "7240df111ea45f26057b89d3e9880a58856d7b6d040ad16247db41f5546dac96"
+  },
+  "issue": 296,
+  "limitations": [
+    "Not an independent absolute Oxygen admission (issue #280).",
+    "Patat spectra informed Oxygen architecture; development-cohort diagnostics only.",
+    "Local excess is not a pure species measurement; blends and continuum-fit residuals remain.",
+    "Starlight lacks an admitted arbitrary-band spectral decomposition.",
+    "nsb2 cannot isolate Oxygen from combined SkyCalc Airglow.",
+    "F10.7 matched scenario is retrospective (#295); most Patat nights are outside PALACE 67\u2013166 sfu.",
+    "No model coefficients, defaults or broadband predictions were altered."
+  ],
+  "lsf_treatment": {
+    "applied_to_model": false,
+    "literature_resolving_power_approx": 440,
+    "reason": "FORS1 resolving power / FWHM is not recorded in the Patat FITS headers. Literature FORS1+300V resolving power is approximately 440 (FWHM ~1.3 nm near 558 nm). Windows of \u00b12.5 nm therefore enclose most of a Gaussian line core. Comparisons use integrated excess / line flux, not unconvolved peak height.",
+    "synthetic_leakage_tests": "scripts/tests/test_spectral_window_diagnostics.py"
+  },
+  "outcome": "B_restricted_admissible_comparison",
+  "palace_vacuum_lines_nm": {
+    "oi_630": 630.2046,
+    "oi_636": 636.5536,
+    "oi_639": 639.35,
+    "oi_green": 557.8887
+  },
+  "per_window": {
+    "cont_blue_400_430": {
+      "interpretation": "Unsupported as an Airglow residual. Means are retained only as a descriptive scale comparison between total-sky observations and NSB continuum Airglow.",
+      "mean_nsb_oxygen_or_continuum_matched_all": 0.005955752243231572,
+      "mean_nsb_oxygen_or_continuum_native_all": 0.005321952382580326,
+      "mean_observed_all": 0.01981773315136802,
+      "metrics_omitted_reason": "unsupported_as_airglow_residual",
+      "n_nights_all": 22,
+      "n_nights_evaluation": 17,
+      "n_spectra_all": 103,
+      "n_spectra_evaluation": 94,
+      "window": {
+        "air_bounds_nm": [
+          400.0,
+          430.0
+        ],
+        "air_center_nm": null,
+        "comparability": "unsupported_as_airglow_residual",
+        "half_width_nm": null,
+        "included_palace_lines_vacuum_nm": [],
+        "kind": "continuum_control_total",
+        "notes": "Observed total-sky integral versus NSB continuum Airglow only. Different physical component sets; descriptive scale comparison.",
+        "sideband_inner_nm": null,
+        "sideband_outer_nm": null,
+        "vacuum_bounds_nm": [
+          400.1131021148522,
+          430.12096742021185
+        ],
+        "vacuum_center_nm": null
+      }
+    },
+    "cont_mid_450_500": {
+      "interpretation": "Unsupported as an Airglow residual. Means are retained only as a descriptive scale comparison between total-sky observations and NSB continuum Airglow.",
+      "mean_nsb_oxygen_or_continuum_matched_all": 0.010590160373755939,
+      "mean_nsb_oxygen_or_continuum_native_all": 0.009599088714824336,
+      "mean_observed_all": 0.03997115296577292,
+      "metrics_omitted_reason": "unsupported_as_airglow_residual",
+      "n_nights_all": 22,
+      "n_nights_evaluation": 17,
+      "n_spectra_all": 103,
+      "n_spectra_evaluation": 94,
+      "window": {
+        "air_bounds_nm": [
+          450.0,
+          500.0
+        ],
+        "air_center_nm": null,
+        "comparability": "unsupported_as_airglow_residual",
+        "half_width_nm": null,
+        "included_palace_lines_vacuum_nm": [],
+        "kind": "continuum_control_total",
+        "notes": "Observed total-sky integral versus NSB continuum Airglow only. Different physical component sets; descriptive scale comparison.",
+        "sideband_inner_nm": null,
+        "sideband_outer_nm": null,
+        "vacuum_bounds_nm": [
+          450.1262376455266,
+          500.139484863917
+        ],
+        "vacuum_center_nm": null
+      }
+    },
+    "oi_630": {
+      "matched_centered_f27_diagnostic": {
+        "bias": 0.0005812945241727899,
+        "bias_ci95": [
+          -0.006512540943794429,
+          0.006021870732060724
+        ],
+        "mae": 0.011371341137550837,
+        "mae_ci95": [
+          0.008761031380050487,
+          0.01375899528309755
+        ],
+        "mean_observed": 0.02694322325095076,
+        "mean_predicted": 0.02752451777512355,
+        "n": 94,
+        "nights": 17,
+        "relative_mae": 0.8231448762629179,
+        "relative_mae_ci95": [
+          0.46873250851222825,
+          1.120013531263691
+        ]
+      },
+      "matched_within_palace_training": {
+        "bias": -0.011806526244102397,
+        "bias_ci95": [
+          -0.019606922219809714,
+          -0.004684358753777163
+        ],
+        "mae": 0.01407619817588577,
+        "mae_ci95": [
+          0.007478840830540031,
+          0.020399575302012748
+        ],
+        "mean_observed": 0.027579242911744833,
+        "mean_predicted": 0.015772716667642437,
+        "n": 21,
+        "nights": 8,
+        "relative_mae": 0.47653495631858866,
+        "relative_mae_ci95": [
+          0.39654388054365014,
+          0.5618615109245476
+        ]
+      },
+      "mean_nsb_oxygen_or_continuum_matched_all": 0.026435062681175677,
+      "mean_nsb_oxygen_or_continuum_native_all": 0.015617695561088015,
+      "mean_observed_all": 0.026439402082211606,
+      "n_nights_all": 22,
+      "n_nights_evaluation": 17,
+      "n_spectra_all": 103,
+      "n_spectra_evaluation": 94,
+      "native_operational": {
+        "bias": -0.010846324036326148,
+        "bias_ci95": [
+          -0.015644486643187114,
+          -0.0054412902672721685
+        ],
+        "mae": 0.013677326974889898,
+        "mae_ci95": [
+          0.008609364804081407,
+          0.018030025061827326
+        ],
+        "mean_observed": 0.02694322325095076,
+        "mean_predicted": 0.016096899214624608,
+        "n": 94,
+        "nights": 17,
+        "relative_mae": 0.5867051126148748,
+        "relative_mae_ci95": [
+          0.3815384928399416,
+          0.7509467613968406
+        ]
+      },
+      "oxygen_doc_mean_excess_agreement": true,
+      "oxygen_doc_mean_excess_reference": 0.02644,
+      "window": {
+        "air_bounds_nm": [
+          627.531025733613,
+          632.5296835833308
+        ],
+        "air_center_nm": 630.0303547021929,
+        "comparability": "conditional",
+        "half_width_nm": 2.5,
+        "included_palace_lines_vacuum_nm": [
+          630.2046
+        ],
+        "kind": "oxygen_local_excess",
+        "notes": "Observed continuum-subtracted excess versus NSB Oxygen-only integral. Not a total-sky residual.",
+        "sideband_inner_nm": 3.0,
+        "sideband_outer_nm": 5.0,
+        "vacuum_bounds_nm": [
+          627.7046,
+          632.7046
+        ],
+        "vacuum_center_nm": 630.2046
+      }
+    },
+    "oi_636": {
+      "matched_centered_f27_diagnostic": {
+        "bias": 0.00031300089053208744,
+        "bias_ci95": [
+          -0.002057778845763118,
+          0.0021308996702470093
+        ],
+        "mae": 0.003814441437636856,
+        "mae_ci95": [
+          0.002948393763595847,
+          0.004610932841250128
+        ],
+        "mean_observed": 0.008896137424768556,
+        "mean_predicted": 0.009209138315300647,
+        "n": 94,
+        "nights": 17,
+        "relative_mae": 0.8832353334739521,
+        "relative_mae_ci95": [
+          0.500247203831134,
+          1.2043512564375163
+        ]
+      },
+      "matched_within_palace_training": {
+        "bias": -0.0038207426089440573,
+        "bias_ci95": [
+          -0.006431248018928848,
+          -0.001465310883805791
+        ],
+        "mae": 0.0046662896589457475,
+        "mae_ci95": [
+          0.0024701690522714002,
+          0.006727438270763909
+        ],
+        "mean_observed": 0.0090989314856076,
+        "mean_predicted": 0.0052781888766635435,
+        "n": 21,
+        "nights": 8,
+        "relative_mae": 0.5167058626843598,
+        "relative_mae_ci95": [
+          0.4368579372300392,
+          0.6291686853785164
+        ]
+      },
+      "mean_nsb_oxygen_or_continuum_matched_all": 0.00884471985166577,
+      "mean_nsb_oxygen_or_continuum_native_all": 0.005225571621685337,
+      "mean_observed_all": 0.00872818793966415,
+      "n_nights_all": 22,
+      "n_nights_evaluation": 17,
+      "n_spectra_all": 103,
+      "n_spectra_evaluation": 94,
+      "native_operational": {
+        "bias": -0.003510282378839039,
+        "bias_ci95": [
+          -0.005102386368010569,
+          -0.0017056431131651593
+        ],
+        "mae": 0.004512618109898071,
+        "mae_ci95": [
+          0.0028185709565297485,
+          0.0059658988847511195
+        ],
+        "mean_observed": 0.008896137424768556,
+        "mean_predicted": 0.005385855045929519,
+        "n": 94,
+        "nights": 17,
+        "relative_mae": 0.617963830694649,
+        "relative_mae_ci95": [
+          0.3898210803639614,
+          0.7991313940609264
+        ]
+      },
+      "oxygen_doc_mean_excess_agreement": true,
+      "oxygen_doc_mean_excess_reference": 0.00873,
+      "window": {
+        "air_bounds_nm": [
+          633.8783214116671,
+          638.8769788244551
+        ],
+        "air_center_nm": 636.3776501603721,
+        "comparability": "conditional",
+        "half_width_nm": 2.5,
+        "included_palace_lines_vacuum_nm": [
+          636.5536
+        ],
+        "kind": "oxygen_local_excess",
+        "notes": "Observed continuum-subtracted excess versus NSB Oxygen-only integral. Not a total-sky residual.",
+        "sideband_inner_nm": 3.0,
+        "sideband_outer_nm": 5.0,
+        "vacuum_bounds_nm": [
+          634.0536,
+          639.0536
+        ],
+        "vacuum_center_nm": 636.5536
+      }
+    },
+    "oi_green": {
+      "matched_centered_f27_diagnostic": {
+        "bias": -0.005479276428353899,
+        "bias_ci95": [
+          -0.01024491080840163,
+          -0.0015911089427173993
+        ],
+        "mae": 0.008448722241136209,
+        "mae_ci95": [
+          0.005579907087012869,
+          0.01242236995746108
+        ],
+        "mean_observed": 0.03092428260305076,
+        "mean_predicted": 0.025445006174696864,
+        "n": 94,
+        "nights": 17,
+        "relative_mae": 0.27132256149869455,
+        "relative_mae_ci95": [
+          0.1998685872360646,
+          0.4116319609898955
+        ]
+      },
+      "matched_within_palace_training": {
+        "bias": -0.00864003221662518,
+        "bias_ci95": [
+          -0.015187841283589378,
+          -0.000612246071591081
+        ],
+        "mae": 0.011227718694171997,
+        "mae_ci95": [
+          0.006051201374170862,
+          0.016403435538540987
+        ],
+        "mean_observed": 0.028545347146624177,
+        "mean_predicted": 0.019905314929999002,
+        "n": 21,
+        "nights": 8,
+        "relative_mae": 0.3759852959156979,
+        "relative_mae_ci95": [
+          0.307771682390211,
+          0.449063310819941
+        ]
+      },
+      "mean_nsb_oxygen_or_continuum_matched_all": 0.02532522717249878,
+      "mean_nsb_oxygen_or_continuum_native_all": 0.018529246216873366,
+      "mean_observed_all": 0.03054815640216949,
+      "n_nights_all": 22,
+      "n_nights_evaluation": 17,
+      "n_spectra_all": 103,
+      "n_spectra_evaluation": 94,
+      "native_operational": {
+        "bias": -0.012478701676061042,
+        "bias_ci95": [
+          -0.016524404309944497,
+          -0.007457287177631858
+        ],
+        "mae": 0.013601649817654259,
+        "mae_ci95": [
+          0.009850495297529271,
+          0.017311574802666124
+        ],
+        "mean_observed": 0.03092428260305076,
+        "mean_predicted": 0.018445580926989717,
+        "n": 94,
+        "nights": 17,
+        "relative_mae": 0.4075770764631811,
+        "relative_mae_ci95": [
+          0.3593485628318796,
+          0.459343323248397
+        ]
+      },
+      "oxygen_doc_mean_excess_agreement": true,
+      "oxygen_doc_mean_excess_reference": 0.03055,
+      "window": {
+        "air_bounds_nm": [
+          555.234492544095,
+          560.2331565953373
+        ],
+        "air_center_nm": 557.7338246351693,
+        "comparability": "conditional",
+        "half_width_nm": 2.5,
+        "included_palace_lines_vacuum_nm": [
+          557.8887
+        ],
+        "kind": "oxygen_local_excess",
+        "notes": "Observed continuum-subtracted excess versus NSB Oxygen-only integral. Not a total-sky residual.",
+        "sideband_inner_nm": 3.0,
+        "sideband_outer_nm": 5.0,
+        "vacuum_bounds_nm": [
+          555.3887,
+          560.3887
+        ],
+        "vacuum_center_nm": 557.8887
+      }
+    },
+    "oi_red_combined": {
+      "matched_centered_f27_diagnostic": {
+        "bias": 0.00022544063599290904,
+        "bias_ci95": [
+          -0.009225158543541752,
+          0.007505588915730204
+        ],
+        "mae": 0.015103280884765606,
+        "mae_ci95": [
+          0.011577915540483132,
+          0.01835446973736722
+        ],
+        "mean_observed": 0.036512440336177614,
+        "mean_predicted": 0.03673788097217052,
+        "n": 94,
+        "nights": 17,
+        "relative_mae": 0.7626537187587421,
+        "relative_mae_ci95": [
+          0.43955447323429614,
+          1.0308547585352679
+        ]
+      },
+      "matched_within_palace_training": {
+        "bias": -0.016377878804582198,
+        "bias_ci95": [
+          -0.02679537367248339,
+          -0.006675635335680449
+        ],
+        "mae": 0.019106586278299136,
+        "mae_ci95": [
+          0.01009932008416279,
+          0.027809448298516812
+        ],
+        "mean_observed": 0.03743120601487141,
+        "mean_predicted": 0.021053327210289224,
+        "n": 21,
+        "nights": 8,
+        "relative_mae": 0.45552803936418257,
+        "relative_mae_ci95": [
+          0.3704492664955878,
+          0.5384084707979708
+        ]
+      },
+      "mean_nsb_oxygen_or_continuum_matched_all": 0.03528384024789,
+      "mean_nsb_oxygen_or_continuum_native_all": 0.02084566456268191,
+      "mean_observed_all": 0.035839442958385835,
+      "n_nights_all": 22,
+      "n_nights_evaluation": 17,
+      "n_spectra_all": 103,
+      "n_spectra_evaluation": 94,
+      "native_operational": {
+        "bias": -0.0150272151718409,
+        "bias_ci95": [
+          -0.021448501747341493,
+          -0.007851338116695717
+        ],
+        "mae": 0.018527361101939158,
+        "mae_ci95": [
+          0.011733561750731664,
+          0.02429816618444517
+        ],
+        "mean_observed": 0.036512440336177614,
+        "mean_predicted": 0.02148522516433672,
+        "n": 94,
+        "nights": 17,
+        "relative_mae": 0.5580551787611688,
+        "relative_mae_ci95": [
+          0.3735938024759338,
+          0.7011787542403
+        ]
+      },
+      "window": {
+        "air_bounds_nm": [
+          627.531025733613,
+          641.6726277960115
+        ],
+        "air_center_nm": null,
+        "comparability": "conditional",
+        "half_width_nm": null,
+        "included_palace_lines_vacuum_nm": [
+          630.2046,
+          636.5536,
+          639.35
+        ],
+        "kind": "oxygen_local_excess",
+        "notes": "Preferred red diagnostic when FORS1 resolution blends 630/636. Sidebands are built from the outer edges of the multiplet.",
+        "sideband_inner_nm": 3.0,
+        "sideband_outer_nm": 5.0,
+        "sideband_reference_centers_air_nm": [
+          630.0303547021929,
+          636.3776501603721
+        ],
+        "vacuum_bounds_nm": [
+          627.7046,
+          641.85
+        ],
+        "vacuum_center_nm": null
+      }
+    }
+  },
+  "protocol": {
+    "bootstrap_repetitions": 2000,
+    "bootstrap_seed": 182,
+    "half_width_nm": 2.5,
+    "sideband_inner_nm": 3.0,
+    "sideband_outer_nm": 5.0,
+    "signed_residual": "predicted - observed",
+    "solar_scenarios": {
+      "matched_centered_f27_diagnostic": "Retrospective centered 27-day observed F10.7; not operational skill",
+      "native_operational": "NSB Automatic climatology / monthly planning input"
+    },
+    "windows_frozen_before_residuals": true
+  },
+  "schema": "spectral-window-diagnostics-v1",
+  "unit": "photons cm^-2 ns^-1 sr^-1",
+  "unsupported_comparisons": [
+    "Observed total sky vs NSB Automatic Airglow spectral density",
+    "nsb2 isolated Oxygen emission groups"
+  ],
+  "wavelength_conversion": {
+    "conditions": "dry air, 15 C, 760 Torr",
+    "domain_angstrom": [
+      2000,
+      10000
+    ],
+    "formula": "Morton 2000 / IAU optical vac\u2194air"
+  }
+}

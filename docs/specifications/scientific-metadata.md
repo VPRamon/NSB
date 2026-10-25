@@ -137,6 +137,36 @@ never labelled as observations. A measured F10.7 does not promote Airglow to
 site-calibrated status; see
 [F10.7 resolver](../nsb_components/airglow/f107-resolver.md).
 
+### Experimental Oxygen F10.7 domain diagnostic
+
+When the resolved Airglow model is experimental PALACE Oxygen
+(`paranal-palace-oxygen-v1`) and an F10.7 value was applied for the evaluation,
+metadata may also include `oxygen_f107_domain`. Continuum-only Airglow omits it.
+Descriptors from `describe_components` omit it when no F10.7 was resolved.
+
+The Rust diagnostic stores only `applied_sfu`, `training_range_low_sfu` and
+`training_range_high_sfu`. `numerical_range()` derives `below-training-interval`,
+`within-training-interval` or `above-training-interval`; both endpoints are
+inclusive. Bounds come from the evaluator's already-loaded continuum asset,
+without reparsing it per evaluation. CLI JSON exposes those three scalars,
+`numerical_range` and `limitation`; Python exposes the same five values as
+`oxygen_f107_*` properties. Rust exposes the interpretation as
+`OxygenF107DomainDiagnostic::LIMITATION`.
+
+**Numerical membership is not scientific validation.** The limitation states
+that operational monthly planning inputs, climatology and caller scalars do not
+establish actual centred-27-day training-domain membership. Automatic climatology
+≈129 sfu is numerically inside `[67, 166]` but supplies no evidence of actual
+solar conditions (merged #295 / #308). Even observed monthly means do not match
+the centred-27-day training statistic. Explicit scalar provenance is caller-owned;
+NSB cannot infer its temporal convention. Forecasts remain planning inputs.
+
+Use the existing `solar_activity` record (Python: `solar_activity_provenance`)
+for source kind, product, cadence, completeness and resolution step. There is no
+second source classification or redundant extrapolation/actual-conditions flag.
+The diagnostic does not change radiance, maturity (`experimental`), or
+site-calibration status; see also [#280](https://github.com/VPRamon/NSB/issues/280).
+
 ## Airglow geometry and attenuation
 
 Airglow component metadata includes a structured `airglow_geometry` record.

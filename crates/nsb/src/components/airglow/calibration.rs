@@ -69,13 +69,20 @@ pub(crate) struct AirglowContinuum {
     components: [PalaceContinuumComponent; COMPONENT_COUNT],
     climatology: [PalaceClimatologyCell; CLIMATOLOGY_ROWS],
     reference_solar_flux_sfu: f64,
-    #[allow(dead_code)]
     solar_flux_evidence_range_sfu: (f64, f64),
 }
 
 impl AirglowContinuum {
     pub(crate) fn wavelengths_nm(&self) -> &[f64; SAMPLE_COUNT] {
         &self.wavelengths_nm
+    }
+
+    /// Inclusive historical F10.7 evidence interval recorded on the continuum asset (sfu).
+    ///
+    /// PALACE Oxygen SCE coefficients share this documented training evidence
+    /// range; endpoints are inclusive.
+    pub(crate) fn solar_flux_evidence_range_sfu(&self) -> (f64, f64) {
+        self.solar_flux_evidence_range_sfu
     }
 
     /// Compute time/F10.7 scales once, before the wavelength loop.

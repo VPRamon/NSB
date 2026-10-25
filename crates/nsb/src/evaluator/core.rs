@@ -303,4 +303,43 @@ mod tests {
             airglow::AirglowSelection::Automatic
         );
     }
+
+    #[test]
+    fn oxygen_f107_domain_reuses_loaded_continuum_across_evaluations() {
+        use tempoch::{Time, UTC};
+        let mut evaluator = NsbEvaluator::with_config(
+            NsbModelConfig::generic_clear_sky()
+                .with_solar_radio_flux(crate::SolarFluxUnits::new(130.0)),
+        )
+        .unwrap();
+        // A synthetic asset interval distinguishes the retained evaluator context
+        // from any freshly loaded built-in asset. No production test hooks/cache.
+        let source = include_str!("../../data/airglow_palace_v1.dat").replace(
+            "solar_flux_evidence_range_sfu 67 166",
+            "solar_flux_evidence_range_sfu 80 180",
+        );
+        evaluator.airglow_continuum = Arc::new(source.parse().unwrap());
+        let time = Time::<UTC>::from_chrono("2023-09-04T01:48:00Z".parse().unwrap());
+        let query = PointQuery::new(
+            paranal(),
+            time,
+            Target::new(266.41683 * crate::DEG, -29.00781 * crate::DEG),
+        )
+        .with_components(ComponentMask::AIRGLOW);
+        let reference = evaluator.evaluate(&query).unwrap();
+        for _ in 0..32 {
+            let result = evaluator.evaluate(&query).unwrap();
+            assert_eq!(
+                result.integrated.value().to_bits(),
+                reference.integrated.value().to_bits()
+            );
+            let domain = result.components[0]
+                .metadata
+                .oxygen_f107_domain
+                .as_ref()
+                .unwrap();
+            assert_eq!((domain.training_range_low_sfu, domain.training_range_high_sfu), (80.0, 180.0),
+                "metadata must reuse the evaluator's parsed continuum, never reload the built-in asset");
+        }
+    }
 }
