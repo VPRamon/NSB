@@ -55,7 +55,13 @@ configuration.
 **Oxygen development.** The same inspected observational cohort informed
 Oxygen model development. Any improvement measured on those observations is
 development evidence, not a statistically independent out-of-sample admission
-of v0.2.0.
+of v0.2.0. The independent default-admission assessment (summarized in
+[NSB #280](https://github.com/VPRamon/NSB/issues/280)) reported **NO-GO**
+for absolute oxygen-line admission (no admitted independent absolute cohort;
+geographic generalization unestablished). That assessment predates the runtime
+selection change in [NSB #282](https://github.com/VPRamon/NSB/pull/282):
+current Automatic selection is a planning policy, **not** a reversal of the
+scientific NO-GO. The missing absolute metrology remains tracked by #280.
 
 **DESI pilot.** Seven passbands across three nights do **not** constitute 21
 independent nights. Instrument response, diffuse calibration, spectral
