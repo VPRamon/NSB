@@ -29,8 +29,26 @@ nsb-data-tools (network acquisition)
 PALACE was fitted using **centred 27-day** F10.7 averages. NSB currently feeds it
 the resolver's established **monthly-mean planning approximation** and never a
 raw daily observation or daily forecast value. Metadata and the PALACE
-validation report disclose this cadence mismatch; a dedicated centred 27-day
-resolver remains future work.
+validation report disclose this cadence mismatch.
+
+### Operational versus retrospective solar inputs
+
+These quantities must not be confused in docs or validation tables:
+
+| Quantity | Available at prediction time? | Role in NSB |
+|---|---|---|
+| Monthly planning mean (this resolver) | Conditional: forecasts require issue-time validity; observed finalized months selected from a later snapshot can be **retrospective** for the requested date | Automatic / Dataset input; not automatically a causal historical forecast |
+| Latest daily observed F10.7 | Only after actual publication (not guaranteed by a one-day calendar offset) | Diagnostic / building block; **not** selected as Airglow input |
+| Trailing historical average (e.g. prior 27 days) | Conditionally, if all observations were published before prediction time | Research candidate only; **not** an automatic substitute for PALACE's centred training statistic ([issue #295](https://github.com/VPRamon/NSB/issues/295)) |
+| Centred 27-day mean | **No** — uses future days | Retrospective matched/diagnostic experiments only |
+| Bundled climatology (~129.207 sfu) | Yes | Fallback when no time-valid monthly evidence exists (e.g. dates before the bundled monthly observed coverage) |
+
+Issue #295 investigated causal alternatives on the Patat development cohort and
+did **not** find a within-training-domain (67–166 sfu) justification to change
+the default resolver. See
+[`docs/lessons-learned/solar-activity-f107-cadence.md`](../../lessons-learned/solar-activity-f107-cadence.md).
+A dedicated centred 27-day **runtime** mode remains out of scope unless new
+in-domain evidence appears.
 
 **Oxygen domain diagnostics (issue #294).** Experimental Oxygen evaluations
 attach `oxygen_f107_domain` metadata that classifies the applied operational
@@ -111,7 +129,12 @@ diagnostics/CLI inspection but are never selected as the Airglow F10.7 input.
 
 Forecast-derived Airglow inputs require `forecast_issued_at <= requested_time`.
 A forecast issued on 2026-08-27 cannot influence an automatic evaluation of
-2026-08-01. There is no retrospective/reanalysis mode.
+2026-08-01. **This restriction applies to forecasts, not to finalized observations.**
+For example, using the 2026-08-27 bundled snapshot to resolve 2023-08-01
+selects the observed August 2023 mean (153.92 sfu), finalized after that date.
+Automatic is therefore deterministic against a snapshot, but historical values
+need not have been available at the historical evaluation instant. There is no
+separate retrospective source mode.
 
 ### Current-month SWPC monthly indices
 

@@ -65,3 +65,6 @@ coverage_html/
 code-coverage-results.md
 coverage-gate-overall.txt
 coverage-gate-diff.txt
+
+# Generated standalone observational notebook audit receipts
+observational-validation-receipts/
