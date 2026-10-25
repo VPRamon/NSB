@@ -118,7 +118,11 @@ Run the minimal public-interface examples from
 registered Patat/FORS1 acquisition and comparison protocol; raw observations
 are not redistributed inside this repository. Its versioned JSON/CSV
 [audit receipts](observational-receipts.md) record predictions, metrics, provenance
-and a deterministic independent reconstruction procedure. Internal and independent
+and a deterministic independent reconstruction procedure. Restricted
+wavelength-window comparisons of continuum-subtracted Oxygen excesses with NSB
+Oxygen-only integrals — excluding inequivalent full spectral MAE — are recorded
+in [spectral-window-diagnostics-v1](validation/spectral-window-diagnostics-v1.md).
+Internal and independent
 numerical tests are specified in the [validation matrix](specifications/validation.md).
 For a new independent observational claim, use the
 [validation consumer contract](specifications/validation-consumer.md), with

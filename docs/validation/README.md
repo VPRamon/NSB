@@ -21,6 +21,10 @@ validation of NSB 0.2.0.
   computational comparisons and explicit scientific limits.
 - [Gaia XP streaming experiment](gaia-xp-streaming.md): previous partial
   measurements retained for reproducibility, not current performance claims.
+- [Spectral window diagnostics](spectral-window-diagnostics-v1.md): Outcome B
+  restricted continuum-subtracted Oxygen-window comparisons against NSB
+  Oxygen-only integrals; full total-sky spectral MAE rejected
+  ([#296](https://github.com/VPRamon/NSB/issues/296)).
 
 Exact third-party producer identities and source hashes in fixtures are
 necessary provenance, not NSB runtime dependencies. Do not delete or reword
