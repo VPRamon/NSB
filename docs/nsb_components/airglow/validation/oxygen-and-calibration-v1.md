@@ -188,8 +188,15 @@ The runnable synthetic fit demonstrates parameter recovery, uncertainty,
 serialization, reuse, domain checks and reserved-night isolation. It cannot
 establish calibrated predictive accuracy on independent observational input.
 New independent continuum observations, a preregistered fit and truly untouched
-nights remain necessary. The extension is justified for explicit experimental
-use; retaining the original production default is the recommended release policy.
+nights remain necessary. The extension supports experimental planning use within
+its stated limits. The recommendation to keep the continuum-only Automatic
+default was written before [NSB PR #282](https://github.com/VPRamon/NSB/pull/282)
+selected Oxygen as a runtime planning fallback. That release-policy change did
+**not** supply independent absolute observational admission: the separate
+[NO-GO assessment](https://github.com/VPRamon/nsb-validation/pull/21) still
+found no admitted independent absolute oxygen-line cohort, and
+[issue #280](https://github.com/VPRamon/NSB/issues/280) tracks the missing
+metrology. Historical metrics and admission decisions are not reinterpreted.
 
 ## Performance and tests
 

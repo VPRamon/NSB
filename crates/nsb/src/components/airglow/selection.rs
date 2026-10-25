@@ -9,6 +9,8 @@
 //! The global climatological planning model is not yet admitted; automatic
 //! selection currently resolves to the current Paranal-derived PALACE Oxygen
 //! planning fallback with that fallback machine-visible via typed reason enums.
+//! Selection describes runtime routing, not independent scientific admission;
+//! Oxygen retains Experimental component maturity pending absolute metrology (#280).
 
 use super::model::AirglowModel;
 use crate::error::Result;
@@ -27,7 +29,9 @@ pub enum AirglowSelection {
     /// the current Paranal-derived PALACE Oxygen planning fallback
     /// ([`AirglowModel::ParanalPalaceOxygenV1`]). That fallback is always
     /// reported in selection metadata and is not presented as a globally
-    /// validated climatology. Explicit [`AirglowModel::ParanalPalaceV1`] remains
+    /// validated climatology. Selection does not change the experimental
+    /// scientific maturity recorded in component metadata (see NSB issue #280).
+    /// Explicit [`AirglowModel::ParanalPalaceV1`] remains
     /// available for continuum-only historical reproducibility.
     Automatic,
     /// Caller explicitly selected this scientific model.
@@ -74,11 +78,11 @@ impl AirglowSelectionKind {
     }
 }
 
-/// Why automatic Airglow policy deliberately selected a explicit planning fallback.
+/// Why automatic Airglow policy deliberately selected an experimental planning fallback.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum AirglowFallbackReason {
-    /// Global climatological planning model is not yet admitted (not yet admitted).
+    /// No independently admitted global climatological planning model is available.
     GlobalPlanningModelUnavailable,
 }
 
@@ -144,9 +148,9 @@ pub struct AirglowSelectionMetadata {
     pub requested_model: Option<AirglowModel>,
     /// Model resolved for evaluation when already known.
     pub resolved_model: Option<AirglowModel>,
-    /// True when automatic policy deliberately fell back to a temporary model.
+    /// True when runtime policy uses a temporary model; not a scientific admission.
     pub used_automatic_fallback: bool,
-    /// Typed reason when automatic policy selected a fallback model.
+    /// Typed runtime fallback reason, not an independent validation verdict.
     pub fallback_reason: Option<AirglowFallbackReason>,
 }
 
@@ -198,7 +202,8 @@ impl ResolvedAirglowSelection {
 /// currently resolves to the current Paranal-derived PALACE Oxygen planning
 /// fallback ([`AirglowModel::ParanalPalaceOxygenV1`]). This is a release-policy
 /// reference-model choice supported by physical completeness and retrospective
-/// Patat evidence; it is not an independent absolute observational admission.
+/// Patat development evidence; it is not an independent absolute observational
+/// admission. Missing absolute oxygen-line metrology is tracked in NSB #280.
 pub(crate) fn resolve_airglow_selection(
     selection: AirglowSelection,
 ) -> Result<ResolvedAirglowSelection> {

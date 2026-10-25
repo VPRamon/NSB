@@ -90,7 +90,9 @@ impl BandDiagnostic {
 /// Scientific interpretation attached to a component result.
 #[non_exhaustive]
 pub struct NsbComponentMetadata {
-    /// Calibration/maturity classification.
+    /// Scientific calibration/maturity classification, independent of runtime
+    /// model selection or automatic-fallback metadata. Oxygen remains
+    /// [`ComponentCalibrationStatus::Experimental`] when selected automatically.
     pub status: ComponentCalibrationStatus,
     /// Source model and data provenance.
     pub provenance: Cow<'static, str>,
@@ -284,6 +286,7 @@ fn airglow_metadata_inner(
         metadata.status = ComponentCalibrationStatus::Experimental;
     }
     if model == crate::AirglowModel::ParanalPalaceOxygenV1 {
+        // Neither Automatic fallback nor explicit selection admits Oxygen scientifically.
         metadata.status = ComponentCalibrationStatus::Experimental;
         let oxygen_asset = crate::data::bundled::bundled_asset("airglow_palace_oxygen_v1.json")
             .expect("build-verified oxygen asset");

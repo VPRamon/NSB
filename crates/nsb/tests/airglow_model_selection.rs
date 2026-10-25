@@ -98,6 +98,69 @@ fn default_and_explicit_model_selection_are_inspectable_and_numerically_identica
 }
 
 #[test]
+fn oxygen_selection_does_not_promote_scientific_maturity_in_descriptors_or_results() {
+    let location = observer(-70.4044, -24.6275, 2_635.0);
+    for selection in [
+        AirglowSelection::Automatic,
+        AirglowSelection::Explicit(REFERENCE_MODEL),
+    ] {
+        let evaluator = NsbEvaluator::with_config(
+            NsbModelConfig::generic_clear_sky()
+                .with_site_profile(ctao_south_planning())
+                .with_airglow_selection(selection),
+        )
+        .unwrap();
+        let descriptors = evaluator
+            .describe_components(location, ComponentMask::AIRGLOW)
+            .unwrap();
+        let descriptor = &descriptors[0].metadata;
+        assert_eq!(descriptor.status, ComponentCalibrationStatus::Experimental);
+        assert_eq!(descriptor.status.as_str(), "experimental");
+        assert!(descriptor
+            .validated_domain
+            .contains("not an independent absolute observational admission"));
+        let resolved = descriptor.airglow_selection.as_ref().unwrap();
+        assert_eq!(resolved.resolved_model, Some(REFERENCE_MODEL));
+        assert_eq!(
+            resolved.used_automatic_fallback,
+            selection == AirglowSelection::Automatic
+        );
+
+        let result = evaluator
+            .evaluate(
+                &PointQuery::new(location, time(), near_zenith_target(&location))
+                    .with_components(ComponentMask::AIRGLOW),
+            )
+            .unwrap();
+        let metadata = &result.components[0].metadata;
+        assert_eq!(metadata.status, ComponentCalibrationStatus::Experimental);
+        assert_eq!(metadata.status.as_str(), "experimental");
+        assert_eq!(
+            metadata.airglow_selection.as_ref().unwrap().resolved_model,
+            resolved.resolved_model
+        );
+        assert!(metadata.provenance.contains("oxygen asset"));
+        assert!(metadata
+            .validated_domain
+            .contains("EXPERIMENTAL OXYGEN EXTENSION"));
+    }
+
+    let continuum = evaluate_airglow(
+        NsbModelConfig::generic_clear_sky()
+            .with_airglow_model(AirglowModel::ParanalPalaceV1),
+        location,
+    );
+    assert_eq!(
+        continuum.metadata.status,
+        ComponentCalibrationStatus::GenericClearSky
+    );
+    assert!(!continuum
+        .metadata
+        .validated_domain
+        .contains("EXPERIMENTAL OXYGEN EXTENSION"));
+}
+
+#[test]
 fn scientific_model_identity_is_independent_of_geometry_f107_location_and_site_maturity() {
     let base = NsbModelConfig::generic_clear_sky();
     let changed_geometry = base

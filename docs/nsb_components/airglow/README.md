@@ -8,10 +8,10 @@ Scope: Empirical continuum, calculation inputs, geometry, calibration route, and
 
 Airglow is natural optical emission from Earth's upper atmosphere. Its intensity
 varies with season, progression through the night, solar activity, viewing
-geometry, wavelength, and local conditions. NSB uses the PALACE v1.0 Paranal
-unresolved-continuum model; it is not PALACE's line-by-line emission model and
-the current runtime does not contain a validated dedicated Airglow site
-calibration.
+geometry, wavelength, and local conditions. NSB uses the PALACE v1.0 Paranal-derived unresolved continuum; `Automatic`
+additionally selects the experimental PALACE Og/Or oxygen subset. This is not
+PALACE's complete line-by-line emission model, and the runtime has no
+independently admitted dedicated Airglow site calibration.
 
 Airglow must not be forced through the celestial top-of-atmosphere direct path
 in `nsb::transport`: emission originates inside the atmosphere, and the
@@ -66,6 +66,14 @@ Required behavior:
   selection remains available. The default change is a release-policy
   reference-model choice, not an independent absolute observational admission.
   Oxygen domain limits (including zenith ≤ 60°) apply to Automatic.
+- **Scientific admission is separate.** The selection and fallback fields say
+  which model runs and why; they are not validation certificates. Inspect
+  `NsbComponentMetadata::status` (`Experimental` for Oxygen) and
+  `validated_domain` in both descriptors and evaluated results. Independent
+  absolute oxygen-line metrology is still missing ([#280](https://github.com/VPRamon/NSB/issues/280));
+  the independent [admission assessment](https://github.com/VPRamon/nsb-validation/pull/21)
+  returned NO-GO for scientific admission. Retrospective Patat development
+  evidence does not change that finding.
 - **Invalid inputs never become physical zero.** Altitude / F10.7 / scale are
   validated **before** astronomical-night gating. Outside night with valid
   inputs yields `AirglowPhysicalOutcome::PhysicalZero` with
@@ -136,6 +144,22 @@ assert!(!config.is_airglow_site_calibrated());
 independent of selection policy. Changing observer coordinates, F10.7,
 geometry, or site maturity does not silently change the declared scientific
 model identity.
+
+To choose **continuum-only** explicitly in Rust use
+`config.with_airglow_model(AirglowModel::ParanalPalaceV1)`; to request
+Oxygen explicitly use `ParanalPalaceOxygenV1`. In Python the corresponding
+model choices are `nsb.AirglowModel.PARANAL_PALACE_V1` and
+`nsb.AirglowModel.PARANAL_PALACE_OXYGEN_V1` via `with_airglow_model`.
+The CLI accepts `--airglow-model paranal-palace-v1` or
+`--airglow-model paranal-palace-oxygen-v1`. Explicit Oxygen keeps the same
+experimental status and domain limits as Automatic.
+
+To **disable Airglow entirely**, omit it from the evaluated component mask:
+Rust `PointQuery::with_components(ComponentMask::DEFAULT & !ComponentMask::AIRGLOW)`,
+Python a `components` mask excluding `nsb.ComponentMask.AIRGLOW`, or
+CLI `--components zodiacal,moon` (add `starlight` if desired and available).
+Excluding the component is different from selecting continuum-only; neither
+operation silently changes other components.
 
 ## Evaluation stack
 
@@ -344,13 +368,14 @@ representativeness remains explicitly limited.
 
 ## Experimental oxygen and registered observatory fits
 
-The automatic/default continuum behavior above is unchanged. Explicit
-`ParanalPalaceOxygenV1` adds a bounded PALACE Og/Or oxygen subset with separate
-97/250 km source heights and climatologies; it is experimental, not full PALACE
-line completion. See [physical evidence and limitations](validation/oxygen-and-calibration-v1.md).
+Both Automatic and explicit `ParanalPalaceOxygenV1` use a bounded PALACE
+Og/Or oxygen subset with separate 97/250 km source heights and climatologies.
+It remains experimental, not full PALACE line completion. Explicit
+`ParanalPalaceV1` instead excludes the oxygen lines. See
+[physical evidence and limitations](validation/oxygen-and-calibration-v1.md).
 
 [Registered continuum calibration](../../user-guide/airglow-calibration.md)
 provides a one-parameter fit/export/load workflow through the existing site and
 model configuration. A registered fit is never automatically admitted as an
-independently validated calibration. Neither oxygen selection nor fitted scales
-change the production default or the existing Starlight product.
+independently validated calibration. Neither default selection nor fitted
+scales upgrades Oxygen's scientific maturity or changes the Starlight product.
