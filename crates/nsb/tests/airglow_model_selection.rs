@@ -146,8 +146,7 @@ fn oxygen_selection_does_not_promote_scientific_maturity_in_descriptors_or_resul
     }
 
     let continuum = evaluate_airglow(
-        NsbModelConfig::generic_clear_sky()
-            .with_airglow_model(AirglowModel::ParanalPalaceV1),
+        NsbModelConfig::generic_clear_sky().with_airglow_model(AirglowModel::ParanalPalaceV1),
         location,
     );
     assert_eq!(

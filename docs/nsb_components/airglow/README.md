@@ -8,8 +8,9 @@ Scope: Empirical continuum, calculation inputs, geometry, calibration route, and
 
 Airglow is natural optical emission from Earth's upper atmosphere. Its intensity
 varies with season, progression through the night, solar activity, viewing
-geometry, wavelength, and local conditions. NSB uses the PALACE v1.0 Paranal-derived unresolved continuum; `Automatic`
-additionally selects the experimental PALACE Og/Or oxygen subset. This is not
+geometry, wavelength, and local conditions. NSB uses the PALACE v1.0
+Paranal-derived unresolved continuum; `Automatic` additionally selects the
+experimental PALACE Og/Or oxygen subset. This is not
 PALACE's complete line-by-line emission model, and the runtime has no
 independently admitted dedicated Airglow site calibration.
 

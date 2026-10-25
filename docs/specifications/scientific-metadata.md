@@ -31,8 +31,9 @@ columns.
 Default Automatic Airglow resolves to experimental PALACE Oxygen and reports
 `Experimental` **component** maturity even when the independent site-profile
 status is `GenericFallback` or `PlanningPreset`. Other default components
-retain their own maturity statuses. No CTAO profile is currently calibrated. Selection metadata is a runtime
-routing record, **not** a scientific-admission record: `selection_kind`,
+retain their own maturity statuses. No CTAO profile is currently calibrated.
+Selection metadata is a runtime routing record, **not** a scientific-admission
+record: `selection_kind`,
 `resolved_model`, `used_automatic_fallback`, and `fallback_reason` do not
 confer `Production`. Consumers must use the component's own `status` and
 `validated_domain` alongside its resolved model. The missing independent
