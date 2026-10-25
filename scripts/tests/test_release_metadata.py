@@ -16,7 +16,7 @@ class ReleaseMetadataTests(unittest.TestCase):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name)
-        for name in ["Cargo.toml", "Cargo.lock", "pyproject.toml", "README.md", "CHANGELOG.md",
+        for name in ["Cargo.toml", "Cargo.lock", "pyproject.toml", "README.md", "README_PYPI.md", "CHANGELOG.md",
                      "scripts/check-release-metadata.py", ".github/workflows/publish.yml",
                      "crates/nsb/Cargo.toml", "crates/nsb-cli/Cargo.toml",
                      "crates/nsb-data-tools/Cargo.toml", "crates/nsb/api/API_FROZEN",
