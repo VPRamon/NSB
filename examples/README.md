@@ -50,8 +50,8 @@ unrelated package named `nsb`.
 then presents the comparison design, measured errors and paired uncertainties,
 physical diagnostics, and conclusions. Input checks and reproducibility details
 are explained in a technical appendix; supporting code is folded where supported.
-The notebook is distributed without saved outputs. Use **Restart and Run All**
-to generate the tables, figures and conclusions in order.
+The notebook includes saved tables and figures for inspection directly on GitHub.
+Use **Restart and Run All** to regenerate the results in order.
 
 Select a fresh CPython **3.12 or 3.13** Jupyter/Google Colab kernel and **Run All**.
 The first code cell installs exactly **`nsb-py==0.2.0` from PyPI**, together with
@@ -122,10 +122,11 @@ without a checkout, GitHub access or Rust build. If setup changes already import
 packages, restart the kernel and Run All as instructed. The notebook uses bundled
 NSB assets, requires no scientific data acquisition and exports no files.
 
-All three notebooks are distributed without saved outputs or execution counts.
-The existing documentation gate, `python scripts/check-product-docs.py`, checks
-notebook structure, Python syntax, setup ordering, the NSB version selection,
-local documentation links and output hygiene. It runs in the existing CI job.
+All three notebooks retain their saved outputs and execution counts so readers
+can inspect the scientific results without running the code. The existing
+documentation gate, `python scripts/check-product-docs.py`, checks notebook
+structure, Python syntax, setup ordering, the NSB version selection and local
+documentation links; saved outputs are permitted. It runs in the existing CI job.
 
 ## Command line
 

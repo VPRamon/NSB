@@ -44,7 +44,7 @@ class PublicDocumentationTests(unittest.TestCase):
         text = "[site](https://example.org/) [root](../README.md)"
         self.assertEqual(docs.markdown_issues(path, text), [])
 
-    def test_notebook_hygiene_and_setup(self):
+    def test_notebook_structure_and_setup(self):
         path = ROOT / "examples" / "_synthetic-test.ipynb"
         valid = {"nbformat": 4, "cells": [{
             "cell_type": "code", "metadata": {"tags": ["setup"]},
@@ -52,9 +52,14 @@ class PublicDocumentationTests(unittest.TestCase):
             "outputs": [], "execution_count": None,
         }]}
         self.assertEqual(docs.notebook_issues(path, valid), [])
+        # Saved results remain available for readers who do not execute the notebook.
+        published = copy.deepcopy(valid)
+        published["cells"][0]["outputs"] = [{
+            "output_type": "stream", "name": "stdout", "text": ["computed result\n"],
+        }]
+        published["cells"][0]["execution_count"] = 1
+        self.assertEqual(docs.notebook_issues(path, published), [])
         for field, value, message in (
-            ("outputs", [{"output_type": "stream"}], "committed outputs"),
-            ("execution_count", 1, "execution count"),
             ("source", ["def broken("], "invalid Python"),
             ("source", ["REQUIREMENTS = ['nsb-py']"], "select nsb-py==0.2.0"),
             ("source", ["import numpy\nREQUIREMENTS = ['nsb-py==0.2.0']"], "third-party"),

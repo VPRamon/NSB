@@ -77,7 +77,7 @@ def markdown_issues(path: Path, text: str) -> list[str]:
 
 
 def notebook_issues(path: Path, nb: dict) -> list[str]:
-    """Keep distributed notebooks parseable, runnable in order and output-free."""
+    """Keep distributed notebooks parseable and runnable in order."""
     relative = path.relative_to(ROOT)
     if not isinstance(nb, dict) or nb.get("nbformat") != 4 or not isinstance(nb.get("cells"), list):
         return [f"{relative}: expected nbformat 4 cells"]
@@ -93,8 +93,6 @@ def notebook_issues(path: Path, nb: dict) -> list[str]:
         if cell["cell_type"] != "code":
             continue
         code.append(cell)
-        if cell.get("outputs") != [] or cell.get("execution_count", "missing") is not None:
-            problems.append(f"{relative}:cell {i}: committed outputs or execution count")
         try:
             ast.parse("".join(source), feature_version=(3, 12))
         except SyntaxError as error:
