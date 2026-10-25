@@ -11,6 +11,7 @@ This is NSB's institutional knowledge base. Consult it **before** reopening an o
 | Subsystem | Failure mode to avoid | Guardrail / decision | Investigation |
 | --- | --- | --- | --- |
 | Solar activity / Airglow | Treating retrospectively measured F10.7 or later-published monthly averages as causal; mistaking out-of-domain extrapolation for validated improvement | Preserve the F10.7 resolver default; disclose time availability and training-domain coverage | [F10.7 temporal cadence](solar-activity-f107-cadence.md) · [Numerical evidence](artifacts/solar-activity-f107-cadence-evidence.json) · [Issue #295](https://github.com/VPRamon/NSB/issues/295) |
+| Spectral validation / Oxygen | Publishing full spectral MAE of total-sky observations against Airglow-only (or unconvolved delta-line peak heights); treating continuum-control bands as Airglow residuals; isolating nsb2 Oxygen without a separable channel | Restrict to continuum-subtracted Oxygen-window excess vs NSB Oxygen-only; mark unsupported comparisons explicitly | [Spectral window diagnostics](../validation/spectral-window-diagnostics-v1.md) · [Artifact](../validation/artifacts/spectral-window-diagnostics-v1.json) · [Issue #296](https://github.com/VPRamon/NSB/issues/296) |
 
 ## Before making a related change
 

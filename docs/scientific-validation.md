@@ -116,7 +116,10 @@ Run the minimal public-interface examples from
 [the examples index](../examples/README.md). The
 [observational notebook](../examples/observational-validation.ipynb) contains a
 registered Patat/FORS1 acquisition and comparison protocol; raw observations
-are not redistributed inside this repository. Internal and independent
+are not redistributed inside this repository. Restricted wavelength-window
+diagnostics that compare continuum-subtracted Oxygen excesses to NSB Oxygen-only
+integrals — and that reject inequivalent full spectral MAE — are recorded in
+[spectral-window-diagnostics-v1](validation/spectral-window-diagnostics-v1.md). Internal and independent
 numerical tests are specified in the [validation matrix](specifications/validation.md).
 For a new independent observational claim, use the
 [validation consumer contract](specifications/validation-consumer.md), with
