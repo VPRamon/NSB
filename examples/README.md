@@ -53,18 +53,21 @@ are explained in a technical appendix; supporting code is folded where supported
 The notebook is distributed without saved outputs. Use **Restart and Run All**
 to generate the tables, figures and conclusions in order.
 
-Prepare a CPython **3.12 or 3.13** Jupyter kernel:
+Select a fresh CPython **3.12 or 3.13** Jupyter/Google Colab kernel and **Run All**.
+The first code cell installs exactly **`nsb-py==0.2.0` from PyPI**, together with
+the notebook's scientific Python dependencies, using the current kernel's Python.
+No NSB checkout, GitHub installation of NSB or Rust toolchain is needed; installation
+requires a compatible NSB wheel. Matching installed packages are reused. If setup
+changes an already imported package, restart the kernel and Run All as instructed.
+The editable `REQUIREMENTS` list shows the packages being installed.
 
-```bash
-python -m pip install nsb-py==0.2.0 nsb2 numpy scipy astropy matplotlib siderust tempoch
-```
-
-The small configuration cell identifies existing cached inputs. Scientific
-settings define the registered experiment and should remain unchanged for a
-reproduction. Network access is needed for the initial acquisition of Patat
-spectra and nsb2 reference assets; subsequent runs reuse cached inputs. Installed
-versions and scientific input hashes are displayed in the appendix. The notebook
-uses the installed packages and does not install them or build Rust automatically.
+The separate **nsb2 reference** is installed from GitHub commit
+`bc9320db03fbff69997ce366c6e76a37339c5d00`, since it is not published on PyPI;
+Git and network access to GitHub are required for this reference only.
+The existing `CACHE` configuration selects local scientific inputs. Registered
+scientific settings should remain unchanged for reproduction. Public observations
+and nsb2 reference assets are downloaded initially and reused from verified caches.
+Installed versions and scientific input hashes are displayed in the appendix.
 
 The assessment retains 103 spectra from 22 Paranal nights over 365–650 nm, with
 94 evaluation spectra on 17 nights. Native and matched solar-input scenarios
@@ -85,15 +88,12 @@ campaign does not produce an overall comparative conclusion.
 ### CTAO API example
 
 `ctao-sky-background.ipynb` supports **nsb-py 0.2.0 from PyPI** with CPython
-**3.12 or 3.13**. Prepare the kernel environment before running:
-
-```bash
-python -m pip install nsb-py==0.2.0 numpy matplotlib astropy
-```
-
-Use **Restart and Run All** in a fresh kernel. The notebook does not install
-packages, acquire external data or export files. Code that teaches the public
-API remains visible; results are generated inline without saved outputs.
+**3.12 or 3.13**. Use a fresh kernel and **Run All**: its first code cell installs
+`nsb-py==0.2.0`, NumPy, Matplotlib and Astropy using the kernel's Python.
+It requires no local checkout, GitHub access or Rust build. If setup changes
+already imported packages, restart the kernel and Run All as instructed.
+Code that teaches the public API remains visible; results are generated inline.
+The notebook does not acquire external scientific data or export files.
 
 The guide starts with one explicit point query toward the Crab Nebula, compares
 total radiance and components at both CTAO array locations, explores Airglow
@@ -116,14 +116,16 @@ and UTC instant. It selects PALACE continuum only and integrates Airglow over
 300–650 nm, displaying a radiance table and figure. This illustrates a controlled
 model response, not observational validation.
 
-Prepare a CPython **3.12 or 3.13** kernel with:
+Select a fresh CPython **3.12 or 3.13** kernel and **Run All**. The first code
+cell installs `nsb-py==0.2.0` from PyPI and Matplotlib using the kernel's Python,
+without a checkout, GitHub access or Rust build. If setup changes already imported
+packages, restart the kernel and Run All as instructed. The notebook uses bundled
+NSB assets, requires no scientific data acquisition and exports no files.
 
-```bash
-python -m pip install nsb-py==0.2.0 matplotlib
-```
-
-Use **Restart and Run All** in a fresh kernel. The notebook uses bundled NSB assets,
-requires no data acquisition and exports no files. Its outputs are cleared in Git.
+All three notebooks are distributed without saved outputs or execution counts.
+The existing documentation gate, `python scripts/check-product-docs.py`, checks
+notebook structure, Python syntax, setup ordering, the NSB version selection,
+local documentation links and output hygiene. It runs in the existing CI job.
 
 ## Command line
 

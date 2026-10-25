@@ -2,6 +2,7 @@
 # Copyright (C) 2026 Vallés Puig, Ramon
 """Regression tests for the active-documentation hygiene gate."""
 
+import copy
 import importlib.util
 import unittest
 from pathlib import Path
@@ -42,6 +43,29 @@ class PublicDocumentationTests(unittest.TestCase):
         path = ROOT / "docs" / "_synthetic-test-guide.md"
         text = "[site](https://example.org/) [root](../README.md)"
         self.assertEqual(docs.markdown_issues(path, text), [])
+
+    def test_notebook_hygiene_and_setup(self):
+        path = ROOT / "examples" / "_synthetic-test.ipynb"
+        valid = {"nbformat": 4, "cells": [{
+            "cell_type": "code", "metadata": {"tags": ["setup"]},
+            "source": ["REQUIREMENTS = ['nsb-py==0.2.0']\n"],
+            "outputs": [], "execution_count": None,
+        }]}
+        self.assertEqual(docs.notebook_issues(path, valid), [])
+        for field, value, message in (
+            ("outputs", [{"output_type": "stream"}], "committed outputs"),
+            ("execution_count", 1, "execution count"),
+            ("source", ["def broken("], "invalid Python"),
+            ("source", ["REQUIREMENTS = ['nsb-py']"], "select nsb-py==0.2.0"),
+            ("source", ["import numpy\nREQUIREMENTS = ['nsb-py==0.2.0']"], "third-party"),
+            ("metadata", {}, "first code cell"),
+            ("source", None, "invalid source"),
+        ):
+            with self.subTest(field=field, value=value):
+                nb = copy.deepcopy(valid)
+                nb["cells"][0][field] = value
+                self.assertTrue(any(message in issue for issue in docs.notebook_issues(path, nb)))
+        self.assertTrue(docs.notebook_issues(path, {"nbformat": 3}))
 
 
 if __name__ == "__main__":
