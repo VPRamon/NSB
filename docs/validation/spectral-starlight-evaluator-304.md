@@ -148,6 +148,12 @@ study or production fit is introduced:
 | Single, finite-cell multiple solver | .00010635422459869226 | same independent single | 1% relative |
 | Higher, multiple solver | .000012524066098767417 | .12 × .00010378276034380166 | 1% relative |
 
+A separate public direct test uses the pinned wavelength-dependent Siderust
+profile and independent 64-wavelength reference in `spectral-v1.json`. It agrees
+within 1e-12 relative and differs measurably from bin-center transmission.
+The nonabsorbing isotropic thin-column case independently checks the analytic
+hemisphere factor of 1/2.
+
 The 1% continuum allowance is inherited from independent solver validation, not
 physical uncertainty. Tests additionally compare isolated bright and
 horizon-crossing NSIDE1 pixels, with HG g=.65 and mixed optics, against the

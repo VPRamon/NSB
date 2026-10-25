@@ -630,3 +630,60 @@ fn nonabsorbing_isotropic_scattering_has_the_independent_thin_column_limit() {
     );
     assert!(r.higher_orders().is_none() && r.uncertainty().is_none());
 }
+
+#[test]
+fn wavelength_dependent_direct_matches_the_frozen_independent_64_node_integral() {
+    use nsb::units::qtty::{Hectopascals, OpticalDepths};
+    use siderust::atmosphere::MieParams;
+    let profile = AtmosphereProfile {
+        surface_pressure: Hectopascals::new(200.),
+        observer_altitude: Meters::new(2097.).to(),
+        mie_params: MieParams {
+            tau0: OpticalDepths::new(0.04),
+            lambda_ref: Nanometers::new(550.),
+            alpha: 1.38,
+        },
+        ..AtmosphereProfile::EL_PARANAL
+    };
+    let a = LayeredAtmosphere::from_profile(
+        profile,
+        &[Meters::new(2097.), Meters::new(3097.)],
+        [360., 570.].map(Nanometers::new),
+        &[1.],
+        &[1.],
+        Albedos::new(0.),
+    )
+    .unwrap();
+    let e = evaluator(source());
+    let r = e
+        .evaluate_spectral_starlight(
+            geometry(),
+            view(),
+            band(),
+            Mode::Direct {
+                atmosphere: &a,
+                assumption: FLAT,
+                wavelength: WavelengthSettings {
+                    nodes: 4,
+                    refinements: 1,
+                    ..wavelength()
+                },
+            },
+        )
+        .unwrap();
+    let reference: serde_json::Value =
+        serde_json::from_str(include_str!("data/multiple-scattering/spectral-v1.json")).unwrap();
+    let reference = reference["results"][2]["direct"].as_f64().unwrap() * (0.003 / 0.75);
+    close(r.direct().unwrap().value(), reference, 1e-12);
+    let tau_center = a
+        .vertical_optical_depth(Nanometers::new(375.), a.edges()[0], a.edges()[1])
+        .unwrap()
+        .extinction()
+        .value();
+    assert!((r.direct().unwrap().value() - 0.003 * (-tau_center / 0.8).exp()).abs() > 1e-8);
+    assert!(r.uncertainty().is_none());
+    let Output::Direct(r) = r else {
+        panic!("wrong mode")
+    };
+    assert_eq!(r.wavelength_order, 8);
+}
