@@ -345,7 +345,7 @@ For the frozen public baseline, CI enforces:
    match the API generated from HEAD.
 2. **SemVer gate** — when a valid frozen base revision is supplied,
    `cargo public-api diff $BASE..HEAD` runs with `--deny=removed --deny=changed`.
-   PR #314's four exact before/after query signatures are recorded in
+   The horizontal-target migration's four exact before/after query signatures are recorded in
    `crates/nsb/api/target-direction-migration.json`. Only when the historical
    snapshot still contains those old signatures does the structural diff allow
    changes; an additional line-preservation check rejects every unrelated
@@ -382,7 +382,7 @@ Restrict a scan or track to that domain, or choose `ParanalPalaceV1` explicitly
 for historical continuum coverage. Selection metadata still distinguishes
 Automatic from explicit Oxygen even when radiances are identical.
 
-### Horizontal query migration (PR #314)
+### Horizontal query migration
 
 Existing `PointQuery::new(observer, time, target)` and
 `ThresholdQuery::new(observer, target, window, threshold)` calls with an
