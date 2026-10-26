@@ -1,0 +1,1502 @@
+{
+  "aggregates": {
+    "level1_cross_implementation": {
+      "compared_keys": [
+        "left",
+        "right"
+      ],
+      "max_relative_difference": 0.0,
+      "mean_absolute_difference": 0.0,
+      "median_relative_difference": 0.0,
+      "n_cases": 4,
+      "units": [
+        "photons cm^-2 ns^-1 sr^-1"
+      ]
+    },
+    "level1_equivalent": {
+      "compared_keys": [
+        "left_or_nsb",
+        "right_or_reference"
+      ],
+      "max_relative_difference": 1.927470528863119e-16,
+      "mean_absolute_difference": null,
+      "median_relative_difference": 0.0,
+      "n_cases": 12,
+      "units": [
+        "photons cm^-2 ns^-1 sr^-1",
+        "photons s^-1 cm^-2 sr^-1",
+        "photons s^-1 cm^-2 sr^-1 (density integral; multiply by 1e-9 for ns)",
+        "sr"
+      ]
+    },
+    "level2_conditional_faint_bright": null,
+    "level2_conditional_faint_only": {
+      "compared_keys": [
+        "nsb",
+        "nsb2"
+      ],
+      "max_relative_difference": 0.9710947911008369,
+      "mean_absolute_difference": 0.05851849707879714,
+      "median_relative_difference": 0.8847676634410538,
+      "n_cases": 6,
+      "units": [
+        "photons cm^-2 ns^-1 sr^-1"
+      ]
+    },
+    "level2_conditional_faint_xhip": {
+      "compared_keys": [
+        "nsb",
+        "nsb2"
+      ],
+      "max_relative_difference": 0.9710947911008369,
+      "mean_absolute_difference": 0.05851849707879714,
+      "median_relative_difference": 0.8847676634410538,
+      "n_cases": 6,
+      "units": [
+        "photons cm^-2 ns^-1 sr^-1"
+      ]
+    }
+  },
+  "atmosphere": "excluded_toa_primary",
+  "band_nm_level2": [
+    300.0,
+    650.0
+  ],
+  "comparability_matrix": [
+    {
+      "atmosphere": "excluded (TOA)",
+      "comparison": "Level-1 synthetic StarlightMap band integrals vs analytic reference",
+      "notes": "NSB StarlightMap vs independently calculated analytic expectations. Not by itself an NSB\u2194nsb2 cross-implementation equivalence test.",
+      "population": "synthetic fixture sources",
+      "quantity": "Bin-integrated TOA photon radiance",
+      "spectral_domain_nm": [
+        360,
+        450
+      ],
+      "status": "equivalent",
+      "units": "photons cm^-2 ns^-1 sr^-1"
+    },
+    {
+      "atmosphere": "excluded (TOA)",
+      "comparison": "Level-1 imposed constant spectrum through NSB StarlightMap and nsb2 SpectralGrid",
+      "notes": "Same constant photon spectral radiance density evaluated via NSB's StarlightMap.integrate_band and nsb2's SpectralGrid/Bandpass/integrate_wavelength path, each checked against the analytic integral.",
+      "population": "synthetic single-spectrum radiance",
+      "quantity": "Band-integrated TOA photon radiance",
+      "spectral_domain_nm": [
+        360,
+        450
+      ],
+      "status": "equivalent",
+      "units": "photons cm^-2 ns^-1 sr^-1"
+    },
+    {
+      "atmosphere": "excluded (TOA)",
+      "comparison": "NSB bundled 300\u2013650 vs nsb2 faint G>15 (same sky directions)",
+      "notes": "Different populations and spectral models (XP/photometric/CK04 vs Pickles). Matches the notebook's nsb2 emitter choice without the forbidden solar proxy.",
+      "population": "NSB full admitted Gaia+supplement vs nsb2 G>15 map only",
+      "quantity": "TOA band-integrated photon radiance",
+      "spectral_domain_nm": [
+        300.0,
+        650.0
+      ],
+      "status": "conditional",
+      "units": "photons cm^-2 ns^-1 sr^-1"
+    },
+    {
+      "atmosphere": "excluded (TOA)",
+      "comparison": "NSB bundled 300\u2013650 vs nsb2 faint+XHIP",
+      "notes": "Default Level-2 includes faint+XHIP. Full G<15 BallTree over ~3.7e7 stars is opt-in via --include-bright-catalog; bright+XHIP union unsupported without deduplication.",
+      "population": "nsb2 nominal G>15 map + XHIP; overlap with Gaia not source-ID verified",
+      "quantity": "TOA band-integrated photon radiance",
+      "spectral_domain_nm": [
+        300.0,
+        650.0
+      ],
+      "status": "conditional",
+      "units": "photons cm^-2 ns^-1 sr^-1"
+    },
+    {
+      "atmosphere": "excluded",
+      "comparison": "Population-complete Gaia bright + XHIP union",
+      "notes": "Disjointness cannot be verified. Optional faint+bright comparison excludes XHIP.",
+      "population": "Gaia bright + XHIP without certified common IDs",
+      "quantity": "TOA band-integrated photon radiance",
+      "spectral_domain_nm": [
+        300.0,
+        650.0
+      ],
+      "status": "unsupported",
+      "units": "photons cm^-2 ns^-1 sr^-1"
+    },
+    {
+      "atmosphere": "excluded",
+      "comparison": "Source-ID matched XP vs Pickles spectra",
+      "notes": "NSB maps expose pixel aggregates, not recoverable source IDs. XP candidate fe331343cb9797a1d871ae798c88d2ae8865ae39358e8d82b464a91b3cf87d5f is not bundled in-repo.",
+      "population": "Gaia DR3 source_id intersection",
+      "quantity": "Per-source or XP-bin radiance",
+      "spectral_domain_nm": [
+        360,
+        570
+      ],
+      "status": "unsupported",
+      "units": "photons cm^-2 ns^-1 sr^-1"
+    },
+    {
+      "atmosphere": "n/a",
+      "comparison": "Solar-colour proxy narrowing of NSB 300\u2013650",
+      "notes": "Forbidden by #298; not a measured stellar spectral product.",
+      "population": "n/a",
+      "quantity": "Proxy-scaled band radiance",
+      "spectral_domain_nm": [
+        365,
+        650
+      ],
+      "status": "unsupported",
+      "units": "photons cm^-2 ns^-1 sr^-1"
+    }
+  ],
+  "documented_differences_not_causal_attributions": [
+    {
+      "cause": "dataset_population_mismatch",
+      "evidence": "NSB admits ~1.52e9 Gaia sources (+55 bright supplements); nsb2 faint map has no source IDs and excludes G<15; bright catalog has 3.69e7 sources with G<15."
+    },
+    {
+      "cause": "intentional_scientific_model_difference",
+      "evidence": "NSB uses XP/photometric/CK04 construction; nsb2 uses Pickles templates keyed by Gaia colour. Colour grids retain multiple finite templates; Level-2 uses nanmedian of finite alternatives and rejects selected sources with no finite template."
+    },
+    {
+      "cause": "geometry_definition_difference",
+      "evidence": "NSB Galactic RING nside=128 vs nsb2 ICRS NESTED nside=1024 faint map."
+    },
+    {
+      "cause": "unsupported_observable",
+      "evidence": "Source-ID XP\u2194Pickles and solar-proxy narrowband comparisons rejected."
+    }
+  ],
+  "execution": {
+    "include_bright_catalog": false,
+    "level2": "complete"
+  },
+  "follow_ups": [
+    "Obtain checksum-pinned XP map bytes to enable 360\u2013570 nm spectral comparisons (#304 context).",
+    "If source-level matching is required, build a small offline Gaia ID subset with admitted regeneration tooling \u2014 do not pretend map pixels identify sources.",
+    "Atmospheric matched transport remains #187 / #304; prior ~0.00275% single-scattering reference is numerical only."
+  ],
+  "forbidden_operations_not_used": [
+    "solar_colour_proxy_on_nsb_300_650",
+    "arbitrary_renormalization",
+    "treating_missing_population_as_zero",
+    "silent_drop_of_invalid_pickles_templates"
+  ],
+  "frozen_sky_directions": [
+    {
+      "dec_deg": 27.12825,
+      "name": "galactic_north_pole",
+      "ra_deg": 192.85948
+    },
+    {
+      "dec_deg": -27.12825,
+      "name": "galactic_south_pole",
+      "ra_deg": 12.85948
+    },
+    {
+      "dec_deg": 60.0,
+      "name": "sparse_high_lat",
+      "ra_deg": 180.0
+    },
+    {
+      "dec_deg": -5.0,
+      "name": "dense_plane",
+      "ra_deg": 280.0
+    },
+    {
+      "dec_deg": 28.0,
+      "name": "anticenter",
+      "ra_deg": 86.4
+    },
+    {
+      "dec_deg": -29.00781,
+      "name": "galactic_center",
+      "ra_deg": 266.41683
+    }
+  ],
+  "issue": 298,
+  "issue_298_closure": {
+    "closes": true,
+    "justification": "Acceptance requires a comparison contract, at least one genuinely equivalent numerical paired test, explicit missing-population accounting, and distinction from empirical validation. Level-1 includes an NSB\u2194nsb2 imposed-spectrum paired test through each implementation's spectral operators plus analytic checks; Level-2 remains conditional. Missing populations are not treated as zero."
+  },
+  "level1_cases": [
+    {
+      "absolute_difference": 0.0,
+      "case_id": "L1_analytic_constant_spectrum",
+      "classification": "equivalent",
+      "geometry": "n/a",
+      "level": 1,
+      "limitations": [],
+      "n_sources_declared": 0,
+      "nsb": 0.07,
+      "observable": "analytic density integral",
+      "population": "synthetic",
+      "provenance": {
+        "method": "trapezoid"
+      },
+      "reference": 0.07,
+      "relative_difference": 0.0,
+      "signed_difference": 0.0,
+      "units": "photons s^-1 cm^-2 sr^-1 (density integral; multiply by 1e-9 for ns)",
+      "wavelength_bounds_nm": [
+        300.0,
+        650.0
+      ]
+    },
+    {
+      "absolute_difference": 0.0,
+      "case_id": "L1_analytic_linear_spectrum",
+      "classification": "equivalent",
+      "geometry": "n/a",
+      "level": 1,
+      "limitations": [],
+      "n_sources_declared": 0,
+      "nsb": 0.025,
+      "observable": "analytic density integral",
+      "population": "synthetic",
+      "provenance": {
+        "method": "trapezoid"
+      },
+      "reference": 0.025,
+      "relative_difference": 0.0,
+      "signed_difference": 0.0,
+      "units": "photons s^-1 cm^-2 sr^-1",
+      "wavelength_bounds_nm": [
+        400.0,
+        500.0
+      ]
+    },
+    {
+      "absolute_difference": 0.0,
+      "case_id": "L1_healpix_omega_nside128",
+      "classification": "equivalent",
+      "geometry": "HEALPix nside=128",
+      "level": 1,
+      "limitations": [],
+      "n_sources_declared": 0,
+      "nsb": 6.391586616190171e-05,
+      "observable": "pixel solid angle",
+      "population": "n/a",
+      "provenance": {},
+      "reference": 6.391586616190171e-05,
+      "relative_difference": 0.0,
+      "signed_difference": 0.0,
+      "units": "sr",
+      "wavelength_bounds_nm": null
+    },
+    {
+      "absolute_difference": 0.0,
+      "case_id": "L1_synth_bin_0_360_390",
+      "classification": "equivalent",
+      "geometry": "HEALPix nside=1 ring galactic; pixel containing (l,b)=(0,0)",
+      "level": 1,
+      "limitations": [
+        "Synthetic fixture only; not a real stellar population."
+      ],
+      "n_sources_declared": 12,
+      "nsb": 0.003,
+      "observable": "TOA bin-integrated photon radiance",
+      "population": "synthetic-uniform-transport-v1",
+      "provenance": {
+        "path": "crates/nsb/tests/data/starlight-transport/uniform.json",
+        "synthetic_map_sha256": "35058caa944e51096e5d9ff8ca33eb19be08ef0b6c727ec37192758a64bdc24f"
+      },
+      "reference": 0.003,
+      "relative_difference": 0.0,
+      "signed_difference": 0.0,
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        360.0,
+        390.0
+      ]
+    },
+    {
+      "absolute_difference": 0.0,
+      "case_id": "L1_synth_bin_1_390_420",
+      "classification": "equivalent",
+      "geometry": "HEALPix nside=1 ring galactic; pixel containing (l,b)=(0,0)",
+      "level": 1,
+      "limitations": [
+        "Synthetic fixture only; not a real stellar population."
+      ],
+      "n_sources_declared": 12,
+      "nsb": 0.006,
+      "observable": "TOA bin-integrated photon radiance",
+      "population": "synthetic-uniform-transport-v1",
+      "provenance": {
+        "path": "crates/nsb/tests/data/starlight-transport/uniform.json",
+        "synthetic_map_sha256": "35058caa944e51096e5d9ff8ca33eb19be08ef0b6c727ec37192758a64bdc24f"
+      },
+      "reference": 0.006,
+      "relative_difference": 0.0,
+      "signed_difference": 0.0,
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        390.0,
+        420.0
+      ]
+    },
+    {
+      "absolute_difference": 0.0,
+      "case_id": "L1_synth_bin_2_420_450",
+      "classification": "equivalent",
+      "geometry": "HEALPix nside=1 ring galactic; pixel containing (l,b)=(0,0)",
+      "level": 1,
+      "limitations": [
+        "Synthetic fixture only; not a real stellar population."
+      ],
+      "n_sources_declared": 12,
+      "nsb": 0.009,
+      "observable": "TOA bin-integrated photon radiance",
+      "population": "synthetic-uniform-transport-v1",
+      "provenance": {
+        "path": "crates/nsb/tests/data/starlight-transport/uniform.json",
+        "synthetic_map_sha256": "35058caa944e51096e5d9ff8ca33eb19be08ef0b6c727ec37192758a64bdc24f"
+      },
+      "reference": 0.009,
+      "relative_difference": 0.0,
+      "signed_difference": 0.0,
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        420.0,
+        450.0
+      ]
+    },
+    {
+      "absolute_difference": 3.469446951953614e-18,
+      "case_id": "L1_synth_full_native_band",
+      "classification": "equivalent",
+      "geometry": "HEALPix nside=1 ring galactic; pixel containing (l,b)=(0,0)",
+      "level": 1,
+      "limitations": [
+        "Synthetic fixture only."
+      ],
+      "n_sources_declared": 12,
+      "nsb": 0.018000000000000002,
+      "observable": "TOA native-band photon radiance",
+      "population": "synthetic-uniform-transport-v1",
+      "provenance": {
+        "synthetic_map_sha256": "35058caa944e51096e5d9ff8ca33eb19be08ef0b6c727ec37192758a64bdc24f"
+      },
+      "reference": 0.018,
+      "relative_difference": 1.927470528863119e-16,
+      "signed_difference": 3.469446951953614e-18,
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        360.0,
+        450.0
+      ]
+    },
+    {
+      "absolute_difference": null,
+      "case_id": "L1_synth_partial_bin_rejected",
+      "classification": "equivalent",
+      "geometry": "n/a",
+      "level": 1,
+      "limitations": [],
+      "n_sources_declared": 12,
+      "nsb": null,
+      "observable": "unsupported partial-bin integral",
+      "passed": true,
+      "population": "synthetic-uniform-transport-v1",
+      "provenance": {
+        "message": "unsupported configuration: exact Starlight integration requires stored bin edges",
+        "rejected": true
+      },
+      "reference": "reject",
+      "relative_difference": null,
+      "signed_difference": null,
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        360.0,
+        380.0
+      ]
+    },
+    {
+      "absolute_difference": 0.0,
+      "case_id": "L1_cross_nsb_vs_analytic",
+      "classification": "equivalent",
+      "compared_keys": [
+        "nsb",
+        "analytic"
+      ],
+      "geometry": "synthetic isotropic radiance; NSB nside=1 galactic RING",
+      "left": 0.009000000000000001,
+      "level": 1,
+      "limitations": [
+        "Synthetic imposed spectrum only; not a Gaia population comparison."
+      ],
+      "n_sources_declared": 12,
+      "nsb": 0.009000000000000001,
+      "nsb2": 0.009000000000000001,
+      "observable": "TOA band-integrated photon radiance",
+      "population": "synthetic imposed constant spectrum; 12 NSB fixture sources, one nsb2 radiance sample",
+      "provenance": {
+        "density_photons_cm2_ns_sr_nm": 0.0001,
+        "nsb2_operators": [
+          "ResolvedField.integrate",
+          "integrate_wavelength",
+          "Bandpass"
+        ],
+        "nsb_map_sha256": "c58d7711acdc7ca20d47640395ba5b51c85860f210c2f8095b9632547e398051"
+      },
+      "reference": 0.009000000000000001,
+      "relative_difference": 0.0,
+      "right": 0.009000000000000001,
+      "signed_difference": 0.0,
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        360,
+        450
+      ]
+    },
+    {
+      "absolute_difference": 0.0,
+      "case_id": "L1_cross_nsb2_vs_analytic",
+      "classification": "equivalent",
+      "compared_keys": [
+        "nsb2",
+        "analytic"
+      ],
+      "geometry": "synthetic isotropic radiance; NSB nside=1 galactic RING",
+      "left": 0.009000000000000001,
+      "level": 1,
+      "limitations": [
+        "Synthetic imposed spectrum only; not a Gaia population comparison."
+      ],
+      "n_sources_declared": 12,
+      "nsb": 0.009000000000000001,
+      "nsb2": 0.009000000000000001,
+      "observable": "TOA band-integrated photon radiance",
+      "population": "synthetic imposed constant spectrum; 12 NSB fixture sources, one nsb2 radiance sample",
+      "provenance": {
+        "density_photons_cm2_ns_sr_nm": 0.0001,
+        "nsb2_operators": [
+          "ResolvedField.integrate",
+          "integrate_wavelength",
+          "Bandpass"
+        ],
+        "nsb_map_sha256": "c58d7711acdc7ca20d47640395ba5b51c85860f210c2f8095b9632547e398051"
+      },
+      "reference": 0.009000000000000001,
+      "relative_difference": 0.0,
+      "right": 0.009000000000000001,
+      "signed_difference": 0.0,
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        360,
+        450
+      ]
+    },
+    {
+      "absolute_difference": 0.0,
+      "case_id": "L1_cross_nsb_vs_nsb2",
+      "classification": "equivalent",
+      "compared_keys": [
+        "nsb",
+        "nsb2"
+      ],
+      "geometry": "synthetic isotropic radiance; NSB nside=1 galactic RING",
+      "left": 0.009000000000000001,
+      "level": 1,
+      "limitations": [
+        "Synthetic imposed spectrum only; not a Gaia population comparison."
+      ],
+      "n_sources_declared": 12,
+      "nsb": 0.009000000000000001,
+      "nsb2": 0.009000000000000001,
+      "observable": "TOA band-integrated photon radiance",
+      "population": "synthetic imposed constant spectrum; 12 NSB fixture sources, one nsb2 radiance sample",
+      "provenance": {
+        "density_photons_cm2_ns_sr_nm": 0.0001,
+        "nsb2_operators": [
+          "ResolvedField.integrate",
+          "integrate_wavelength",
+          "Bandpass"
+        ],
+        "nsb_map_sha256": "c58d7711acdc7ca20d47640395ba5b51c85860f210c2f8095b9632547e398051"
+      },
+      "reference": 0.009000000000000001,
+      "relative_difference": 0.0,
+      "right": 0.009000000000000001,
+      "signed_difference": 0.0,
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        360,
+        450
+      ]
+    },
+    {
+      "absolute_difference": 0.0,
+      "case_id": "L1_cross_nsb2_integrate_vs_resolved",
+      "classification": "equivalent",
+      "compared_keys": [
+        "nsb2_resolved",
+        "nsb2_integrate_wavelength"
+      ],
+      "geometry": "synthetic isotropic radiance; NSB nside=1 galactic RING",
+      "left": 0.009000000000000001,
+      "level": 1,
+      "limitations": [
+        "Synthetic imposed spectrum only; not a Gaia population comparison."
+      ],
+      "n_sources_declared": 12,
+      "nsb": 0.009000000000000001,
+      "nsb2": 0.009000000000000001,
+      "observable": "TOA band-integrated photon radiance",
+      "population": "synthetic imposed constant spectrum; 12 NSB fixture sources, one nsb2 radiance sample",
+      "provenance": {
+        "density_photons_cm2_ns_sr_nm": 0.0001,
+        "nsb2_operators": [
+          "ResolvedField.integrate",
+          "integrate_wavelength",
+          "Bandpass"
+        ],
+        "nsb_map_sha256": "c58d7711acdc7ca20d47640395ba5b51c85860f210c2f8095b9632547e398051"
+      },
+      "reference": 0.009000000000000001,
+      "relative_difference": 0.0,
+      "right": 0.009000000000000001,
+      "signed_difference": 0.0,
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        360,
+        450
+      ]
+    }
+  ],
+  "level2_cases": [
+    {
+      "absolute_difference": 0.016108747519893447,
+      "case_id": "L2_galactic_north_pole__nsb_vs_nsb2_faint_only",
+      "classification": "conditional",
+      "direction": {
+        "dec_deg": 27.12825,
+        "frame": "icrs",
+        "name": "galactic_north_pole",
+        "ra_deg": 192.85948
+      },
+      "geometry": "Pointing ICRS direction; NSB Galactic nside=128 RING pixel mean; nsb2 ICRS nested map at pointing / exact NSB pixel catalog mean; atmosphere excluded",
+      "level": 2,
+      "limitations": [
+        "Not source-ID matched.",
+        "Spectral models differ (NSB XP/photometric/CK04 vs nsb2 Pickles).",
+        "Faint-map point interpolation differs from NSB pixel averaging.",
+        "No common source IDs to certify XHIP/Gaia disjointness; combined bright+XHIP unsupported.",
+        "Pickles alternatives are model variants, not an uncertainty confidence interval.",
+        "Cross-implementation agreement \u2260 observational validation.",
+        "Bright G<15 catalog omitted from default Level-2 integrals; population count is audited separately."
+      ],
+      "model_nsb": "bundled production Gaia DR3 integrated Starlight 300\u2013650 nm",
+      "model_nsb2": "nsb2_faint_only",
+      "n_sources_declared": null,
+      "nsb": 0.01692409628685068,
+      "nsb2": 0.0008153487669572328,
+      "nsb2_parts": {
+        "faint": 0.0008153487669572328,
+        "suppl": 0.0
+      },
+      "observable": "TOA band-integrated photon radiance",
+      "population": "nsb2 G>15 HEALPix map only (notebook emitter)",
+      "provenance": {
+        "include_bright_catalog": false,
+        "mjd": 52075.0,
+        "nsb2_commit_requested": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
+        "site": {
+          "height": 2635.0,
+          "latitude": -24.6275,
+          "longitude": -70.40498688
+        }
+      },
+      "relative_difference": 0.951823202070132,
+      "signed_difference": -0.016108747519893447,
+      "source_selection": {
+        "catalog_counts": {
+          "suppl": 0
+        },
+        "catalog_frame_convention": "SOFA ICRS/Galactic (ERFA icrs2g/g2icrs); boundary rounding conditional",
+        "catalog_solid_angle_sr": 6.391586616190171e-05,
+        "nsb_galactic_ring_pixel": 2
+      },
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        300.0,
+        650.0
+      ]
+    },
+    {
+      "absolute_difference": 0.016108747519893447,
+      "case_id": "L2_galactic_north_pole__nsb_vs_nsb2_faint_xhip",
+      "classification": "conditional",
+      "direction": {
+        "dec_deg": 27.12825,
+        "frame": "icrs",
+        "name": "galactic_north_pole",
+        "ra_deg": 192.85948
+      },
+      "geometry": "Pointing ICRS direction; NSB Galactic nside=128 RING pixel mean; nsb2 ICRS nested map at pointing / exact NSB pixel catalog mean; atmosphere excluded",
+      "level": 2,
+      "limitations": [
+        "Not source-ID matched.",
+        "Spectral models differ (NSB XP/photometric/CK04 vs nsb2 Pickles).",
+        "Faint-map point interpolation differs from NSB pixel averaging.",
+        "No common source IDs to certify XHIP/Gaia disjointness; combined bright+XHIP unsupported.",
+        "Pickles alternatives are model variants, not an uncertainty confidence interval.",
+        "Cross-implementation agreement \u2260 observational validation.",
+        "Bright G<15 catalog omitted from default Level-2 integrals; population count is audited separately."
+      ],
+      "model_nsb": "bundled production Gaia DR3 integrated Starlight 300\u2013650 nm",
+      "model_nsb2": "nsb2_faint_xhip",
+      "n_sources_declared": null,
+      "nsb": 0.01692409628685068,
+      "nsb2": 0.0008153487669572328,
+      "nsb2_parts": {
+        "faint": 0.0008153487669572328,
+        "suppl": 0.0
+      },
+      "observable": "TOA band-integrated photon radiance",
+      "population": "nsb2 G>15 map + XHIP supplement (default extended)",
+      "provenance": {
+        "include_bright_catalog": false,
+        "mjd": 52075.0,
+        "nsb2_commit_requested": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
+        "site": {
+          "height": 2635.0,
+          "latitude": -24.6275,
+          "longitude": -70.40498688
+        }
+      },
+      "relative_difference": 0.951823202070132,
+      "signed_difference": -0.016108747519893447,
+      "source_selection": {
+        "catalog_counts": {
+          "suppl": 0
+        },
+        "catalog_frame_convention": "SOFA ICRS/Galactic (ERFA icrs2g/g2icrs); boundary rounding conditional",
+        "catalog_solid_angle_sr": 6.391586616190171e-05,
+        "nsb_galactic_ring_pixel": 2
+      },
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        300.0,
+        650.0
+      ]
+    },
+    {
+      "absolute_difference": 0.0237186360471977,
+      "case_id": "L2_galactic_south_pole__nsb_vs_nsb2_faint_only",
+      "classification": "conditional",
+      "direction": {
+        "dec_deg": -27.12825,
+        "frame": "icrs",
+        "name": "galactic_south_pole",
+        "ra_deg": 12.85948
+      },
+      "geometry": "Pointing ICRS direction; NSB Galactic nside=128 RING pixel mean; nsb2 ICRS nested map at pointing / exact NSB pixel catalog mean; atmosphere excluded",
+      "level": 2,
+      "limitations": [
+        "Not source-ID matched.",
+        "Spectral models differ (NSB XP/photometric/CK04 vs nsb2 Pickles).",
+        "Faint-map point interpolation differs from NSB pixel averaging.",
+        "No common source IDs to certify XHIP/Gaia disjointness; combined bright+XHIP unsupported.",
+        "Pickles alternatives are model variants, not an uncertainty confidence interval.",
+        "Cross-implementation agreement \u2260 observational validation.",
+        "Bright G<15 catalog omitted from default Level-2 integrals; population count is audited separately."
+      ],
+      "model_nsb": "bundled production Gaia DR3 integrated Starlight 300\u2013650 nm",
+      "model_nsb2": "nsb2_faint_only",
+      "n_sources_declared": null,
+      "nsb": 0.02442463523083072,
+      "nsb2": 0.0007059991836330197,
+      "nsb2_parts": {
+        "faint": 0.0007059991836330197,
+        "suppl": 0.0
+      },
+      "observable": "TOA band-integrated photon radiance",
+      "population": "nsb2 G>15 HEALPix map only (notebook emitter)",
+      "provenance": {
+        "include_bright_catalog": false,
+        "mjd": 52075.0,
+        "nsb2_commit_requested": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
+        "site": {
+          "height": 2635.0,
+          "latitude": -24.6275,
+          "longitude": -70.40498688
+        }
+      },
+      "relative_difference": 0.9710947911008369,
+      "signed_difference": -0.0237186360471977,
+      "source_selection": {
+        "catalog_counts": {
+          "suppl": 0
+        },
+        "catalog_frame_convention": "SOFA ICRS/Galactic (ERFA icrs2g/g2icrs); boundary rounding conditional",
+        "catalog_solid_angle_sr": 6.391586616190171e-05,
+        "nsb_galactic_ring_pixel": 196607
+      },
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        300.0,
+        650.0
+      ]
+    },
+    {
+      "absolute_difference": 0.0237186360471977,
+      "case_id": "L2_galactic_south_pole__nsb_vs_nsb2_faint_xhip",
+      "classification": "conditional",
+      "direction": {
+        "dec_deg": -27.12825,
+        "frame": "icrs",
+        "name": "galactic_south_pole",
+        "ra_deg": 12.85948
+      },
+      "geometry": "Pointing ICRS direction; NSB Galactic nside=128 RING pixel mean; nsb2 ICRS nested map at pointing / exact NSB pixel catalog mean; atmosphere excluded",
+      "level": 2,
+      "limitations": [
+        "Not source-ID matched.",
+        "Spectral models differ (NSB XP/photometric/CK04 vs nsb2 Pickles).",
+        "Faint-map point interpolation differs from NSB pixel averaging.",
+        "No common source IDs to certify XHIP/Gaia disjointness; combined bright+XHIP unsupported.",
+        "Pickles alternatives are model variants, not an uncertainty confidence interval.",
+        "Cross-implementation agreement \u2260 observational validation.",
+        "Bright G<15 catalog omitted from default Level-2 integrals; population count is audited separately."
+      ],
+      "model_nsb": "bundled production Gaia DR3 integrated Starlight 300\u2013650 nm",
+      "model_nsb2": "nsb2_faint_xhip",
+      "n_sources_declared": null,
+      "nsb": 0.02442463523083072,
+      "nsb2": 0.0007059991836330197,
+      "nsb2_parts": {
+        "faint": 0.0007059991836330197,
+        "suppl": 0.0
+      },
+      "observable": "TOA band-integrated photon radiance",
+      "population": "nsb2 G>15 map + XHIP supplement (default extended)",
+      "provenance": {
+        "include_bright_catalog": false,
+        "mjd": 52075.0,
+        "nsb2_commit_requested": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
+        "site": {
+          "height": 2635.0,
+          "latitude": -24.6275,
+          "longitude": -70.40498688
+        }
+      },
+      "relative_difference": 0.9710947911008369,
+      "signed_difference": -0.0237186360471977,
+      "source_selection": {
+        "catalog_counts": {
+          "suppl": 0
+        },
+        "catalog_frame_convention": "SOFA ICRS/Galactic (ERFA icrs2g/g2icrs); boundary rounding conditional",
+        "catalog_solid_angle_sr": 6.391586616190171e-05,
+        "nsb_galactic_ring_pixel": 196607
+      },
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        300.0,
+        650.0
+      ]
+    },
+    {
+      "absolute_difference": 0.030699663799190334,
+      "case_id": "L2_sparse_high_lat__nsb_vs_nsb2_faint_only",
+      "classification": "conditional",
+      "direction": {
+        "dec_deg": 60.0,
+        "frame": "icrs",
+        "name": "sparse_high_lat",
+        "ra_deg": 180.0
+      },
+      "geometry": "Pointing ICRS direction; NSB Galactic nside=128 RING pixel mean; nsb2 ICRS nested map at pointing / exact NSB pixel catalog mean; atmosphere excluded",
+      "level": 2,
+      "limitations": [
+        "Not source-ID matched.",
+        "Spectral models differ (NSB XP/photometric/CK04 vs nsb2 Pickles).",
+        "Faint-map point interpolation differs from NSB pixel averaging.",
+        "No common source IDs to certify XHIP/Gaia disjointness; combined bright+XHIP unsupported.",
+        "Pickles alternatives are model variants, not an uncertainty confidence interval.",
+        "Cross-implementation agreement \u2260 observational validation.",
+        "Bright G<15 catalog omitted from default Level-2 integrals; population count is audited separately."
+      ],
+      "model_nsb": "bundled production Gaia DR3 integrated Starlight 300\u2013650 nm",
+      "model_nsb2": "nsb2_faint_only",
+      "n_sources_declared": null,
+      "nsb": 0.03248880716112205,
+      "nsb2": 0.0017891433619317133,
+      "nsb2_parts": {
+        "faint": 0.0017891433619317133,
+        "suppl": 0.0
+      },
+      "observable": "TOA band-integrated photon radiance",
+      "population": "nsb2 G>15 HEALPix map only (notebook emitter)",
+      "provenance": {
+        "include_bright_catalog": false,
+        "mjd": 52075.0,
+        "nsb2_commit_requested": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
+        "site": {
+          "height": 2635.0,
+          "latitude": -24.6275,
+          "longitude": -70.40498688
+        }
+      },
+      "relative_difference": 0.9449304693441406,
+      "signed_difference": -0.030699663799190334,
+      "source_selection": {
+        "catalog_counts": {
+          "suppl": 0
+        },
+        "catalog_frame_convention": "SOFA ICRS/Galactic (ERFA icrs2g/g2icrs); boundary rounding conditional",
+        "catalog_solid_angle_sr": 6.391586616190171e-05,
+        "nsb_galactic_ring_pixel": 16881
+      },
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        300.0,
+        650.0
+      ]
+    },
+    {
+      "absolute_difference": 0.030699663799190334,
+      "case_id": "L2_sparse_high_lat__nsb_vs_nsb2_faint_xhip",
+      "classification": "conditional",
+      "direction": {
+        "dec_deg": 60.0,
+        "frame": "icrs",
+        "name": "sparse_high_lat",
+        "ra_deg": 180.0
+      },
+      "geometry": "Pointing ICRS direction; NSB Galactic nside=128 RING pixel mean; nsb2 ICRS nested map at pointing / exact NSB pixel catalog mean; atmosphere excluded",
+      "level": 2,
+      "limitations": [
+        "Not source-ID matched.",
+        "Spectral models differ (NSB XP/photometric/CK04 vs nsb2 Pickles).",
+        "Faint-map point interpolation differs from NSB pixel averaging.",
+        "No common source IDs to certify XHIP/Gaia disjointness; combined bright+XHIP unsupported.",
+        "Pickles alternatives are model variants, not an uncertainty confidence interval.",
+        "Cross-implementation agreement \u2260 observational validation.",
+        "Bright G<15 catalog omitted from default Level-2 integrals; population count is audited separately."
+      ],
+      "model_nsb": "bundled production Gaia DR3 integrated Starlight 300\u2013650 nm",
+      "model_nsb2": "nsb2_faint_xhip",
+      "n_sources_declared": null,
+      "nsb": 0.03248880716112205,
+      "nsb2": 0.0017891433619317133,
+      "nsb2_parts": {
+        "faint": 0.0017891433619317133,
+        "suppl": 0.0
+      },
+      "observable": "TOA band-integrated photon radiance",
+      "population": "nsb2 G>15 map + XHIP supplement (default extended)",
+      "provenance": {
+        "include_bright_catalog": false,
+        "mjd": 52075.0,
+        "nsb2_commit_requested": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
+        "site": {
+          "height": 2635.0,
+          "latitude": -24.6275,
+          "longitude": -70.40498688
+        }
+      },
+      "relative_difference": 0.9449304693441406,
+      "signed_difference": -0.030699663799190334,
+      "source_selection": {
+        "catalog_counts": {
+          "suppl": 0
+        },
+        "catalog_frame_convention": "SOFA ICRS/Galactic (ERFA icrs2g/g2icrs); boundary rounding conditional",
+        "catalog_solid_angle_sr": 6.391586616190171e-05,
+        "nsb_galactic_ring_pixel": 16881
+      },
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        300.0,
+        650.0
+      ]
+    },
+    {
+      "absolute_difference": 0.11253007048098648,
+      "case_id": "L2_dense_plane__nsb_vs_nsb2_faint_only",
+      "classification": "conditional",
+      "direction": {
+        "dec_deg": -5.0,
+        "frame": "icrs",
+        "name": "dense_plane",
+        "ra_deg": 280.0
+      },
+      "geometry": "Pointing ICRS direction; NSB Galactic nside=128 RING pixel mean; nsb2 ICRS nested map at pointing / exact NSB pixel catalog mean; atmosphere excluded",
+      "level": 2,
+      "limitations": [
+        "Not source-ID matched.",
+        "Spectral models differ (NSB XP/photometric/CK04 vs nsb2 Pickles).",
+        "Faint-map point interpolation differs from NSB pixel averaging.",
+        "No common source IDs to certify XHIP/Gaia disjointness; combined bright+XHIP unsupported.",
+        "Pickles alternatives are model variants, not an uncertainty confidence interval.",
+        "Cross-implementation agreement \u2260 observational validation.",
+        "Bright G<15 catalog omitted from default Level-2 integrals; population count is audited separately."
+      ],
+      "model_nsb": "bundled production Gaia DR3 integrated Starlight 300\u2013650 nm",
+      "model_nsb2": "nsb2_faint_only",
+      "n_sources_declared": null,
+      "nsb": 0.19956031552261533,
+      "nsb2": 0.08703024504162885,
+      "nsb2_parts": {
+        "faint": 0.08703024504162885,
+        "suppl": 0.0
+      },
+      "observable": "TOA band-integrated photon radiance",
+      "population": "nsb2 G>15 HEALPix map only (notebook emitter)",
+      "provenance": {
+        "include_bright_catalog": false,
+        "mjd": 52075.0,
+        "nsb2_commit_requested": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
+        "site": {
+          "height": 2635.0,
+          "latitude": -24.6275,
+          "longitude": -70.40498688
+        }
+      },
+      "relative_difference": 0.5638900208505329,
+      "signed_difference": -0.11253007048098648,
+      "source_selection": {
+        "catalog_counts": {
+          "suppl": 0
+        },
+        "catalog_frame_convention": "SOFA ICRS/Galactic (ERFA icrs2g/g2icrs); boundary rounding conditional",
+        "catalog_solid_angle_sr": 6.391586616190171e-05,
+        "nsb_galactic_ring_pixel": 97575
+      },
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        300.0,
+        650.0
+      ]
+    },
+    {
+      "absolute_difference": 0.11253007048098648,
+      "case_id": "L2_dense_plane__nsb_vs_nsb2_faint_xhip",
+      "classification": "conditional",
+      "direction": {
+        "dec_deg": -5.0,
+        "frame": "icrs",
+        "name": "dense_plane",
+        "ra_deg": 280.0
+      },
+      "geometry": "Pointing ICRS direction; NSB Galactic nside=128 RING pixel mean; nsb2 ICRS nested map at pointing / exact NSB pixel catalog mean; atmosphere excluded",
+      "level": 2,
+      "limitations": [
+        "Not source-ID matched.",
+        "Spectral models differ (NSB XP/photometric/CK04 vs nsb2 Pickles).",
+        "Faint-map point interpolation differs from NSB pixel averaging.",
+        "No common source IDs to certify XHIP/Gaia disjointness; combined bright+XHIP unsupported.",
+        "Pickles alternatives are model variants, not an uncertainty confidence interval.",
+        "Cross-implementation agreement \u2260 observational validation.",
+        "Bright G<15 catalog omitted from default Level-2 integrals; population count is audited separately."
+      ],
+      "model_nsb": "bundled production Gaia DR3 integrated Starlight 300\u2013650 nm",
+      "model_nsb2": "nsb2_faint_xhip",
+      "n_sources_declared": null,
+      "nsb": 0.19956031552261533,
+      "nsb2": 0.08703024504162885,
+      "nsb2_parts": {
+        "faint": 0.08703024504162885,
+        "suppl": 0.0
+      },
+      "observable": "TOA band-integrated photon radiance",
+      "population": "nsb2 G>15 map + XHIP supplement (default extended)",
+      "provenance": {
+        "include_bright_catalog": false,
+        "mjd": 52075.0,
+        "nsb2_commit_requested": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
+        "site": {
+          "height": 2635.0,
+          "latitude": -24.6275,
+          "longitude": -70.40498688
+        }
+      },
+      "relative_difference": 0.5638900208505329,
+      "signed_difference": -0.11253007048098648,
+      "source_selection": {
+        "catalog_counts": {
+          "suppl": 0
+        },
+        "catalog_frame_convention": "SOFA ICRS/Galactic (ERFA icrs2g/g2icrs); boundary rounding conditional",
+        "catalog_solid_angle_sr": 6.391586616190171e-05,
+        "nsb_galactic_ring_pixel": 97575
+      },
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        300.0,
+        650.0
+      ]
+    },
+    {
+      "absolute_difference": 0.0686181132990201,
+      "case_id": "L2_anticenter__nsb_vs_nsb2_faint_only",
+      "classification": "conditional",
+      "direction": {
+        "dec_deg": 28.0,
+        "frame": "icrs",
+        "name": "anticenter",
+        "ra_deg": 86.4
+      },
+      "geometry": "Pointing ICRS direction; NSB Galactic nside=128 RING pixel mean; nsb2 ICRS nested map at pointing / exact NSB pixel catalog mean; atmosphere excluded",
+      "level": 2,
+      "limitations": [
+        "Not source-ID matched.",
+        "Spectral models differ (NSB XP/photometric/CK04 vs nsb2 Pickles).",
+        "Faint-map point interpolation differs from NSB pixel averaging.",
+        "No common source IDs to certify XHIP/Gaia disjointness; combined bright+XHIP unsupported.",
+        "Pickles alternatives are model variants, not an uncertainty confidence interval.",
+        "Cross-implementation agreement \u2260 observational validation.",
+        "Bright G<15 catalog omitted from default Level-2 integrals; population count is audited separately."
+      ],
+      "model_nsb": "bundled production Gaia DR3 integrated Starlight 300\u2013650 nm",
+      "model_nsb2": "nsb2_faint_only",
+      "n_sources_declared": null,
+      "nsb": 0.08321332656697421,
+      "nsb2": 0.01459521326795412,
+      "nsb2_parts": {
+        "faint": 0.01459521326795412,
+        "suppl": 0.0
+      },
+      "observable": "TOA band-integrated photon radiance",
+      "population": "nsb2 G>15 HEALPix map only (notebook emitter)",
+      "provenance": {
+        "include_bright_catalog": false,
+        "mjd": 52075.0,
+        "nsb2_commit_requested": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
+        "site": {
+          "height": 2635.0,
+          "latitude": -24.6275,
+          "longitude": -70.40498688
+        }
+      },
+      "relative_difference": 0.8246048575379671,
+      "signed_difference": -0.0686181132990201,
+      "source_selection": {
+        "catalog_counts": {
+          "suppl": 0
+        },
+        "catalog_frame_convention": "SOFA ICRS/Galactic (ERFA icrs2g/g2icrs); boundary rounding conditional",
+        "catalog_solid_angle_sr": 6.391586616190171e-05,
+        "nsb_galactic_ring_pixel": 98817
+      },
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        300.0,
+        650.0
+      ]
+    },
+    {
+      "absolute_difference": 0.0686181132990201,
+      "case_id": "L2_anticenter__nsb_vs_nsb2_faint_xhip",
+      "classification": "conditional",
+      "direction": {
+        "dec_deg": 28.0,
+        "frame": "icrs",
+        "name": "anticenter",
+        "ra_deg": 86.4
+      },
+      "geometry": "Pointing ICRS direction; NSB Galactic nside=128 RING pixel mean; nsb2 ICRS nested map at pointing / exact NSB pixel catalog mean; atmosphere excluded",
+      "level": 2,
+      "limitations": [
+        "Not source-ID matched.",
+        "Spectral models differ (NSB XP/photometric/CK04 vs nsb2 Pickles).",
+        "Faint-map point interpolation differs from NSB pixel averaging.",
+        "No common source IDs to certify XHIP/Gaia disjointness; combined bright+XHIP unsupported.",
+        "Pickles alternatives are model variants, not an uncertainty confidence interval.",
+        "Cross-implementation agreement \u2260 observational validation.",
+        "Bright G<15 catalog omitted from default Level-2 integrals; population count is audited separately."
+      ],
+      "model_nsb": "bundled production Gaia DR3 integrated Starlight 300\u2013650 nm",
+      "model_nsb2": "nsb2_faint_xhip",
+      "n_sources_declared": null,
+      "nsb": 0.08321332656697421,
+      "nsb2": 0.01459521326795412,
+      "nsb2_parts": {
+        "faint": 0.01459521326795412,
+        "suppl": 0.0
+      },
+      "observable": "TOA band-integrated photon radiance",
+      "population": "nsb2 G>15 map + XHIP supplement (default extended)",
+      "provenance": {
+        "include_bright_catalog": false,
+        "mjd": 52075.0,
+        "nsb2_commit_requested": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
+        "site": {
+          "height": 2635.0,
+          "latitude": -24.6275,
+          "longitude": -70.40498688
+        }
+      },
+      "relative_difference": 0.8246048575379671,
+      "signed_difference": -0.0686181132990201,
+      "source_selection": {
+        "catalog_counts": {
+          "suppl": 0
+        },
+        "catalog_frame_convention": "SOFA ICRS/Galactic (ERFA icrs2g/g2icrs); boundary rounding conditional",
+        "catalog_solid_angle_sr": 6.391586616190171e-05,
+        "nsb_galactic_ring_pixel": 98817
+      },
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        300.0,
+        650.0
+      ]
+    },
+    {
+      "absolute_difference": 0.09943575132649474,
+      "case_id": "L2_galactic_center__nsb_vs_nsb2_faint_only",
+      "classification": "conditional",
+      "direction": {
+        "dec_deg": -29.00781,
+        "frame": "icrs",
+        "name": "galactic_center",
+        "ra_deg": 266.41683
+      },
+      "geometry": "Pointing ICRS direction; NSB Galactic nside=128 RING pixel mean; nsb2 ICRS nested map at pointing / exact NSB pixel catalog mean; atmosphere excluded",
+      "level": 2,
+      "limitations": [
+        "Not source-ID matched.",
+        "Spectral models differ (NSB XP/photometric/CK04 vs nsb2 Pickles).",
+        "Faint-map point interpolation differs from NSB pixel averaging.",
+        "No common source IDs to certify XHIP/Gaia disjointness; combined bright+XHIP unsupported.",
+        "Pickles alternatives are model variants, not an uncertainty confidence interval.",
+        "Cross-implementation agreement \u2260 observational validation.",
+        "Bright G<15 catalog omitted from default Level-2 integrals; population count is audited separately."
+      ],
+      "model_nsb": "bundled production Gaia DR3 integrated Starlight 300\u2013650 nm",
+      "model_nsb2": "nsb2_faint_only",
+      "n_sources_declared": null,
+      "nsb": 0.12363382703189044,
+      "nsb2": 0.0241980757053957,
+      "nsb2_parts": {
+        "faint": 0.0241980757053957,
+        "suppl": 0.0
+      },
+      "observable": "TOA band-integrated photon radiance",
+      "population": "nsb2 G>15 HEALPix map only (notebook emitter)",
+      "provenance": {
+        "include_bright_catalog": false,
+        "mjd": 52075.0,
+        "nsb2_commit_requested": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
+        "site": {
+          "height": 2635.0,
+          "latitude": -24.6275,
+          "longitude": -70.40498688
+        }
+      },
+      "relative_difference": 0.8042762544335541,
+      "signed_difference": -0.09943575132649474,
+      "source_selection": {
+        "catalog_counts": {
+          "suppl": 0
+        },
+        "catalog_frame_convention": "SOFA ICRS/Galactic (ERFA icrs2g/g2icrs); boundary rounding conditional",
+        "catalog_solid_angle_sr": 6.391586616190171e-05,
+        "nsb_galactic_ring_pixel": 98559
+      },
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        300.0,
+        650.0
+      ]
+    },
+    {
+      "absolute_difference": 0.09943575132649474,
+      "case_id": "L2_galactic_center__nsb_vs_nsb2_faint_xhip",
+      "classification": "conditional",
+      "direction": {
+        "dec_deg": -29.00781,
+        "frame": "icrs",
+        "name": "galactic_center",
+        "ra_deg": 266.41683
+      },
+      "geometry": "Pointing ICRS direction; NSB Galactic nside=128 RING pixel mean; nsb2 ICRS nested map at pointing / exact NSB pixel catalog mean; atmosphere excluded",
+      "level": 2,
+      "limitations": [
+        "Not source-ID matched.",
+        "Spectral models differ (NSB XP/photometric/CK04 vs nsb2 Pickles).",
+        "Faint-map point interpolation differs from NSB pixel averaging.",
+        "No common source IDs to certify XHIP/Gaia disjointness; combined bright+XHIP unsupported.",
+        "Pickles alternatives are model variants, not an uncertainty confidence interval.",
+        "Cross-implementation agreement \u2260 observational validation.",
+        "Bright G<15 catalog omitted from default Level-2 integrals; population count is audited separately."
+      ],
+      "model_nsb": "bundled production Gaia DR3 integrated Starlight 300\u2013650 nm",
+      "model_nsb2": "nsb2_faint_xhip",
+      "n_sources_declared": null,
+      "nsb": 0.12363382703189044,
+      "nsb2": 0.0241980757053957,
+      "nsb2_parts": {
+        "faint": 0.0241980757053957,
+        "suppl": 0.0
+      },
+      "observable": "TOA band-integrated photon radiance",
+      "population": "nsb2 G>15 map + XHIP supplement (default extended)",
+      "provenance": {
+        "include_bright_catalog": false,
+        "mjd": 52075.0,
+        "nsb2_commit_requested": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+        "pickles_template_reduction": "nanmedian of finite colour-grid templates (nsb2 instrument central of nanmin/nanmedian/nanmax)",
+        "site": {
+          "height": 2635.0,
+          "latitude": -24.6275,
+          "longitude": -70.40498688
+        }
+      },
+      "relative_difference": 0.8042762544335541,
+      "signed_difference": -0.09943575132649474,
+      "source_selection": {
+        "catalog_counts": {
+          "suppl": 0
+        },
+        "catalog_frame_convention": "SOFA ICRS/Galactic (ERFA icrs2g/g2icrs); boundary rounding conditional",
+        "catalog_solid_angle_sr": 6.391586616190171e-05,
+        "nsb_galactic_ring_pixel": 98559
+      },
+      "units": "photons cm^-2 ns^-1 sr^-1",
+      "wavelength_bounds_nm": [
+        300.0,
+        650.0
+      ]
+    }
+  ],
+  "level2_execution_error": null,
+  "limitations": [
+    "Cross-implementation agreement is not empirical validation.",
+    "Level-2 cases are conditional, not population-equivalent.",
+    "XP 360\u2013570 candidate bytes are unavailable in this repository checkout.",
+    "No production Starlight coefficients were changed.",
+    "Level-1 NSB-vs-analytic cases alone do not establish NSB\u2194nsb2 equivalence; the imposed-spectrum cross cases do."
+  ],
+  "outcome": "B_restricted_equivalent_benchmark",
+  "population_audit": {
+    "intersection": {
+      "exact_source_id_match_against_nsb_runtime_maps": "unsupported",
+      "missing_represented_as": "unsupported / unavailable \u2014 never silent zero",
+      "reason": "NSB runtime products store HEALPix aggregates; per-source Gaia IDs are not recoverable from the bundled map or from the absent XP JSON."
+    },
+    "nsb2": {
+      "boundary_completeness": "G=15 assignment cannot be verified from the faint aggregate asset",
+      "bright_catalog": {
+        "g_max": 14.999999,
+        "g_min": 1.731607,
+        "has_source_id": true,
+        "n_sources": 36908056,
+        "selection": "G < 15 individually resolved",
+        "sha256": "ebc0865c77087f1c79c55138e6dabfcf90cce40269f6d3984b3ed67c23e2750c",
+        "spectral_model": "Pickles TRDS Atlas 1998 + Gaia G/BP/RP photometry",
+        "unique_source_ids": 36908056,
+        "url": "https://zenodo.org/records/15396676/files/gaiadr3.npy"
+      },
+      "commit": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+      "faint_map": {
+        "finite_cells": 12582411,
+        "healpix": {
+          "frame": "icrs",
+          "nside": 1024,
+          "ordering": "nested"
+        },
+        "selection": "G > 15 pre-binned HEALPix",
+        "sha256": "37fce587c8476ae02fdc67f628a4138afbc9847ffb23986ed3959dc6cbd6e666",
+        "shape": [
+          3,
+          12582912
+        ],
+        "source_ids": false,
+        "spectral_model": "Pickles templates from mean cell colour",
+        "url": "https://zenodo.org/records/15396676/files/gaia_mag15plus.npy"
+      },
+      "gaia_split_magnitude": 15,
+      "xhip_gaia_overlap": "unverified: no common source IDs; full bright+XHIP sum unsupported",
+      "xhip_supplement": {
+        "n_sources": 88,
+        "note": "Stars too bright for reliable Gaia DR3 photometry",
+        "spectral_model": "Pickles from Johnson V/B"
+      }
+    },
+    "nsb_experimental_xp_360_570": {
+      "available_locally_this_run": false,
+      "band_nm": [
+        360,
+        570
+      ],
+      "bundled_in_repository": false,
+      "canonical_xp_rows": 219197642,
+      "healpix": {
+        "frame": "galactic",
+        "nside": 128,
+        "ordering": "ring"
+      },
+      "historical_raw_xp_records": 219197643,
+      "maturity": "experimental",
+      "native_bins_nm": [
+        360,
+        390,
+        420,
+        450,
+        480,
+        510,
+        540,
+        570
+      ],
+      "population": "XP-only; not population-complete",
+      "product_sha256": "fe331343cb9797a1d871ae798c88d2ae8865ae39358e8d82b464a91b3cf87d5f",
+      "status": "unsupported_without_external_asset"
+    },
+    "nsb_production_integrated_300_650": {
+      "admitted_sources": 1518801751,
+      "band_nm": [
+        300,
+        650
+      ],
+      "bright_star_supplement_admitted_records": 55,
+      "domain": "top-of-atmosphere",
+      "evidence": "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json",
+      "excluded_sources": 292908075,
+      "healpix": {
+        "frame": "galactic",
+        "nside": 128,
+        "ordering": "ring"
+      },
+      "observed_gaia_rows": 1811709826,
+      "product": "bundled starlight-runtime-v1 compact map",
+      "source_ids_in_runtime_map": false,
+      "spectral_model": "Gaia XP / photometric inference for Gaia population; Hipparcos/XHIP-selected CK04 supplement",
+      "sub_band_reconstruction": false
+    }
+  },
+  "provenance": {
+    "cached_reference_assets": {
+      "https://archive.stsci.edu/hlsps/reference-atlases/cdbs/current_calspec/alpha_lyr_stis_012.fits": {
+        "sha256": "7201cd8566d53d384430c3d5fd2ae8d8122e9a7f765711748b49336f63237672",
+        "size_bytes": 288000
+      },
+      "https://svo2.cab.inta-csic.es/theory/fps/fps.php?ID=GAIA/GAIA3.G": {
+        "sha256": "5ca330f92ccd0956e69a8f0521688634fa33896657e619a77342acbf4a020371",
+        "size_bytes": 74496
+      },
+      "https://svo2.cab.inta-csic.es/theory/fps/fps.php?ID=GAIA/GAIA3.Gbp": {
+        "sha256": "84bb0910753d4815c8638a0ea7a16cee8b75ede88ef4b188044f265afb2a5fd8",
+        "size_bytes": 46090
+      },
+      "https://svo2.cab.inta-csic.es/theory/fps/fps.php?ID=GAIA/GAIA3.Grp": {
+        "sha256": "d0c353d2d27eec571448fb90174d352f4ade323658049f9094ae626164a5c4b2",
+        "size_bytes": 50356
+      },
+      "https://svo2.cab.inta-csic.es/theory/fps/fps.php?ID=OSN/Johnson.B": {
+        "sha256": "261f9dcbdf41e810bcb4243b9108666c21779d638beab1e6b9f81a5d061db8fb",
+        "size_bytes": 126298
+      },
+      "https://svo2.cab.inta-csic.es/theory/fps/fps.php?ID=OSN/Johnson.V": {
+        "sha256": "214127b298376835d21a174c6d91df00724ffdf8ed6826db511efc9e622b6d32",
+        "size_bytes": 110411
+      },
+      "https://zenodo.org/records/15396676/files/gaia_mag15plus.npy": {
+        "sha256": "37fce587c8476ae02fdc67f628a4138afbc9847ffb23986ed3959dc6cbd6e666",
+        "size_bytes": 301990016
+      },
+      "https://zenodo.org/records/15396676/files/gaiadr3.npy": {
+        "sha256": "ebc0865c77087f1c79c55138e6dabfcf90cce40269f6d3984b3ed67c23e2750c",
+        "size_bytes": 2362115904
+      }
+    },
+    "dependencies": {
+      "PyYAML": "6.0.3",
+      "Pygments": "2.21.0",
+      "astropy": "8.0.2",
+      "astropy-iers-data": "0.2026.10.19.0.52.1",
+      "cloudpickle": "3.1.2",
+      "dust_extinction": "1.7",
+      "healpy": "1.20.1",
+      "iniconfig": "2.3.1",
+      "joblib": "1.6.0",
+      "maturin": "1.15.0",
+      "narwhals": "2.27.1",
+      "nsb-py": "0.2.0",
+      "nsb2": "0.2.0",
+      "numpy": "2.5.4",
+      "packaging": "26.3",
+      "pip": "25.0.1",
+      "pluggy": "1.7.0",
+      "pyerfa": "2.0.1.5",
+      "pytest": "9.1.1",
+      "scikit-learn": "1.9.1",
+      "scipy": "1.18.1",
+      "siderust": "0.5.1",
+      "tempoch": "0.5.0",
+      "threadpoolctl": "3.7.0"
+    },
+    "executable": "/tmp/nsb311-reproduction/bin/python",
+    "nsb2_commit_pinned": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+    "nsb2_identity": {
+      "evidence_status": "pinned_reference",
+      "module_path": "/tmp/nsb311-reproduction/lib/python3.12/site-packages/nsb2/__init__.py",
+      "package_version": "0.2.0",
+      "pinned_commit": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+      "resolution_source": "direct_url.json:vcs_info.commit_id",
+      "resolved_commit": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+      "verification": "matched"
+    },
+    "nsb2_package_inputs_sha256": "bf7d96437eb4fa5926c190b2b66e83952a82158723ee58cd968670b954a0e3e8",
+    "nsb2_package_version": "0.2.0",
+    "nsb2_packaged_assets": {
+      "data/README.rst": "a8b0b739906d8c8375ddd87e1eaafb216d1b46566dd4aa4b1ce627cca90599b6",
+      "data/anderson2012_xhip_suppl.dat": "324c0f1ff66c1eea812a92125b76c97483c86b91eae1a3428e56035145757a23",
+      "data/eso_skycalc_airglow_130sfu.dat": "f3ac8d8260d3eafcf79ed80dc9cf2a04ecd852d30176ec44888764b491c4841e",
+      "data/leinert1998_zodiacal_light.dat": "f10a7355d757b827959b05ec92b0285c30b05ce83d5254c161d9ad0f561c5139",
+      "data/noll2013_lunar_rolo.dat": "ab8c1212583b39f6f0cd948b2e7979a7cfe37cf654e6d4c27e16812725b6a8ec",
+      "data/pickles1998_trds_atlas.dat": "9c057b7e238beecb402ed8fb4fd545e38f2304bd7e060a9c1216871d7bc74adb"
+    },
+    "nsb_assets": {
+      "crates/nsb/data/manifest.toml": "8d2fb1b86832a033115ab2aa48ac138c82ec21e5dd809f67621c664a1e87b7ad",
+      "crates/nsb/data/starlight_nside128.compact.manifest.toml": "1fdaa3536520f74dd88a1ade37419234667de1cbb978b4539b4b8988b28a0cb8",
+      "crates/nsb/data/starlight_nside128.compact.release.bin": "11479bd0b6838d06df884b76dd74575bbc42d424ec85defecf847257c0f64d7f",
+      "crates/nsb/tests/data/starlight-transport/uniform.json": "35058caa944e51096e5d9ff8ca33eb19be08ef0b6c727ec37192758a64bdc24f"
+    },
+    "nsb_build": {
+      "binaries": {
+        "/tmp/nsb311-reproduction/lib/python3.12/site-packages/nsb/nsb.abi3.so": "1b30f9331464b0a1a59b230ce55edcea6aa902f4e2a64cb992dbda865b2535cb"
+      },
+      "declaration": "Caller attests clean build/install from this revision; checked against current build inputs",
+      "declared_source_revision": "dabb827c4f8b9ea84ff28441e8cfc7d8367dd4c2"
+    },
+    "nsb_checkout": {
+      "dirty": false,
+      "head": "dabb827c4f8b9ea84ff28441e8cfc7d8367dd4c2",
+      "input_manifest_excludes": [
+        "docs/validation/artifacts/matched-starlight-nsb2-v1.json"
+      ],
+      "input_manifest_sha256": "9f1253381fa3c4ba55db13767d1df11cdc3ac47f51c2bd5c1c0ee4034480ab2f",
+      "status": []
+    },
+    "nsb_package_version": "0.2.0",
+    "pickles_template_reduction": "nanmedian over finite Pickles template alternatives (nsb2 instrument central of nanmin/nanmedian/nanmax); selected sources with no finite template reject the evaluation",
+    "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43",
+    "python": "3.12.13",
+    "runner_sha256": "b07624a4f0651573df6397efb46700591094527a2b3c6231c4e070f616a03e96"
+  },
+  "schema": "matched-starlight-nsb2-v1",
+  "scientific_question": "When NSB and nsb2 represent stellar sources over a shared wavelength interval with the same physical observation operator, how closely do their predictions agree?",
+  "unit": "photons cm^-2 ns^-1 sr^-1"
+}
