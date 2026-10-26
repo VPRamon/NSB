@@ -110,9 +110,7 @@ fn zodiacal_boundaries(
     prepared: &PreparedThresholdQuery,
 ) -> crate::Result<Vec<ModifiedJulianDate>> {
     match prepared.target {
-        TargetDirection::Equatorial(target) => {
-            zodiacal_boundaries_fixed_ecliptic(prepared, target)
-        }
+        TargetDirection::Equatorial(target) => zodiacal_boundaries_fixed_ecliptic(prepared, target),
         TargetDirection::Horizontal(_) => zodiacal_boundaries_moving_target(prepared),
     }
 }

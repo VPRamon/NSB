@@ -2,9 +2,7 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 //! Target-independent and target-specific preparation for window searches.
 
-use super::types::{
-    PreparedStarlight, PreparedThresholdQuery, SiteWindowContext, ThresholdQuery,
-};
+use super::types::{PreparedStarlight, PreparedThresholdQuery, SiteWindowContext, ThresholdQuery};
 use crate::components::airglow;
 use crate::error::{NsbError, Result};
 use crate::evaluator::{ComponentMask, NsbEvaluator, TargetDirection};

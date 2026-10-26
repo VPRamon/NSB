@@ -440,7 +440,8 @@ fn measure(
                 q.target = Target::new(
                     (83.6331 + i as f64 * 137.507764).rem_euclid(360.0) * DEG,
                     (-60.0 + (i % 25) as f64 * 5.0) * DEG,
-                ).into();
+                )
+                .into();
             }
             q
         })
@@ -448,7 +449,10 @@ fn measure(
     if bits & ComponentMask::STARLIGHT.bits() != 0 && bits != ComponentMask::STARLIGHT.bits() {
         for q in &mut queries {
             let p = prepare::prepare_target_threshold(&evaluator, &context, q).unwrap();
-            q.threshold += match p.starlight { super::types::PreparedStarlight::Constant(v) => v, _ => panic!("expected constant starlight") };
+            q.threshold += match p.starlight {
+                super::types::PreparedStarlight::Constant(v) => v,
+                _ => panic!("expected constant starlight"),
+            };
         }
     }
     let repeats: usize = std::env::var("NSB_DISCOVERY_REPEATS")

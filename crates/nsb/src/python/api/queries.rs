@@ -46,9 +46,7 @@ fn target_direction_to_python(py: Python<'_>, target: TargetDirection) -> PyResu
         TargetDirection::Equatorial(equatorial) => {
             direction_to_python(py, &target_to_icrs(&equatorial))
         }
-        TargetDirection::Horizontal(horizontal) => {
-            horizontal_direction_to_python(py, &horizontal)
-        }
+        TargetDirection::Horizontal(horizontal) => horizontal_direction_to_python(py, &horizontal),
     }
 }
 

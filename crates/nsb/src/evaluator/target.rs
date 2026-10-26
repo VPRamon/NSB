@@ -105,10 +105,7 @@ impl From<HorizontalTarget> for TargetDirection {
 }
 
 /// Validate observer and target coordinates without resolving frames.
-pub(crate) fn validate_target_direction(
-    observer: Observer,
-    target: TargetDirection,
-) -> Result<()> {
+pub(crate) fn validate_target_direction(observer: Observer, target: TargetDirection) -> Result<()> {
     if !observer.lon.is_finite() || !observer.lat.is_finite() || !observer.height.is_finite() {
         return Err(NsbError::OutOfRange(
             "observer and target coordinates must be finite".into(),
@@ -154,8 +151,7 @@ pub(crate) fn resolve_target_direction(
             // Siderust's TT-only path derives UT1 from the active EOP table.
             // Do not substitute UTC for UT1 or TT.
             let true_of_date = direction.to_equatorial(&jd_tt, &observer);
-            let mean_j2000: SphericalDirection<EquatorialMeanJ2000> =
-                true_of_date.to_frame(&jd_tt);
+            let mean_j2000: SphericalDirection<EquatorialMeanJ2000> = true_of_date.to_frame(&jd_tt);
             if !mean_j2000.ra().is_finite() || !mean_j2000.dec().is_finite() {
                 return Err(NsbError::OutOfRange(
                     "horizontal target resolved to a non-finite equatorial direction".into(),
@@ -185,7 +181,10 @@ mod tests {
     fn equatorial_resolution_is_identity() {
         let target = Target::new(83.633 * DEG, 22.014 * DEG);
         let resolved = TargetDirection::from(target)
-            .resolve(ROQUE_DE_LOS_MUCHACHOS.geodetic(), utc("2024-01-15T02:00:00Z"))
+            .resolve(
+                ROQUE_DE_LOS_MUCHACHOS.geodetic(),
+                utc("2024-01-15T02:00:00Z"),
+            )
             .unwrap();
         assert!((resolved.ra().value() - target.ra().value()).abs() < 1.0e-15);
         assert!((resolved.dec().value() - target.dec().value()).abs() < 1.0e-15);
@@ -235,7 +234,8 @@ mod tests {
         let true_of_date: SphericalDirection<EquatorialTrueOfDate> = equatorial.to_frame(&jd_tt);
         let recovered = true_of_date.to_horizontal(&jd_tt, &observer);
         assert!((recovered.alt().value() - original.alt().value()).abs() < 1.0e-6);
-        let az_err = (recovered.az().value() - original.az().value() + 180.0).rem_euclid(360.0) - 180.0;
+        let az_err =
+            (recovered.az().value() - original.az().value() + 180.0).rem_euclid(360.0) - 180.0;
         assert!(az_err.abs() < 1.0e-6);
     }
 

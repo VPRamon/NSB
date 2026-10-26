@@ -213,10 +213,9 @@ pub(crate) fn evaluate_integrated(
     let mut total = BandPhotonRadiance::new(0.0);
 
     if prepared.components.contains(ComponentMask::ZODIACAL) {
-        let out =
-            evaluator
-                .zodiacal()
-                .compute_observed(time, prepared.observer, target)?;
+        let out = evaluator
+            .zodiacal()
+            .compute_observed(time, prepared.observer, target)?;
         total += out.integrated;
     }
     if prepared.components.contains(ComponentMask::STARLIGHT) {

@@ -29,9 +29,7 @@ pub(crate) fn evaluate(
     let mut bv_complete = true;
 
     if query.components.contains(ComponentMask::ZODIACAL) {
-        let out = evaluator
-            .zodiacal()
-            .compute(time, query.observer, target)?;
+        let out = evaluator.zodiacal().compute(time, query.observer, target)?;
         total += out.integrated;
         b_total += out.b_flux_s10;
         v_total += out.v_flux_s10;
@@ -74,8 +72,7 @@ pub(crate) fn evaluate(
         });
     }
     if query.components.contains(ComponentMask::AIRGLOW) {
-        let (out, solar) =
-            evaluator.evaluate_airglow_resolved(query.observer, time, target)?;
+        let (out, solar) = evaluator.evaluate_airglow_resolved(query.observer, time, target)?;
         total += out.integrated;
         b_total += out.b_flux_s10;
         v_total += out.v_flux_s10;

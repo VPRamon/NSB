@@ -87,9 +87,9 @@ fn point_horizontal_matches_per_component_masks() {
         ComponentMask::STARLIGHT,
         ComponentMask::ZODIACAL | ComponentMask::STARLIGHT,
     ] {
-        let Ok(via_api) = evaluator.evaluate(
-            &PointQuery::new(observer, time, horizontal).with_components(mask),
-        ) else {
+        let Ok(via_api) =
+            evaluator.evaluate(&PointQuery::new(observer, time, horizontal).with_components(mask))
+        else {
             // Starlight may be unavailable without a bundled map in some builds.
             continue;
         };
@@ -130,7 +130,8 @@ fn planning_once_converted_icrs_diverges_from_native_horizontal() {
     // Zodiacal alone: moving ecliptic longitude vs fixed. Avoid stacking
     // Starlight HEALPix jumps into this equivalence probe.
     let components = ComponentMask::ZODIACAL;
-    let threshold = nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(10.0);
+    let threshold =
+        nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(10.0);
 
     let native = ThresholdQuery::new(observer, horizontal, Period::new(start, end), threshold)
         .with_components(components)
@@ -142,7 +143,10 @@ fn planning_once_converted_icrs_diverges_from_native_horizontal() {
         .with_target_altitude_floor(Some(Degrees::new(0.0)));
 
     let native_periods = evaluator.periods_below_threshold(&native).unwrap().periods;
-    let frozen_periods = evaluator.periods_below_threshold(&frozen_q).unwrap().periods;
+    let frozen_periods = evaluator
+        .periods_below_threshold(&frozen_q)
+        .unwrap()
+        .periods;
 
     // Mid-window radiances must differ for fixed Alt/Az vs once-converted ICRS.
     let mid = utc("2024-06-19T01:00:00Z");
@@ -177,7 +181,8 @@ fn horizontal_altitude_filter_is_constant() {
     let end = utc("2024-06-19T04:00:00Z");
     let above = HorizontalTarget::new(30.0 * DEG, 180.0 * DEG);
     let below = HorizontalTarget::new(-5.0 * DEG, 180.0 * DEG);
-    let threshold = nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(100.0);
+    let threshold =
+        nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(100.0);
 
     let eligible = ThresholdQuery::new(observer, above, Period::new(start, end), threshold)
         .with_components(ComponentMask::ZODIACAL)
@@ -252,7 +257,6 @@ fn round_trip_horizontal_equatorial_horizontal() {
     let true_of_date: SphericalDirection<EquatorialTrueOfDate> = equatorial.to_frame(&jd_tt);
     let recovered = true_of_date.to_horizontal(&jd_tt, &observer);
     assert!((recovered.alt().value() - original.alt().value()).abs() < 1e-6);
-    let az_err =
-        (recovered.az().value() - original.az().value() + 180.0).rem_euclid(360.0) - 180.0;
+    let az_err = (recovered.az().value() - original.az().value() + 180.0).rem_euclid(360.0) - 180.0;
     assert!(az_err.abs() < 1e-6);
 }

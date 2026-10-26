@@ -1151,7 +1151,8 @@ fn adaptive_rejects_eighty_seven_second_twilight_scan120_false_positive() {
     q.target = Target::new(
         (83.6331_f64 + 36.0 * 137.507764).rem_euclid(360.0) * DEG,
         -5.0 * DEG,
-    ).into();
+    )
+    .into();
     q.observer = siderust::coordinates::centers::Geodetic::new_raw(
         crate::units::angular::Degrees::new(-70.31634444444444),
         crate::units::angular::Degrees::new(-24.683427777777776),
@@ -1274,7 +1275,10 @@ fn physical_boundary_accuracy_reference() {
                 if bits & ComponentMask::STARLIGHT.bits() != 0
                     && bits != ComponentMask::STARLIGHT.bits()
                 {
-                    q.threshold += match p.starlight { super::types::PreparedStarlight::Constant(v) => v, _ => panic!("expected constant starlight") };
+                    q.threshold += match p.starlight {
+                        super::types::PreparedStarlight::Constant(v) => v,
+                        _ => panic!("expected constant starlight"),
+                    };
                 }
                 let actual: Vec<_> = evaluator
                     .periods_below_threshold_adaptive_with_context(&context, &q)

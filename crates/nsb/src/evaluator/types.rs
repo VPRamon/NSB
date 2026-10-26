@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
 use super::metadata::{BandDiagnostic, NsbComponentMetadata};
+use super::target::{validate_target_direction, TargetDirection};
 use crate::components::zodiacal;
 use crate::components::{airglow, moonlight, starlight};
 use crate::site::{
@@ -10,7 +11,6 @@ use crate::units::photometry::SurfaceBrightness;
 use crate::units::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
 };
-use super::target::{validate_target_direction, TargetDirection};
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
@@ -104,11 +104,7 @@ impl PointQuery {
     ///
     /// `target` accepts a mean-J2000 [`Target`], a geometric
     /// [`super::HorizontalTarget`], or a [`TargetDirection`].
-    pub fn new(
-        observer: Observer,
-        time: Time<UTC>,
-        target: impl Into<TargetDirection>,
-    ) -> Self {
+    pub fn new(observer: Observer, time: Time<UTC>, target: impl Into<TargetDirection>) -> Self {
         Self {
             observer,
             time,

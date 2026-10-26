@@ -177,13 +177,9 @@ impl NsbEvaluator {
             ));
         }
         if query.components.contains(ComponentMask::ZODIACAL) {
-            let value = self.zodiacal().compute_band(
-                query.time,
-                query.observer,
-                target,
-                lower,
-                upper,
-            )?;
+            let value =
+                self.zodiacal()
+                    .compute_band(query.time, query.observer, target, lower, upper)?;
             total += value;
             emit(BandContribution::Zodiacal(value));
         }

@@ -28,8 +28,8 @@ use crate::error::{NsbError, Result};
 use crate::evaluator::{resolve_target_direction, NsbEvaluator, TargetDirection};
 use crate::Observer;
 use siderust::coordinates::transform::TransformFrame;
-use siderust::time::{Interval as TimePeriod, ModifiedJulianDate};
 use siderust::qtty::Days;
+use siderust::time::{Interval as TimePeriod, ModifiedJulianDate};
 
 /// Refine transitions to about 0.1 s so they sit with other adaptive brackets.
 const TRANSITION_TOLERANCE_DAYS: f64 = 0.1 / 86_400.0;
@@ -55,13 +55,13 @@ pub(crate) fn starlight_healpix_transitions(
     // Mean pixel width ~ sqrt(4π / N_pix) rad ≈ 58.6/nside degrees.
     let pixel_deg = 58.6 / nside;
     // Sample at least ~4 times per typical equatorial pixel transit.
-    let step_days = (pixel_deg / (4.0 * SIDEREAL_DEG_PER_DAY)).clamp(TRANSITION_TOLERANCE_DAYS, 1.0 / 24.0);
+    let step_days =
+        (pixel_deg / (4.0 * SIDEREAL_DEG_PER_DAY)).clamp(TRANSITION_TOLERANCE_DAYS, 1.0 / 24.0);
 
     let pixel_at = |mjd: ModifiedJulianDate| -> Result<u64> {
         let time = tt_mjd_to_utc_time(mjd);
         let equatorial = resolve_target_direction(target, observer, time)?;
-        let galactic: siderust::coordinates::spherical::direction::Galactic =
-            equatorial.to_frame();
+        let galactic: siderust::coordinates::spherical::direction::Galactic = equatorial.to_frame();
         let index = grid
             .direction_to_pixel(galactic.to_cartesian())
             .map_err(|err| NsbError::OutOfRange(err.to_string()))?;
