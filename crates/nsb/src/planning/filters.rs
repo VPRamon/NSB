@@ -18,6 +18,9 @@ pub(crate) fn adaptive_threshold_windows(
     use siderust::coordinates::{spherical::direction, transform::TransformFrame};
     use siderust::event::altitude::{above_threshold, SearchOpts};
     let mut windows = threshold_windows(prepared, false);
+    if windows.is_empty() {
+        return Ok(windows);
+    }
     // Constant equatorial Starlight alone needs no extra regime cuts. Dynamic
     // horizontal Starlight still requires HEALPix pixel-transition partitions.
     if prepared
@@ -82,22 +85,27 @@ pub(crate) fn adaptive_threshold_windows(
         cuts.extend(cache.transitions().iter().copied().map(utc_time_to_tt_mjd));
     }
     if prepared.components.contains(ComponentMask::ZODIACAL) {
-        cuts.extend(zodiacal_boundaries(prepared)?);
+        cuts.extend(zodiacal_boundaries(evaluator, prepared, &windows)?);
     }
     if matches!(prepared.starlight, PreparedStarlight::Dynamic) {
         cuts.extend(super::healpix_partition::starlight_healpix_transitions(
             evaluator,
             prepared.observer,
             prepared.target,
-            prepared.tt_window,
+            &windows,
         )?);
     }
     cuts.sort_by(|a, b| a.partial_cmp(b).expect("finite TT instants"));
-    cuts.dedup();
+    cuts.dedup_by(|right, left| (*right - *left).value().abs() <= super::transitions::TOLERANCE);
     let mut out = Vec::new();
     for window in windows.drain(..) {
         let mut left = window.start;
-        for &cut in cuts.iter().filter(|&&c| window.start < c && c < window.end) {
+        // Coalesce with eligible endpoints too: all retained physical edges
+        // must leave resolvable interiors on both sides of the cut.
+        for &cut in cuts.iter().filter(|&&c| {
+            (c - window.start).value() > super::transitions::TOLERANCE
+                && (window.end - c).value() > super::transitions::TOLERANCE
+        }) {
             out.push(TimePeriod::new(left, cut));
             left = cut;
         }
@@ -107,11 +115,15 @@ pub(crate) fn adaptive_threshold_windows(
 }
 
 fn zodiacal_boundaries(
+    evaluator: &NsbEvaluator,
     prepared: &PreparedThresholdQuery,
+    windows: &[TimePeriod<ModifiedJulianDate>],
 ) -> crate::Result<Vec<ModifiedJulianDate>> {
     match prepared.target {
         TargetDirection::Equatorial(target) => zodiacal_boundaries_fixed_ecliptic(prepared, target),
-        TargetDirection::Horizontal(_) => zodiacal_boundaries_moving_target(prepared),
+        TargetDirection::Horizontal(_) => {
+            zodiacal_boundaries_moving_target(evaluator, prepared, windows)
+        }
     }
 }
 
@@ -184,81 +196,60 @@ fn zodiacal_boundaries_fixed_ecliptic(
     Ok(out)
 }
 
-/// Zodiacal table cells for a moving (horizontal) target.
-///
-/// Both solar longitude and the target's ecliptic coordinates evolve. Sample
-/// the `(λ_target, β_target, λ_sun)` Leinert cell identity and cut where it
-/// changes. This is an empirical partition aligned with the adaptive contract,
-/// not a continuous certificate of every infinitesimal table edge.
+/// Partition the model's actual variables. Signed latitude and relative
+/// longitude retain the |beta| and 0/180-degree folding cusps. All rectangular
+/// corner-fill edges are already on the 5-degree grid. Reddening depends on
+/// true elongation, and Noll extinction on the interpolated 500 nm brightness.
+/// This is sampled discovery; sub-probe grazing excursions are not certified.
 fn zodiacal_boundaries_moving_target(
+    evaluator: &NsbEvaluator,
     prepared: &PreparedThresholdQuery,
+    windows: &[TimePeriod<ModifiedJulianDate>],
 ) -> crate::Result<Vec<ModifiedJulianDate>> {
     use super::intervals::tt_mjd_to_utc_time;
-    use siderust::bodies::Sun;
     use siderust::coordinates::{
         frames::EclipticMeanJ2000, spherical::Direction, transform::TransformFrame,
     };
-    use siderust::qtty::Days;
-
-    let origin = prepared.tt_window.start;
-    let end = prepared.tt_window.length().value();
-    // ~2 min samples: finer than typical solar-longitude cell motion and
-    // comparable to equatorial HEALPix transit times near nside=128.
-    let step = (2.0_f64 / 1_440.0).min(end.max(1e-12));
-
-    let cell_at = |offset_days: f64| -> crate::Result<(i32, i32, i32)> {
-        let mjd = origin + Days::new(offset_days);
+    let noll =
+        evaluator.config().zodiacal_extinction() == crate::ZodiacalExtinction::Noll2012Approx;
+    super::transitions::discover(windows, 30.0 / 86400.0, |mjd| {
         let time = tt_mjd_to_utc_time(mjd);
         let target = resolve_target_direction(prepared.target, prepared.observer, time)?;
         let ecl: Direction<EclipticMeanJ2000> = target.to_frame();
-        let lon = ecl.lon().value().rem_euclid(360.0);
-        let lat = ecl.lat().value();
-        let sun = Sun::ecliptic_longitude_geocentric(mjd.to::<tempoch::JD>())
-            .value()
-            .to_degrees()
-            .rem_euclid(360.0);
-        // 5° Leinert longitude cells; 5° latitude bands; solar elongation proxy.
-        Ok((
-            (lon / 5.0).floor() as i32,
-            (lat / 5.0).floor() as i32,
-            (sun / 5.0).floor() as i32,
-        ))
-    };
+        let sun = prepared.astronomy.solar(time).value().to_degrees();
+        let relative = (ecl.lon().value() - sun + 180.0).rem_euclid(360.0) - 180.0;
+        zodiacal_regime(ecl.lat().value(), relative, noll)
+    })
+}
 
-    let mut cuts = Vec::new();
-    let mut a = 0.0;
-    let mut prev = cell_at(0.0)?;
-    while a < end {
-        let b = (a + step).min(end);
-        let next = cell_at(b)?;
-        if next != prev {
-            let (mut lo, mut hi) = (a, b);
-            let left = prev;
-            while hi - lo > 0.1 / 86_400.0 {
-                let mid = lo + (hi - lo) * 0.5;
-                if mid == lo || mid == hi {
-                    break;
-                }
-                if cell_at(mid)? == left {
-                    lo = mid;
-                } else {
-                    hi = mid;
-                }
-            }
-            let cut = origin + Days::new(lo + (hi - lo) * 0.5);
-            if prepared.tt_window.start < cut && cut < prepared.tt_window.end {
-                cuts.push(cut);
-            }
-            prev = next;
-        }
-        a = b;
-        if cuts.len() > 25_000 {
-            return Err(crate::NsbError::Unsupported(
-                "horizontal Zodiacal partition budget".into(),
-            ));
-        }
-    }
-    Ok(cuts)
+fn zodiacal_regime(beta: f64, relative: f64, noll: bool) -> crate::Result<[i32; 5]> {
+    use crate::components::zodiacal::leinert::Leinert1998Grid;
+    use crate::units::angular::Radians;
+    let latitude = beta.to_radians();
+    let delta = relative.abs().to_radians();
+    let elongation = (latitude.cos() * delta.cos())
+        .clamp(-1.0, 1.0)
+        .acos()
+        .to_degrees();
+    let dex = if noll {
+        let s10 = Leinert1998Grid::lookup_s10(Radians::new(latitude), Radians::new(delta))?;
+        (s10.value() * crate::units::S10_TO_W_M2_SR_UM.value() / 1e-8).log10()
+    } else {
+        0.0
+    };
+    Ok([
+        (beta / 5.0).floor() as i32,
+        (relative / 5.0).floor() as i32,
+        if elongation < 30.0 {
+            0
+        } else if elongation < 90.0 {
+            1
+        } else {
+            2
+        },
+        i32::from(dex > 2.244),
+        i32::from(dex > 2.255),
+    ])
 }
 
 pub(crate) fn contains_time(
@@ -348,4 +339,129 @@ pub(crate) fn airglow_night_phase(
         }
     }
     phase
+}
+
+#[cfg(test)]
+mod zodiacal_partition_tests {
+    use super::*;
+    use siderust::qtty::Days;
+
+    #[test]
+    fn empty_candidates_skip_even_unrepresentably_expensive_partitions() {
+        use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as Radiance;
+        use crate::{HorizontalTarget, ThresholdQuery, DEG};
+        use siderust::catalogs::observatories::ROQUE_DE_LOS_MUCHACHOS;
+        let evaluator = super::super::test_fixtures::continuum_default_evaluator();
+        let start = tempoch::Time::<tempoch::UTC>::from_chrono(
+            "2024-06-18T22:00:00Z"
+                .parse::<chrono::DateTime<chrono::Utc>>()
+                .unwrap(),
+        );
+        let query = ThresholdQuery::new(
+            ROQUE_DE_LOS_MUCHACHOS.geodetic(),
+            HorizontalTarget::new(55.0 * DEG, 120.0 * DEG),
+            tempoch::Period::new(start, start + Days::new(1.0)),
+            Radiance::new(100.0),
+        )
+        .with_components(ComponentMask::ZODIACAL | ComponentMask::STARLIGHT)
+        .with_sun_altitude_ceiling(None);
+        let context = evaluator.prepare_site_window_context(&query).unwrap();
+        let mut prepared =
+            super::super::prepare::prepare_target_threshold(&evaluator, &context, &query).unwrap();
+        // Simulate an empty Sun/altitude intersection without doing 137 years
+        // of astronomical eligibility preparation. No physical probe is useful.
+        prepared.candidate_windows.clear();
+        prepared.tt_window.end = prepared.tt_window.start + Days::new(50000.0);
+        assert!(adaptive_threshold_windows(&evaluator, &prepared)
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn relative_edge_inside_unchanged_absolute_cells_is_partitioned() {
+        let origin = ModifiedJulianDate::new(60000.0);
+        let window = TimePeriod::new(origin, origin + Days::new(30.0 / 86400.0));
+        let cuts = super::super::transitions::discover(&[window], 30.0 / 86400.0, |t| {
+            let fraction = (t - origin).value() / window.length().value();
+            let lon = 12.0 + 2.0 * fraction;
+            let sun = 7.5 + fraction;
+            assert_eq!((lon / 5.0).floor(), 2.0);
+            assert_eq!((sun / 5.0).floor(), 1.0);
+            zodiacal_regime(35.0, lon - sun, false)
+        })
+        .unwrap();
+        assert_eq!(cuts.len(), 1);
+        assert!(((cuts[0] - origin).value() * 86400.0 - 15.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn model_regimes_cover_folds_corner_edges_reddening_and_extinction() {
+        use crate::components::zodiacal::leinert::test_support::reference_lookup_s10;
+        // Independent scalar historical lookup provides the extinction reference.
+        // Positive/negative latitude, signed longitude wrap/folds, corner edges,
+        // and true (rather than longitude-only) elongation transitions.
+        for (beta_a, beta_b, lon_a, lon_b) in [
+            (22.0, 22.0, 1.0, 35.0),
+            (-12.0, -28.0, 18.0, 18.0),
+            (-1.0, 1.0, 40.0, 40.0),
+            (20.0, 20.0, 20.0, 40.0),
+            (40.0, 40.0, 85.0, 95.0),
+            (35.0, 35.0, -2.0, 2.0),
+            (35.0, 35.0, 178.0, 182.0),
+            (40.0, 40.0, 30.0, 100.0),
+        ] {
+            let origin = ModifiedJulianDate::new(60000.0);
+            let window = TimePeriod::new(origin, origin + Days::new(300.0 / 86400.0));
+            let coords = |t: ModifiedJulianDate| {
+                let f = (t - origin).value() / window.length().value();
+                (
+                    beta_a + (beta_b - beta_a) * f,
+                    (lon_a + (lon_b - lon_a) * f + 180.0).rem_euclid(360.0) - 180.0,
+                )
+            };
+            let cuts = super::super::transitions::discover(&[window], 30.0 / 86400.0, |t| {
+                let (beta, lon) = coords(t);
+                zodiacal_regime(beta, lon, true)
+            })
+            .unwrap();
+            let reference = |t| {
+                let (beta, lon) = coords(t);
+                let s10 = reference_lookup_s10(beta.to_radians(), lon.abs().to_radians()).unwrap();
+                let dex = (s10 * 1.28).log10();
+                let elongation = (beta.to_radians().cos() * lon.to_radians().cos())
+                    .acos()
+                    .to_degrees();
+                [
+                    (beta / 5.0).floor() as i32,
+                    (lon / 5.0).floor() as i32,
+                    if elongation < 30.0 {
+                        0
+                    } else if elongation < 90.0 {
+                        1
+                    } else {
+                        2
+                    },
+                    i32::from(dex > 2.244),
+                    i32::from(dex > 2.255),
+                ]
+            };
+            let mut last = reference(window.start);
+            let mut witnessed = 0;
+            // 10 ms uniform reference, 1500 times finer than discovery probes.
+            for i in 1..30000 {
+                let t = origin + Days::new(i as f64 * 0.01 / 86400.0);
+                let next = reference(t);
+                if next != last {
+                    assert!(
+                        cuts.iter()
+                            .any(|cut| (t - *cut).value().abs() * 86400.0 < 0.011),
+                        "missing model edge beta={beta_a}..{beta_b}, lon={lon_a}..{lon_b}, at {i}"
+                    );
+                    witnessed += 1;
+                }
+                last = next;
+            }
+            assert!(witnessed > 0);
+        }
+    }
 }

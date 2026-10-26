@@ -8,33 +8,24 @@
 //! boundaries. Adaptive degree-4/8 fits across those jumps are not a valid
 //! discovery contract.
 //!
-//! This module samples the resolved Galactic pixel index over a TT window and
-//! binary-searches each transition. Partitioning at those instants restores
-//! smooth (in fact constant-Starlight) sub-intervals for the adaptive engine.
+//! Discovery probes are spaced at most 1/64 of a nominal equatorial pixel
+//! transit (mean width 58.6/nside degrees, sidereal speed 360.986 deg/day).
+//! HEALPix cells meet at vertices: arbitrarily short grazing transits exist,
+//! so mean width is a resolution scale, never a lower bound on transit time.
+//! Midpoint probing and recursive refinement of both halves find return visits
+//! and multiple edges when witnessed by a probe. Refinement is to 0.1 ms.
+//! Excursions wholly between probes remain an empirical limitation.
 //!
-//! Guarantees:
-//! - every transition found by the coarse sample grid is refined to
-//!   [`TRANSITION_TOLERANCE_DAYS`];
-//! - transitions shorter than the coarse step can still be missed if a pixel
-//!   is entered and left between samples — the coarse step is sized from the
-//!   map resolution and Earth rotation so that nominal crossings are sampled
-//!   at least twice per pixel transit near the equator.
-//!
-//! Limitations: this is an empirical partition of the authoritative probe
-//! signal, not a certified enclosure of continuous HEALPix geometry.
+//! Only eligible intervals are streamed; memory is proportional to discovered
+//! cuts, with separate total probe and transition resource guards.
 
 use super::intervals::tt_mjd_to_utc_time;
 use crate::error::{NsbError, Result};
 use crate::evaluator::{resolve_target_direction, NsbEvaluator, TargetDirection};
 use crate::Observer;
 use siderust::coordinates::transform::TransformFrame;
-use siderust::qtty::Days;
 use siderust::time::{Interval as TimePeriod, ModifiedJulianDate};
 
-/// Refine transitions to about 0.1 s so they sit with other adaptive brackets.
-const TRANSITION_TOLERANCE_DAYS: f64 = 0.1 / 86_400.0;
-/// Cap on reported transitions per window (resource guard).
-const MAX_TRANSITIONS: usize = 25_000;
 /// Sidereal rate used to size the coarse sample (degrees per day).
 const SIDEREAL_DEG_PER_DAY: f64 = 360.985_612;
 
@@ -42,7 +33,7 @@ pub(crate) fn starlight_healpix_transitions(
     evaluator: &NsbEvaluator,
     observer: Observer,
     target: TargetDirection,
-    window: TimePeriod<ModifiedJulianDate>,
+    windows: &[TimePeriod<ModifiedJulianDate>],
 ) -> Result<Vec<ModifiedJulianDate>> {
     let TargetDirection::Horizontal(_) = target else {
         return Ok(Vec::new());
@@ -51,12 +42,21 @@ pub(crate) fn starlight_healpix_transitions(
         return Ok(Vec::new());
     };
     let grid = starlight.map().grid();
+    healpix_transitions(grid, observer, target, windows)
+}
+
+fn healpix_transitions(
+    grid: siderust::healpix::HealpixGrid,
+    observer: Observer,
+    target: TargetDirection,
+    windows: &[TimePeriod<ModifiedJulianDate>],
+) -> Result<Vec<ModifiedJulianDate>> {
     let nside = grid.nside().get() as f64;
     // Mean pixel width ~ sqrt(4π / N_pix) rad ≈ 58.6/nside degrees.
     let pixel_deg = 58.6 / nside;
-    // Sample at least ~4 times per typical equatorial pixel transit.
-    let step_days =
-        (pixel_deg / (4.0 * SIDEREAL_DEG_PER_DAY)).clamp(TRANSITION_TOLERANCE_DAYS, 1.0 / 24.0);
+    // discover() adds midpoint probes: 64 probes per mean pixel transit.
+    let step_days = (pixel_deg / (32.0 * SIDEREAL_DEG_PER_DAY))
+        .clamp(super::transitions::TOLERANCE, 1.0 / 1440.0);
 
     let pixel_at = |mjd: ModifiedJulianDate| -> Result<u64> {
         let time = tt_mjd_to_utc_time(mjd);
@@ -68,61 +68,7 @@ pub(crate) fn starlight_healpix_transitions(
         Ok(index.get())
     };
 
-    let duration = window.length().value();
-    if !duration.is_finite() || duration <= 0.0 {
-        return Ok(Vec::new());
-    }
-
-    let mut samples = Vec::new();
-    let mut offset = 0.0;
-    while offset < duration {
-        samples.push(window.start + Days::new(offset));
-        offset += step_days;
-        if samples.len() > MAX_TRANSITIONS {
-            return Err(NsbError::Unsupported(
-                "horizontal Starlight HEALPix partition budget exceeded".into(),
-            ));
-        }
-    }
-    samples.push(window.end);
-
-    let mut transitions = Vec::new();
-    for pair in samples.windows(2) {
-        let (left, right) = (pair[0], pair[1]);
-        let left_pix = pixel_at(left)?;
-        let right_pix = pixel_at(right)?;
-        if left_pix == right_pix {
-            continue;
-        }
-        let mut lo = left;
-        let mut hi = right;
-        let lo_pix = left_pix;
-        while (hi - lo).value() > TRANSITION_TOLERANCE_DAYS {
-            let mid = lo + Days::new((hi - lo).value() * 0.5);
-            if mid == lo || mid == hi {
-                break;
-            }
-            let mid_pix = pixel_at(mid)?;
-            if mid_pix == lo_pix {
-                lo = mid;
-            } else {
-                hi = mid;
-            }
-        }
-        // Record the first instant where the pixel differs from the left sample.
-        let cut = if pixel_at(hi)? != left_pix { hi } else { lo };
-        if window.start < cut && cut < window.end {
-            transitions.push(cut);
-        }
-        if transitions.len() > MAX_TRANSITIONS {
-            return Err(NsbError::Unsupported(
-                "horizontal Starlight HEALPix partition budget exceeded".into(),
-            ));
-        }
-    }
-    transitions.sort_by(|a, b| a.partial_cmp(b).expect("finite TT instants"));
-    transitions.dedup();
-    Ok(transitions)
+    super::transitions::discover(windows, step_days, pixel_at)
 }
 
 #[cfg(test)]
@@ -153,7 +99,7 @@ mod tests {
             &evaluator,
             ROQUE_DE_LOS_MUCHACHOS.geodetic(),
             TargetDirection::equatorial(Target::new(83.633 * DEG, 22.014 * DEG)),
-            tt_window("2024-06-18T22:00:00Z", "2024-06-19T04:00:00Z"),
+            &[tt_window("2024-06-18T22:00:00Z", "2024-06-19T04:00:00Z")],
         )
         .unwrap();
         assert!(cuts.is_empty());
@@ -173,7 +119,7 @@ mod tests {
             &evaluator,
             ROQUE_DE_LOS_MUCHACHOS.geodetic(),
             horizontal,
-            zero,
+            &[zero],
         )
         .unwrap()
         .is_empty());
@@ -182,7 +128,7 @@ mod tests {
             &evaluator,
             ROQUE_DE_LOS_MUCHACHOS.geodetic(),
             horizontal,
-            inverted,
+            &[inverted],
         )
         .unwrap()
         .is_empty());
@@ -198,12 +144,120 @@ mod tests {
             &evaluator,
             ROQUE_DE_LOS_MUCHACHOS.geodetic(),
             TargetDirection::horizontal(HorizontalTarget::new(55.0 * DEG, 120.0 * DEG)),
-            tt_window("2024-06-18T22:00:00Z", "2024-06-19T06:00:00Z"),
+            &[tt_window("2024-06-18T22:00:00Z", "2024-06-19T06:00:00Z")],
         )
         .unwrap();
         assert!(
             !cuts.is_empty(),
             "fixed Alt/Az over eight hours should cross HEALPix pixels"
         );
+    }
+    #[test]
+    fn dense_reference_pixel_transitions() {
+        use siderust::catalogs::observatories::EL_PARANAL;
+        use siderust::healpix::{HealpixGrid, Nside};
+        let grid = HealpixGrid::ring(Nside::new(128).unwrap()).unwrap();
+        let base_window = tt_window("2024-06-18T22:00:00Z", "2024-06-19T02:00:00Z");
+        let mut short_visits = 0;
+        for (observer, alt, az) in [
+            (ROQUE_DE_LOS_MUCHACHOS.geodetic(), 55.0, 120.0),
+            (EL_PARANAL.geodetic(), 30.0, 45.0),
+            (ROQUE_DE_LOS_MUCHACHOS.geodetic(), 70.0, 270.0),
+        ] {
+            let window = if alt == 55.0 {
+                TimePeriod::new(base_window.start, base_window.start + Days::new(0.25))
+            } else {
+                base_window
+            };
+            let target = TargetDirection::from(HorizontalTarget::new(alt * DEG, az * DEG));
+            let pixel = |t| {
+                let eq = target.resolve(observer, tt_mjd_to_utc_time(t)).unwrap();
+                let gal: siderust::coordinates::spherical::direction::Galactic = eq.to_frame();
+                grid.direction_to_pixel(gal.to_cartesian()).unwrap().get()
+            };
+            let cuts = healpix_transitions(grid, observer, target, &[window]).unwrap();
+            let mut reference = Vec::new();
+            let mut last = pixel(window.start);
+            // Independent uniform 0.25 s scan, without discovery or refinement.
+            for i in 1..=(window.length().value() * 86400.0 / 0.25).round() as usize {
+                let t = window.start + Days::new(i as f64 * 0.25 / 86400.0);
+                let next = pixel(t);
+                if next != last {
+                    reference.push(t);
+                    last = next;
+                }
+            }
+            assert_eq!(cuts.len(), reference.len(), "alt={alt}, az={az}");
+            if alt == 55.0 {
+                assert_eq!(reference.len(), 241, "frozen six-hour NSIDE128 regression");
+            }
+            for (cut, witness) in cuts.iter().zip(&reference) {
+                assert!((*witness - *cut).value().abs() * 86400.0 <= 0.251);
+            }
+            short_visits += reference
+                .windows(2)
+                .filter(|p| (p[1] - p[0]).value() * 86400.0 < 27.4)
+                .count();
+            // Force two near-vertex transitions inside one old 27.4 s
+            // discovery bracket. A single binary search can return only one.
+            if let Some(pair) = reference
+                .windows(2)
+                .find(|p| (p[1] - p[0]).value() * 86400.0 < 20.0)
+            {
+                let center = pair[0] + Days::new((pair[1] - pair[0]).value() * 0.5);
+                let bracket = TimePeriod::new(
+                    center - Days::new(13.7 / 86400.0),
+                    center + Days::new(13.7 / 86400.0),
+                );
+                let local = healpix_transitions(grid, observer, target, &[bracket]).unwrap();
+                assert!(
+                    local.len() >= 2,
+                    "multiple transitions inside old coarse interval"
+                );
+            }
+            // Splitting at a transition (stream boundary) cannot drop it.
+            let split = cuts[cuts.len() / 2];
+            let split_cuts = healpix_transitions(
+                grid,
+                observer,
+                target,
+                &[
+                    TimePeriod::new(window.start, split),
+                    TimePeriod::new(split, window.end),
+                ],
+            )
+            .unwrap();
+            assert_eq!(split_cuts.len(), cuts.len());
+            for (a, b) in split_cuts.iter().zip(cuts.iter()) {
+                assert!((*a - *b).value().abs() * 86400.0 <= 0.001);
+            }
+        }
+        assert!(
+            short_visits > 0,
+            "fixtures must exercise near-vertex short transits"
+        );
+    }
+
+    #[test]
+    fn long_and_disjoint_windows_stream_without_sample_budget_rejection() {
+        use siderust::healpix::{HealpixGrid, Nside};
+        let grid = HealpixGrid::ring(Nside::new(128).unwrap()).unwrap();
+        let window = tt_window("2024-06-18T22:00:00Z", "2024-06-28T22:00:00Z");
+        let observer = ROQUE_DE_LOS_MUCHACHOS.geodetic();
+        let target = TargetDirection::from(HorizontalTarget::new(55.0 * DEG, 120.0 * DEG));
+        let cuts = healpix_transitions(grid, observer, target, &[window]).unwrap();
+        assert!(cuts.len() > 1000);
+        let windows = [
+            TimePeriod::new(window.start, window.start + Days::new(0.1)),
+            TimePeriod::new(window.end - Days::new(0.1), window.end),
+        ];
+        let selected = healpix_transitions(grid, observer, target, &windows).unwrap();
+        assert!(!selected.is_empty());
+        assert!(selected
+            .iter()
+            .all(|t| windows.iter().any(|w| w.start <= *t && *t <= w.end)));
+        assert!(healpix_transitions(grid, observer, target, &[])
+            .unwrap()
+            .is_empty());
     }
 }
