@@ -27,7 +27,6 @@ from datetime import timezone
 from pathlib import Path
 
 import numpy as np
-from siderust.direction import ICRS
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACT = ROOT / "docs/validation/artifacts/matched-starlight-nsb2-v1.json"
@@ -441,6 +440,7 @@ def population_audit(offline: bool) -> dict:
 
 def nsb_toa_starlight(ra_deg: float, dec_deg: float) -> float:
     import siderust
+    from siderust.direction import ICRS
     from astropy.time import Time
 
     import nsb
