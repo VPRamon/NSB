@@ -2,8 +2,8 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 //! Native horizontal (Alt/Az) target semantics across point and planning APIs.
 //!
-//! Equivalence tests convert Horizontal → EquatorialMeanJ2000 independently of
-//! [`nsb::TargetDirection::resolve`] and compare component radiances. Planning
+//! Equivalence tests check API wiring through the same upstream transform;
+//! they are not independent scientific validation of Siderust. Planning
 //! tests assert that a once-converted ICRS footprint does not reproduce the
 //! time-dependent horizontal search.
 
@@ -27,11 +27,30 @@ fn utc(s: &str) -> Time<UTC> {
 }
 
 fn evaluator() -> NsbEvaluator {
-    NsbEvaluator::with_config(NsbModelConfig::generic_clear_sky()).unwrap()
+    use nsb::components::starlight::{StarlightMap, StarlightProvenance};
+    let provenance = StarlightProvenance::new(
+        "synthetic horizontal regression",
+        "fixture",
+        "2026-06-21",
+        "synthetic",
+        "test-only",
+        "test-only",
+        "integrated 300-650 nm photon radiance",
+        "HEALPix nside=1 ring 12 pixels",
+        None::<String>,
+    );
+    let map =
+        StarlightMap::from_csv_str(include_str!("data/starlight_fixture_map.csv"), provenance)
+            .unwrap();
+    NsbEvaluator::with_config(
+        NsbModelConfig::generic_clear_sky()
+            .with_starlight_product(nsb::StarlightProduct::with_experimental_map(map)),
+    )
+    .unwrap()
 }
 
-/// Independent Horizontal → EquatorialMeanJ2000 path for test oracles.
-fn independent_horizontal_to_mean_j2000(
+/// Direct upstream conversion for API consistency, not an independent frame oracle.
+fn upstream_horizontal_to_mean_j2000(
     horizontal: HorizontalTarget,
     observer: nsb::Observer,
     time: Time<UTC>,
@@ -44,12 +63,12 @@ fn independent_horizontal_to_mean_j2000(
 }
 
 #[test]
-fn point_horizontal_matches_independently_converted_equatorial() {
+fn point_horizontal_matches_upstream_converted_equatorial() {
     let evaluator = evaluator();
     let observer = ROQUE_DE_LOS_MUCHACHOS.geodetic();
     let time = utc("2024-03-20T03:30:00Z");
     let horizontal = HorizontalTarget::new(55.0 * DEG, 140.0 * DEG);
-    let independent = independent_horizontal_to_mean_j2000(horizontal, observer, time);
+    let independent = upstream_horizontal_to_mean_j2000(horizontal, observer, time);
 
     let via_api = evaluator
         .evaluate(&PointQuery::new(observer, time, horizontal))
@@ -78,7 +97,7 @@ fn point_horizontal_matches_per_component_masks() {
     let observer = EL_PARANAL.geodetic();
     let time = utc("2023-09-04T01:48:00Z");
     let horizontal = HorizontalTarget::new(70.0 * DEG, 45.0 * DEG);
-    let independent = independent_horizontal_to_mean_j2000(horizontal, observer, time);
+    let independent = upstream_horizontal_to_mean_j2000(horizontal, observer, time);
 
     for mask in [
         ComponentMask::ZODIACAL,
@@ -87,12 +106,9 @@ fn point_horizontal_matches_per_component_masks() {
         ComponentMask::STARLIGHT,
         ComponentMask::ZODIACAL | ComponentMask::STARLIGHT,
     ] {
-        let Ok(via_api) =
-            evaluator.evaluate(&PointQuery::new(observer, time, horizontal).with_components(mask))
-        else {
-            // Starlight may be unavailable without a bundled map in some builds.
-            continue;
-        };
+        let via_api = evaluator
+            .evaluate(&PointQuery::new(observer, time, horizontal).with_components(mask))
+            .unwrap();
         let via_eq = evaluator
             .evaluate(&PointQuery::new(observer, time, independent).with_components(mask))
             .unwrap();
@@ -125,13 +141,26 @@ fn planning_once_converted_icrs_diverges_from_native_horizontal() {
     let horizontal = HorizontalTarget::new(60.0 * DEG, 130.0 * DEG);
 
     // Snapshot conversion at window start — the incorrect “convert once” pattern.
-    let frozen = independent_horizontal_to_mean_j2000(horizontal, observer, start);
+    let frozen = upstream_horizontal_to_mean_j2000(horizontal, observer, start);
 
     // Zodiacal alone: moving ecliptic longitude vs fixed. Avoid stacking
     // Starlight HEALPix jumps into this equivalence probe.
     let components = ComponentMask::ZODIACAL;
-    let threshold =
-        nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(10.0);
+    // Mid-window radiances must differ for fixed Alt/Az vs once-converted ICRS.
+    let mid = utc("2024-06-19T01:00:00Z");
+    let native_mid = evaluator
+        .evaluate(&PointQuery::new(observer, mid, horizontal).with_components(components))
+        .unwrap()
+        .integrated
+        .value();
+    let frozen_mid = evaluator
+        .evaluate(&PointQuery::new(observer, mid, frozen).with_components(components))
+        .unwrap()
+        .integrated
+        .value();
+    let threshold = nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(
+        (native_mid + frozen_mid) * 0.5,
+    );
 
     let native = ThresholdQuery::new(observer, horizontal, Period::new(start, end), threshold)
         .with_components(components)
@@ -148,29 +177,15 @@ fn planning_once_converted_icrs_diverges_from_native_horizontal() {
         .unwrap()
         .periods;
 
-    // Mid-window radiances must differ for fixed Alt/Az vs once-converted ICRS.
-    let mid = utc("2024-06-19T01:00:00Z");
-    let native_mid = evaluator
-        .evaluate(&PointQuery::new(observer, mid, horizontal).with_components(components))
-        .unwrap()
-        .integrated
-        .value();
-    let frozen_mid = evaluator
-        .evaluate(&PointQuery::new(observer, mid, frozen).with_components(components))
-        .unwrap()
-        .integrated
-        .value();
     assert!(
         (native_mid - frozen_mid).abs() > 1e-6,
         "mid-window radiance must differ for fixed Alt/Az vs once-converted ICRS; native={native_mid} frozen={frozen_mid}"
     );
 
-    // Planning results may also differ; at minimum the radiance path above
-    // proves convert-once is scientifically wrong for interval planning.
-    assert!(
-        native_periods != frozen_periods || (native_mid - frozen_mid).abs() > 1e-6,
-        "native and once-converted planning must not be scientifically identical"
-    );
+    assert_ne!(native_periods, frozen_periods);
+    let includes_mid =
+        |periods: &[Period<UTC>]| periods.iter().any(|p| p.start <= mid && mid <= p.end);
+    assert_ne!(includes_mid(&native_periods), includes_mid(&frozen_periods));
 }
 
 #[test]
@@ -247,10 +262,7 @@ fn adaptive_horizontal_starlight_evaluates_without_constant_cache() {
     .with_sun_altitude_ceiling(None)
     .with_target_altitude_floor(None);
 
-    let Ok(result) = evaluator.periods_below_threshold(&query) else {
-        // Bundled Starlight may be unavailable in some isolated fixture builds.
-        return;
-    };
+    let result = evaluator.periods_below_threshold(&query).unwrap();
     // High threshold: expect at least one admissible period when Starlight alone
     // is evaluated for a visible fixed Alt/Az pointing.
     assert!(
@@ -273,7 +285,7 @@ fn adaptive_horizontal_starlight_evaluates_without_constant_cache() {
         .integrated
         .value();
     assert!(
-        (early - late).abs() > 0.0 || early > 0.0,
+        (early - late).abs() > 0.0,
         "horizontal Starlight must be evaluable across the window; early={early} late={late}"
     );
 }
@@ -291,7 +303,7 @@ fn azimuth_wrap_and_cardinal_conventions() {
         );
     }
     let wrapped = HorizontalTarget::new(45.0 * DEG, 370.0 * DEG);
-    assert!((wrapped.az().value() - 10.0).abs() < 1e-9 || wrapped.az().value() >= 0.0);
+    assert!((wrapped.az().value() - 10.0).abs() < 1e-9);
 }
 
 #[test]
@@ -308,4 +320,149 @@ fn round_trip_horizontal_equatorial_horizontal() {
     assert!((recovered.alt().value() - original.alt().value()).abs() < 1e-6);
     let az_err = (recovered.az().value() - original.az().value() + 180.0).rem_euclid(360.0) - 180.0;
     assert!(az_err.abs() < 1e-6);
+}
+
+#[test]
+fn dynamic_starlight_planning_matches_instantaneous_threshold_scan() {
+    let evaluator = evaluator();
+    let observer = ROQUE_DE_LOS_MUCHACHOS.geodetic();
+    let start = utc("2024-06-18T22:00:00Z");
+    let end = start + siderust::qtty::Seconds::new(86400.0);
+    let horizontal = HorizontalTarget::new(55.0 * DEG, 120.0 * DEG);
+    let query = ThresholdQuery::new(
+        observer,
+        horizontal,
+        Period::new(start, end),
+        nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(3.0),
+    )
+    .with_components(ComponentMask::STARLIGHT)
+    .with_sun_altitude_ceiling(None)
+    .with_target_altitude_floor(None);
+    let periods = evaluator.periods_below_threshold(&query).unwrap().periods;
+    assert!(!periods.is_empty());
+    assert!(periods.iter().any(|p| p.start > start || p.end < end));
+    let mut states = [false; 2];
+    for second in (1..86400).step_by(10) {
+        let time = start + siderust::qtty::Seconds::new(second as f64);
+        let value = evaluator
+            .evaluate(
+                &PointQuery::new(observer, time, horizontal)
+                    .with_components(ComponentMask::STARLIGHT),
+            )
+            .unwrap()
+            .integrated
+            .value();
+        let below = value < 3.0;
+        states[usize::from(below)] = true;
+        let inside = periods.iter().any(|p| p.start <= time && time <= p.end);
+        assert_eq!(inside, below, "instantaneous mismatch at second {second}");
+    }
+    assert!(states.into_iter().all(|s| s));
+}
+
+#[test]
+fn long_ineligible_horizontal_search_returns_empty() {
+    let evaluator = evaluator();
+    let start = utc("2024-06-18T22:00:00Z");
+    let query = ThresholdQuery::new(
+        ROQUE_DE_LOS_MUCHACHOS.geodetic(),
+        HorizontalTarget::new(-5.0 * DEG, 120.0 * DEG),
+        Period::new(start, start + siderust::qtty::Days::new(30.0)),
+        nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(3.0),
+    )
+    .with_components(ComponentMask::STARLIGHT)
+    .with_sun_altitude_ceiling(None);
+    assert!(evaluator
+        .periods_below_threshold(&query)
+        .unwrap()
+        .periods
+        .is_empty());
+}
+
+#[test]
+fn horizontal_zodiacal_special_regimes_match_fine_instantaneous_scan() {
+    use siderust::coordinates::frames::{EclipticMeanJ2000, EquatorialMeanJ2000};
+    use siderust::coordinates::transform::TransformFrame;
+    use siderust::qtty::Seconds;
+    let evaluator = evaluator();
+    let observer = ROQUE_DE_LOS_MUCHACHOS.geodetic();
+    let mid = utc("2024-06-19T12:00:00Z");
+    let jd = mid.to::<TT>().to::<JD>();
+    let sun = siderust::bodies::Sun::ecliptic_longitude_geocentric(jd)
+        .value()
+        .to_degrees();
+    for (beta, delta) in [
+        (5.0, 20.0),
+        (-17.0, 25.0),
+        (24.0, 20.0),
+        (20.0, 24.0),
+        (0.0, 90.0),
+        (-5.0, 180.0),
+    ] {
+        let eq: SphericalDirection<EquatorialMeanJ2000> = TransformFrame::to_frame(
+            &SphericalDirection::<EclipticMeanJ2000>::new((sun + delta) * DEG, beta * DEG),
+        );
+        let tod: SphericalDirection<EquatorialTrueOfDate> =
+            SphericalDirectionAstroExt::to_frame(&eq, &jd);
+        let horizontal = tod.to_horizontal(&jd, &observer);
+        // No altitude filter: some solar-corner directions are below the
+        // horizon. Their physical zero is tested as well as visible regimes.
+        let start = mid - Seconds::new(3600.0);
+        let end = mid + Seconds::new(3600.0);
+        let instantaneous = |time| {
+            evaluator
+                .evaluate(
+                    &PointQuery::new(observer, time, horizontal)
+                        .with_components(ComponentMask::ZODIACAL),
+                )
+                .unwrap()
+                .integrated
+                .value()
+        };
+        let mut values: Vec<_> = (0..=240)
+            .map(|i| instantaneous(start + Seconds::new(i as f64 * 30.0)))
+            .collect();
+        values.sort_by(f64::total_cmp);
+        if delta < 90.0 {
+            assert!(
+                values[values.len() - 1] > values[0] && values[0] > 0.0,
+                "special-regime fixture must exercise a varying visible source"
+            );
+        }
+        let threshold = (values[0] + values[values.len() - 1]) * 0.5;
+        let query = ThresholdQuery::new(
+            observer,
+            horizontal,
+            Period::new(start, end),
+            nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(threshold),
+        )
+        .with_components(ComponentMask::ZODIACAL)
+        .with_sun_altitude_ceiling(None)
+        .with_target_altitude_floor(None);
+        let periods = evaluator
+            .periods_below_threshold(&query)
+            .unwrap_or_else(|e| panic!("beta={beta}, delta={delta}: {e}"))
+            .periods;
+        for i in 0..1440 {
+            let time = start + Seconds::new(i as f64 * 5.0 + 2.5);
+            let below = instantaneous(time) <= threshold;
+            let found = periods.iter().any(|p| p.start <= time && time <= p.end);
+            // Native periods contract inward. Compare away from documented
+            // subsecond endpoint tolerance; the 5 s scan keeps its own phase.
+            let near_edge = periods.iter().any(|p| {
+                [p.start, p.end].iter().any(|&edge| {
+                    (time.to::<TT>().to::<JD>() - edge.to::<TT>().to::<JD>())
+                        .value()
+                        .abs()
+                        * 86400.0
+                        < 1.0
+                })
+            });
+            assert!(
+                near_edge || found == below,
+                "beta={beta}, delta={delta}, sample={i}, value={}, threshold={threshold}",
+                instantaneous(time)
+            );
+        }
+    }
 }
