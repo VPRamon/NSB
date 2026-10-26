@@ -8,6 +8,11 @@ Non-goals: Telescope/camera response (#189), Diffuse Galactic Light (#188),
 full multiple-scattering RT, or silent replacement of validated component
 paths.
 
+Current opt-in extensions reuse this foundation: [native-bin evaluator workflow](../validation/spectral-starlight-evaluator-304.md),
+[HEALPix first order](../validation/starlight-transport-267.md) and
+[accepted projected multiple scattering](../validation/gaia-xp-factorized.md).
+The foundation-era limitations below are historical; ordinary evaluator defaults remain unchanged.
+
 ## Pipeline
 
 ```text

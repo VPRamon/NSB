@@ -794,6 +794,36 @@ pub nsb::NsbError::InvalidMap::message: alloc::string::String
 pub nsb::NsbError::Io(core::io::error::Error)
 pub nsb::NsbError::OutOfRange(alloc::string::String)
 pub nsb::NsbError::Unsupported(alloc::string::String)
+#[non_exhaustive] pub enum nsb::SpectralStarlightMode<'a>
+pub nsb::SpectralStarlightMode::Direct
+pub nsb::SpectralStarlightMode::Direct::assumption: nsb::transport::single::starlight::WithinBinSpectrum
+pub nsb::SpectralStarlightMode::Direct::atmosphere: &'a siderust::atmosphere::layered::LayeredAtmosphere
+pub nsb::SpectralStarlightMode::Direct::wavelength: nsb::transport::single::starlight::WavelengthSettings
+pub nsb::SpectralStarlightMode::Identity
+pub nsb::SpectralStarlightMode::Multiple
+pub nsb::SpectralStarlightMode::Multiple::assumption: nsb::transport::single::starlight::WithinBinSpectrum
+pub nsb::SpectralStarlightMode::Multiple::atmosphere: &'a siderust::atmosphere::layered::LayeredAtmosphere
+pub nsb::SpectralStarlightMode::Multiple::phase: &'a nsb::transport::single::AerosolPhase
+pub nsb::SpectralStarlightMode::Multiple::settings: nsb::transport::multiple::starlight::ProjectedSettings
+pub nsb::SpectralStarlightMode::Single
+pub nsb::SpectralStarlightMode::Single::angular: nsb::transport::single::starlight::HealpixSettings
+pub nsb::SpectralStarlightMode::Single::assumption: nsb::transport::single::starlight::WithinBinSpectrum
+pub nsb::SpectralStarlightMode::Single::atmosphere: &'a siderust::atmosphere::layered::LayeredAtmosphere
+pub nsb::SpectralStarlightMode::Single::phase: &'a nsb::transport::single::AerosolPhase
+pub nsb::SpectralStarlightMode::Single::wavelength: nsb::transport::single::starlight::WavelengthSettings
+#[non_exhaustive] pub enum nsb::SpectralStarlightResult
+pub nsb::SpectralStarlightResult::Direct(alloc::boxed::Box<nsb::StarlightDirect>)
+pub nsb::SpectralStarlightResult::Identity(nsb::StarlightIncident)
+pub nsb::SpectralStarlightResult::Multiple(alloc::boxed::Box<nsb::transport::multiple::starlight::ProjectedStarlightMultipleScattering>)
+pub nsb::SpectralStarlightResult::Single(alloc::boxed::Box<nsb::transport::single::starlight::StarlightTransport>)
+impl nsb::SpectralStarlightResult
+pub fn nsb::SpectralStarlightResult::direct(&self) -> core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>
+pub fn nsb::SpectralStarlightResult::ground_total(&self) -> core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>
+pub fn nsb::SpectralStarlightResult::higher_orders(&self) -> core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>
+pub fn nsb::SpectralStarlightResult::single(&self) -> core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>
+pub fn nsb::SpectralStarlightResult::toa(&self) -> qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub fn nsb::SpectralStarlightResult::total_scattered(&self) -> core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>
+pub fn nsb::SpectralStarlightResult::uncertainty(&self) -> core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>
 #[non_exhaustive] pub enum nsb::StarlightProduct
 pub nsb::StarlightProduct::BundledProductionGaiaDr3
 pub nsb::StarlightProduct::ExperimentalMap(alloc::sync::Arc<nsb::components::starlight::StarlightMap>)
@@ -942,6 +972,8 @@ pub fn nsb::NsbEvaluator::evaluate(&self, query: &nsb::PointQuery) -> nsb::Resul
 pub fn nsb::NsbEvaluator::new() -> nsb::Result<Self>
 pub fn nsb::NsbEvaluator::with_config(config: nsb::NsbModelConfig) -> nsb::Result<Self>
 impl nsb::NsbEvaluator
+pub fn nsb::NsbEvaluator::evaluate_spectral_starlight(&self, geometry: nsb::transport::single::starlight::StarlightGeometry, view: siderust::coordinates::spherical::direction::Horizontal, band: [qtty_core::units::length::Nanometers; 2], mode: nsb::SpectralStarlightMode<'_>) -> nsb::Result<nsb::SpectralStarlightResult>
+impl nsb::NsbEvaluator
 pub fn nsb::NsbEvaluator::integrate_band(&self, query: &nsb::PointQuery, lower: qtty_core::units::length::Nanometers, upper: qtty_core::units::length::Nanometers) -> nsb::Result<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>
 pub fn nsb::NsbEvaluator::integrate_band_components(&self, query: &nsb::PointQuery, lower: qtty_core::units::length::Nanometers, upper: qtty_core::units::length::Nanometers) -> nsb::Result<nsb::RestrictedBandResult>
 impl nsb::NsbEvaluator
@@ -1029,6 +1061,21 @@ impl qtty_core::unit::Unit for nsb::SolarFluxUnit
 pub type nsb::SolarFluxUnit::Dim = qtty_core::dimension::Dim<typenum::int::Z0, typenum::int::Z0, typenum::int::Z0, typenum::int::Z0, typenum::int::Z0, typenum::int::Z0, typenum::int::Z0, typenum::int::Z0>
 pub const nsb::SolarFluxUnit::RATIO: f64
 pub const nsb::SolarFluxUnit::SYMBOL: &'static str
+#[non_exhaustive] pub struct nsb::StarlightDirect
+pub nsb::StarlightDirect::assumption: nsb::transport::single::starlight::WithinBinSpectrum
+pub nsb::StarlightDirect::atmosphere: siderust::atmosphere::layered::LayeredAtmosphere
+pub nsb::StarlightDirect::direct: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::StarlightDirect::incident: nsb::StarlightIncident
+pub nsb::StarlightDirect::planned_work: usize
+pub nsb::StarlightDirect::wavelength_change: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::StarlightDirect::wavelength_order: usize
+pub nsb::StarlightDirect::wavelength_settings: nsb::transport::single::starlight::WavelengthSettings
+#[non_exhaustive] pub struct nsb::StarlightIncident
+pub nsb::StarlightIncident::band: [qtty_core::units::length::Nanometers; 2]
+pub nsb::StarlightIncident::geometry: nsb::transport::single::starlight::StarlightGeometry
+pub nsb::StarlightIncident::source: alloc::sync::Arc<nsb::components::starlight::StarlightMap>
+pub nsb::StarlightIncident::toa: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::StarlightIncident::view: siderust::coordinates::spherical::direction::Horizontal
 #[non_exhaustive] pub struct nsb::ThresholdQuery
 pub nsb::ThresholdQuery::components: nsb::ComponentMask
 pub nsb::ThresholdQuery::observer: nsb::Observer

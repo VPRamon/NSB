@@ -23,11 +23,12 @@
 //! Propagation always requires a `RadianceOrigin` so celestial direct
 //! transmission cannot be applied to airglow or pre-scattered moonlight.
 //!
-//! # Not part of the supported public API yet
+//! # Experimental opt-in native-bin capability
 //!
-//! The opt-in [`single`](crate::transport::single) reference computes direct and first-order scattering.
-//! It is experimental and does not change evaluator defaults. HEALPix sampling
-//! and LUT solvers remain future work.
+//! [`crate::NsbEvaluator::evaluate_spectral_starlight`] composes checksum-verified
+//! native bins with direct, HEALPix first-order or projected multiple transport.
+//! [`single`](crate::transport::single) and [`multiple`](crate::transport::multiple) retain their existing public solvers and guards.
+//! These capabilities do not change evaluator defaults or scientific admission.
 //!
 //! # Ownership
 //!

@@ -98,6 +98,10 @@ pub use components::moonlight::MoonlightModel;
 pub use components::starlight::{DirectStarlightBounds, StarlightProduct};
 pub use components::zodiacal::{ZodiacalExtinction, ZodiacalModel};
 pub use error::{NsbError, Result};
+pub use evaluator::SpectralStarlightMode;
+pub use evaluator::SpectralStarlightResult;
+pub use evaluator::StarlightDirect;
+pub use evaluator::StarlightIncident;
 pub use evaluator::{
     BandDiagnostic, CalibrationStatus as ComponentCalibrationStatus, ComponentMask, NsbComponent,
     NsbComponentDescriptor, NsbComponentMetadata, NsbEvaluator, NsbModelConfig, NsbResult,

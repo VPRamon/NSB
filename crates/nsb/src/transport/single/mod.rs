@@ -269,6 +269,20 @@ pub(in crate::transport) fn direct_illumination(
     wavelength: Nanometers,
     view: Horizontal,
 ) -> Result<(f64, SkyCoverage)> {
+    let result = transmitted_illumination(atmosphere, sky, wavelength, view)?;
+    // Validate phase coverage even in vacuum or an absorbing medium.
+    phase.density(wavelength, Radians::new(0.0))?;
+    phase.density(wavelength, Radians::new(PI))?;
+    Ok(result)
+}
+
+// Shared direct operator: no phase or angular solver is needed for transmission.
+fn transmitted_illumination(
+    atmosphere: &LayeredAtmosphere,
+    sky: &impl IncidentSky,
+    wavelength: Nanometers,
+    view: Horizontal,
+) -> Result<(f64, SkyCoverage)> {
     let coverage = sky.coverage();
     let [lo, hi] = coverage.wavelengths.map(|v| v.value());
     let w = wavelength.value();
@@ -303,9 +317,6 @@ pub(in crate::transport) fn direct_illumination(
             "source must declare spectral coverage and the complete visible hemisphere",
         ));
     }
-    // Validate table spectral coverage even in vacuum or an absorbing medium.
-    phase.density(wavelength, Radians::new(0.0))?;
-    phase.density(wavelength, Radians::new(PI))?;
     let edges = atmosphere.edges();
     let tau = atmosphere
         .vertical_optical_depth(wavelength, edges[0], edges[edges.len() - 1])

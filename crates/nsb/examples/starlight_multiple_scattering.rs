@@ -13,10 +13,14 @@ use nsb::transport::single::AerosolPhase;
 use nsb::units::qtty::{
     Albedos, Degrees, Hectopascals, Meters, Nanometers, OpticalDepths, Quantity,
 };
-use nsb::Observer;
+use nsb::{
+    NsbEvaluator, NsbModelConfig, Observer, SpectralStarlightMode, SpectralStarlightResult,
+    StarlightProduct,
+};
 use siderust::atmosphere::{AtmosphereProfile, AtmosphericOptics, LayeredAtmosphere, MieParams};
 use siderust::coordinates::spherical::direction::Horizontal;
 use siderust::optica::phase::HenyeyGreensteinPhaseFunction;
+use std::sync::Arc;
 use tempoch::JulianDate;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -30,6 +34,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
     let projected = flag("--projected");
+    let through_evaluator = flag("--evaluator");
+    if through_evaluator && !projected {
+        return Err("--evaluator requires --projected".into());
+    }
     let reference_settings = flag("--reference-settings");
     let reference_input = flag("--reference-input");
     let pilot_centers = flag("--pilot-bin-centers");
@@ -76,6 +84,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     } else {
         return Err("usage: starlight_multiple_scattering [FROZEN_MAP JD_TT JD_UT1]".into());
+    };
+    let map = Arc::new(map);
+    let evaluator = if through_evaluator {
+        Some(NsbEvaluator::with_config(
+            NsbModelConfig::generic_clear_sky().with_starlight_product(
+                StarlightProduct::with_shared_experimental_map(Arc::clone(&map)),
+            ),
+        )?)
+    } else {
+        None
     };
     let geometry = StarlightGeometry {
         observer: Observer::new(
@@ -220,13 +238,69 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             eprintln!("NSB_WORKSPACE_BEGIN");
         }
         let result = if projected {
-            projected_starlight_multiple_scattering(&column,&phase,&sky,view,ProjectedSettings {
-                solver: if reference_settings {MultipleScatteringSettings {mu_nodes:4,azimuth_nodes:4,cells_per_layer:2,max_orders:8,angular_tolerance:0.05,vertical_tolerance:0.05,..MultipleScatteringSettings::default()}}
-                    else {MultipleScatteringSettings { mu_nodes,azimuth_nodes:32,cells_per_layer:cells,max_orders,
-                    angular_tolerance:0.01,vertical_tolerance:0.01,order_tolerance:1e-6,..MultipleScatteringSettings::default() }},
-                boundary:HealpixSettings {subdivision:if frozen {1} else if reference_settings {8} else {32},refinements:if reference_settings {4} else {2},..HealpixSettings::default()},
-                wavelength:WavelengthSettings {nodes:if reference_settings {2} else {4},refinements:1,..WavelengthSettings::default()},kernel_mu,kernel_azimuth,
-            }).map(|r| { projection_info=serde_json::json!({"kernel_grid":r.kernel_grid,"workspace_bound_bytes":r.workspace_bytes,
+            let settings = ProjectedSettings {
+                solver: if reference_settings {
+                    MultipleScatteringSettings {
+                        mu_nodes: 4,
+                        azimuth_nodes: 4,
+                        cells_per_layer: 2,
+                        max_orders: 8,
+                        angular_tolerance: 0.05,
+                        vertical_tolerance: 0.05,
+                        ..MultipleScatteringSettings::default()
+                    }
+                } else {
+                    MultipleScatteringSettings {
+                        mu_nodes,
+                        azimuth_nodes: 32,
+                        cells_per_layer: cells,
+                        max_orders,
+                        angular_tolerance: 0.01,
+                        vertical_tolerance: 0.01,
+                        order_tolerance: 1e-6,
+                        ..MultipleScatteringSettings::default()
+                    }
+                },
+                boundary: HealpixSettings {
+                    subdivision: if frozen {
+                        1
+                    } else if reference_settings {
+                        8
+                    } else {
+                        32
+                    },
+                    refinements: if reference_settings { 4 } else { 2 },
+                    ..HealpixSettings::default()
+                },
+                wavelength: WavelengthSettings {
+                    nodes: if reference_settings { 2 } else { 4 },
+                    refinements: 1,
+                    ..WavelengthSettings::default()
+                },
+                kernel_mu,
+                kernel_azimuth,
+            };
+            let result = if let Some(evaluator) = &evaluator {
+                evaluator
+                    .evaluate_spectral_starlight(
+                        geometry,
+                        view,
+                        band,
+                        SpectralStarlightMode::Multiple {
+                            atmosphere: &column,
+                            phase: &phase,
+                            assumption: WithinBinSpectrum::FlatPhotonDensity,
+                            settings,
+                        },
+                    )
+                    .map(|r| match r {
+                        SpectralStarlightResult::Multiple(r) => *r,
+                        _ => unreachable!("explicit multiple mode"),
+                    })
+            } else {
+                projected_starlight_multiple_scattering(&column, &phase, &sky, view, settings)
+            };
+            result.map(|r| { projection_info=serde_json::json!({"kernel_grid":r.kernel_grid,"workspace_bound_bytes":r.workspace_bytes,
                 "kernel_changes":r.kernel_changes.iter().map(|x|x.map(|v|v.map(|q|q.value()))).collect::<Vec<_>>()}); r.transport })
         } else {
             starlight_multiple_scattering(
@@ -260,6 +334,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut record = serde_json::json!({
             "schema": "nsb-multiple-scattering-example-v1",
             "source_sha256": map.sha256(),
+            "evaluator_path": through_evaluator,
             "partial_band_diagnostic":only_band != usize::MAX,
             "band_nm": band.map(|w| w.value()),
             "units": "photon/(cm2 ns sr)",

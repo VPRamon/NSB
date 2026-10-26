@@ -25,3 +25,8 @@ The point example demonstrates that default; broad planning windows, continuum
 calibration and continuum timing examples deliberately select `ParanalPalaceV1`.
 Custom geometry comparisons also hold the continuum model fixed. No example
 uses silent Oxygen-to-continuum fallback.
+
+`cargo run --release --locked -p nsb --example spectral_starlight_evaluator`
+runs an offline, checksum-pinned synthetic native-bin evaluator through identity,
+direct, single and projected multiple transport. See the
+[scientific contract and measurements](../../../docs/validation/spectral-starlight-evaluator-304.md).

@@ -87,3 +87,7 @@ runs, not current tools. Retrieve those inputs from the
 [pre-reset revision](https://github.com/VPRamon/NSB/tree/3b3a59ca33e1396d6cf879226efc5cb232cd315e).
 Current publication checks live in `publish.yml`; numerical validation and
 compact runtime performance remain covered by the maintained tests/benchmarks.
+
+The explicit experimental native-bin atmospheric workflow is documented in
+[the evaluator integration guide](../../validation/spectral-starlight-evaluator-304.md).
+It is separate from ordinary broadband evaluation and preserves uncomputed orders.

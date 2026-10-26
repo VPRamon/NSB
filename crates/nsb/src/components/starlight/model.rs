@@ -86,6 +86,10 @@ impl Starlight {
         ))
     }
 
+    pub(crate) fn shared_map(&self) -> Arc<StarlightMap> {
+        Arc::clone(&self.map)
+    }
+
     /// Return the backing map.
     pub(crate) fn map(&self) -> &StarlightMap {
         &self.map
