@@ -100,8 +100,8 @@ pub(crate) fn adaptive_threshold_windows(
     let mut out = Vec::new();
     for window in windows.drain(..) {
         let mut left = window.start;
-        // Coalesce with eligible endpoints too: all retained physical edges
-        // must leave resolvable interiors on both sides of the cut.
+        // Coalesce with eligible endpoints too, avoiding artificial
+        // sub-resolution intervals next to an existing eligibility edge.
         for &cut in cuts.iter().filter(|&&c| {
             (c - window.start).value() > super::transitions::TOLERANCE
                 && (window.end - c).value() > super::transitions::TOLERANCE
