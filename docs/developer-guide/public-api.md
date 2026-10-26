@@ -344,10 +344,14 @@ For the frozen public baseline, CI enforces:
 1. **Snapshot integrity** — `public-api.txt` must exist, be non-empty, and
    match the API generated from HEAD.
 2. **SemVer gate** — when a valid frozen base revision is supplied,
-   `cargo public-api diff $BASE..HEAD` runs with `--deny=removed`.
-   Snapshot equality still records additions and signature changes for review.
-   Removals remain forbidden; intentional 0.x type evolution (for example
-   `TargetDirection`) must update `public-api.txt` in the same change.
+   `cargo public-api diff $BASE..HEAD` runs with `--deny=removed --deny=changed`.
+   PR #314's four exact before/after query signatures are recorded in
+   `crates/nsb/api/target-direction-migration.json`. Only when the historical
+   snapshot still contains those old signatures does the structural diff allow
+   changes; an additional line-preservation check rejects every unrelated
+   removed or changed historical item. Updating the current snapshot cannot
+   bypass that check. Ordinary additions require no exception maintenance.
+   Comparisons whose base already includes the migration use both deny flags.
 3. **Forbidden-API guard** — deliberately excluded public implementation
    details remain absent.
 
@@ -377,3 +381,15 @@ queries and planning evaluations outside the domain return the model's explicit
 Restrict a scan or track to that domain, or choose `ParanalPalaceV1` explicitly
 for historical continuum coverage. Selection metadata still distinguishes
 Automatic from explicit Oxygen even when radiances are identical.
+
+### Horizontal query migration (PR #314)
+
+Existing `PointQuery::new(observer, time, target)` and
+`ThresholdQuery::new(observer, target, window, threshold)` calls with an
+equatorial `Target` remain source compatible through `Into<TargetDirection>`.
+The public `target` fields change type: direct assignments need
+`query.target = target.into()`, and equatorial field readers use
+`query.target.as_equatorial()`. These are intentional source-breaking changes
+for field users despite the structs being non-exhaustive. The exact exception
+records that migration; it does not authorize future changes to these fields or
+constructors. No new public signature changes are introduced by the fixes.

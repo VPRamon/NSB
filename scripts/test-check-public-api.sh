@@ -2,10 +2,12 @@
 # Focused lifecycle tests; all snapshot mutations stay in a temporary Git repo.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+python3 "$ROOT/scripts/tests/test_api_migration.py"
 FIXTURE="$(mktemp -d)"
 trap 'rm -rf "$FIXTURE"' EXIT
 mkdir -p "$FIXTURE/scripts" "$FIXTURE/crates/nsb/api" "$FIXTURE/bin"
-cp "$ROOT/scripts/check-public-api.sh" "$FIXTURE/scripts/"
+cp "$ROOT/scripts/check-public-api.sh" "$ROOT/scripts/check-api-migration.py" "$FIXTURE/scripts/"
+cp "$ROOT/crates/nsb/api/target-direction-migration.json" "$FIXTURE/crates/nsb/api/"
 printf 'pub struct nsb::Example;\n' > "$FIXTURE/crates/nsb/api/public-api.txt"
 cp "$FIXTURE/crates/nsb/api/public-api.txt" "$FIXTURE/generated"
 cd "$FIXTURE"
@@ -30,6 +32,7 @@ if [[ "$*" == 'public-api --version' ]]; then
   echo 'cargo-public-api 0.50.1'
 elif [[ "$*" == *'public-api diff'* ]]; then
   touch diff-called
+  [[ "$*" == *"--deny=changed"* ]]
   exit "${API_DIFF_STATUS:-0}"
 else
   cat generated
@@ -66,6 +69,11 @@ grep -q 'snapshot drift' result
 cp generated crates/nsb/api/public-api.txt
 API_DIFF_STATUS=1 expect_failure --base "$FROZEN"
 grep -q 'SemVer gate: cargo public-api diff' result
+# A matching snapshot cannot authorize an unrelated signature change.
+printf 'pub struct nsb::Example(u8);\n' > generated
+cp generated crates/nsb/api/public-api.txt
+expect_failure --base "$FROZEN"
+grep -q 'unapproved removed/changed public API' result
 # --write is exercised only here, within the disposable fixture.
 "$SCRIPT" --write >result
 cmp generated crates/nsb/api/public-api.txt

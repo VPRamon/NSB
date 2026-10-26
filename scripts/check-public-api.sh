@@ -26,7 +26,8 @@ TOOL_VERSION="${NSB_PUBLIC_API_TOOL_VERSION:-0.50.1}"
 SNAPSHOT="crates/nsb/api/public-api.txt"
 MARKER="crates/nsb/api/API_FROZEN"
 GENERATED="$(mktemp)"
-trap 'rm -f "$GENERATED"' EXIT
+HISTORICAL="$(mktemp)"
+trap 'rm -f "$GENERATED" "$HISTORICAL"' EXIT
 
 WRITE=0
 BASE="${NSB_PUBLIC_API_BASE:-}"
@@ -155,17 +156,25 @@ if ! git cat-file -e "${BASE_SHA}:${SNAPSHOT}" 2>/dev/null; then
   exit 1
 fi
 
-# Removals remain forbidden. Signature/type evolution is allowed in 0.x when
-# the snapshot is updated in the same change (intentional TargetDirection
-# migration). Reviewers must still treat changed items as SemVer-sensitive.
-echo "SemVer gate: cargo public-api diff ${BASE_SHA}..HEAD --deny=removed"
+# The exact four before/after substitutions are reviewed in PR #314. During
+# that historical comparison a line-preservation check rejects every unrelated
+# removal/change, including changes to the approved new signatures themselves.
+# Once the base contains the migration, cargo-public-api is fully strict again.
+git show "${BASE_SHA}:${SNAPSHOT}" >"$HISTORICAL"
+MODE="$(python3 scripts/check-api-migration.py "$HISTORICAL" "$GENERATED" \
+  crates/nsb/api/target-direction-migration.json)"
+DENY_ARGS=(--deny=removed --deny=changed)
+if [[ "$MODE" == migration ]]; then
+  DENY_ARGS=(--deny=removed)
+fi
+echo "SemVer gate: cargo public-api diff ${BASE_SHA}..HEAD ${DENY_ARGS[*]} ($MODE)"
 cargo "+${NIGHTLY}" public-api diff \
   "${BASE_SHA}..HEAD" \
   -p nsb \
   -sss \
   --no-default-features \
-  --deny=removed \
+  "${DENY_ARGS[@]}" \
   "${DIFF_CHECKOUT_ARGS[@]}" \
   --color=never
 
-echo "public API policy: frozen (snapshot + historical SemVer removals)"
+echo "public API policy: frozen (snapshot + strict historical compatibility)"

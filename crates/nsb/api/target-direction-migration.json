@@ -1,0 +1,18 @@
+[
+  {
+    "before": "pub nsb::PointQuery::target: nsb::Target",
+    "after": "pub nsb::PointQuery::target: nsb::TargetDirection"
+  },
+  {
+    "before": "pub fn nsb::PointQuery::new(observer: nsb::Observer, time: tempoch_core::model::time::Time<tempoch_core::model::scale::UTC>, target: nsb::Target) -> Self",
+    "after": "pub fn nsb::PointQuery::new(observer: nsb::Observer, time: tempoch_core::model::time::Time<tempoch_core::model::scale::UTC>, target: impl core::convert::Into<nsb::TargetDirection>) -> Self"
+  },
+  {
+    "before": "pub nsb::ThresholdQuery::target: nsb::Target",
+    "after": "pub nsb::ThresholdQuery::target: nsb::TargetDirection"
+  },
+  {
+    "before": "pub fn nsb::ThresholdQuery::new(observer: nsb::Observer, target: nsb::Target, window: tempoch_core::period::Period<tempoch_core::model::scale::UTC>, threshold: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian) -> Self",
+    "after": "pub fn nsb::ThresholdQuery::new(observer: nsb::Observer, target: impl core::convert::Into<nsb::TargetDirection>, window: tempoch_core::period::Period<tempoch_core::model::scale::UTC>, threshold: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian) -> Self"
+  }
+]
