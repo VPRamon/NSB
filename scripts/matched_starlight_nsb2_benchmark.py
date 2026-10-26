@@ -16,12 +16,15 @@ See docs/validation/matched-starlight-nsb2-v1.md.
 from __future__ import annotations
 
 import argparse
-from datetime import timezone
 import hashlib
 import json
-from pathlib import Path
+import os
 import platform
 import subprocess
+import sys
+import tempfile
+from datetime import timezone
+from pathlib import Path
 
 import numpy as np
 
@@ -94,13 +97,23 @@ COMPARABILITY_MATRIX = [
         "status": "conditional",
         "quantity": "TOA band-integrated photon radiance",
         "units": UNIT,
-        "population": "nsb2 G>15 map + XHIP; bright G<15 catalog optional (BallTree cost)",
+        "population": "nsb2 nominal G>15 map + XHIP; overlap with Gaia not source-ID verified",
         "spectral_domain_nm": list(BAND_NM),
         "atmosphere": "excluded (TOA)",
         "notes": (
             "Default Level-2 includes faint+XHIP. Full G<15 BallTree over ~3.7e7 stars is "
-            "opt-in via --include-bright-catalog; population counts are always audited."
+            "opt-in via --include-bright-catalog; bright+XHIP union unsupported without deduplication."
         ),
+    },
+    {
+        "comparison": "Population-complete Gaia bright + XHIP union",
+        "status": "unsupported",
+        "quantity": "TOA band-integrated photon radiance",
+        "units": UNIT,
+        "population": "Gaia bright + XHIP without certified common IDs",
+        "spectral_domain_nm": list(BAND_NM),
+        "atmosphere": "excluded",
+        "notes": "Disjointness cannot be verified. Optional faint+bright comparison excludes XHIP.",
     },
     {
         "comparison": "Source-ID matched XP vs Pickles spectra",
@@ -367,6 +380,8 @@ def population_audit(offline: bool) -> dict:
         "nsb2": {
             "commit": NSB2_COMMIT,
             "gaia_split_magnitude": 15,
+            "boundary_completeness": "G=15 assignment cannot be verified from the faint aggregate asset",
+            "xhip_gaia_overlap": "unverified: no common source IDs; full bright+XHIP sum unsupported",
             "bright_catalog": {
                 "url": GAIA_CATALOG_URL,
                 "selection": "G < 15 individually resolved",
@@ -398,27 +413,24 @@ def population_audit(offline: bool) -> dict:
     }
     if offline:
         return audit
-    try:
-        from astropy.utils.data import download_file
+    from astropy.utils.data import download_file
 
-        bright_path = Path(download_file(GAIA_CATALOG_URL, cache=True, show_progress=False))
-        faint_path = Path(download_file(GAIA_MAP_URL, cache=True, show_progress=False))
-        bright = np.load(bright_path)
-        faint = np.load(faint_path)
-        audit["nsb2"]["bright_catalog"].update({
-            "n_sources": int(len(bright)),
-            "unique_source_ids": int(len(np.unique(bright["source_id"]))),
-            "g_min": float(np.nanmin(bright["phot_g_mean_mag"])),
-            "g_max": float(np.nanmax(bright["phot_g_mean_mag"])),
-            "sha256": sha256_file(bright_path),
-        })
-        audit["nsb2"]["faint_map"].update({
-            "shape": list(faint.shape),
-            "finite_cells": int(np.isfinite(faint[0]).sum()),
-            "sha256": sha256_file(faint_path),
-        })
-    except Exception as error:  # noqa: BLE001
-        audit["nsb2"]["asset_load_error"] = str(error)
+    bright_path = Path(download_file(GAIA_CATALOG_URL, cache=True, show_progress=False))
+    faint_path = Path(download_file(GAIA_MAP_URL, cache=True, show_progress=False))
+    bright = np.load(bright_path)
+    faint = np.load(faint_path)
+    audit["nsb2"]["bright_catalog"].update({
+        "n_sources": len(bright),
+        "unique_source_ids": len(np.unique(bright["source_id"])),
+        "g_min": float(np.nanmin(bright["phot_g_mean_mag"])),
+        "g_max": float(np.nanmax(bright["phot_g_mean_mag"])),
+        "sha256": sha256_file(bright_path),
+    })
+    audit["nsb2"]["faint_map"].update({
+        "shape": list(faint.shape),
+        "finite_cells": int(np.isfinite(faint[0]).sum()),
+        "sha256": sha256_file(faint_path),
+    })
     return audit
 
 
@@ -427,9 +439,10 @@ def population_audit(offline: bool) -> dict:
 # ---------------------------------------------------------------------------
 
 def nsb_toa_starlight(ra_deg: float, dec_deg: float) -> float:
-    import nsb
     import siderust
     from astropy.time import Time
+
+    import nsb
 
     cfg = nsb.NsbModelConfig.generic_clear_sky()
     ev = nsb.NsbEvaluator(cfg)
@@ -463,8 +476,10 @@ def reduce_pickles_template_rates(rates_nc) -> float:
     Never silently drops an invalid selected source while summing the rest.
     """
     rates = np.asarray(rates_nc, float)
-    if rates.size == 0:
+    if rates.shape[0] == 0:
         return 0.0
+    if rates.size == 0:
+        raise UnavailableSpectralTemplate("selected sources have no template alternatives")
     rates = np.atleast_2d(rates)
     per_source = []
     for index, row in enumerate(rates):
@@ -477,67 +492,115 @@ def reduce_pickles_template_rates(rates_nc) -> float:
     return float(np.sum(per_source))
 
 
-def _nsb2_band_integral(field, lower: float, upper: float) -> float:
-    """Flat top-hat band integral with fail-closed Pickles template reduction.
+def _nsb2_band_integral(field, lower: float, upper: float, *, solid_angle_sr=None) -> float:
+    """Integrate photon spectra; catalog flux needs an explicitly selected aperture.
 
-    Empty catalog fields (no star in the search cone) contribute exactly zero —
-    not an imputed population. Selected sources with no finite templates reject
-    the evaluation rather than vanishing into a partial sum.
+    Diffuse fields already have inverse-solid-angle weights. Discrete fields
+    contain flux, and become aperture-mean radiance only after division by the
+    solid angle of the region used to select those sources. No angle equivalency
+    may silently insert or remove that normalization.
     """
     import astropy.units as u
     from nsb2.core.spectral import Bandpass
 
+    if field.radiance_field:
+        if solid_angle_sr is not None:
+            raise ValueError("Diffuse radiance must not be divided by aperture area")
+    elif solid_angle_sr is None or not np.isfinite(solid_angle_sr) or solid_angle_sr <= 0:
+        raise ValueError("Catalog flux requires a positive selection solid angle")
+    wave = field.spectral_grid.wvl.to_value(u.nm)
+    if lower >= upper or wave[0] > lower or wave[-1] < upper:
+        raise ValueError("Incomplete spectral coverage")
+    # The pinned apply_bandpass truncates samples, without inserting boundaries.
+    # Require both endpoints so the declared wavelength interval is the integral.
+    if not np.any(np.isclose(wave, lower, rtol=0, atol=1e-10)) or not np.any(
+        np.isclose(wave, upper, rtol=0, atol=1e-10)
+    ):
+        raise ValueError("Band endpoints must be present in the nsb2 spectral grid")
     n_sources = int(np.asarray(field.spectral_data).shape[0])
+    if len(field.coords) != n_sources or field.weights.shape[0] != n_sources:
+        raise ValueError("Inconsistent selected-source rows")
     if n_sources == 0:
         return 0.0
-    # Same four-node flat bandpass shape used by the observational notebook.
-    band = Bandpass(np.array([lower, 400.0, 550.0, upper]) * u.nm, np.ones(4))
+    band = Bandpass(np.linspace(lower, upper, 4) * u.nm, np.ones(4))
     rate = field.resolve_spectra(band).integrate()
-    shaped = np.asarray(
-        rate.to_value(1 / u.s / u.cm**2 / u.sr, equivalencies=u.dimensionless_angles()),
-        float,
-    )
-    shaped = np.atleast_2d(shaped)
+    if not field.radiance_field:
+        # Conversion before division rejects catalog weights carrying /sr.
+        rate = rate.to(1 / u.s / u.cm**2) / (solid_angle_sr * u.sr)
+    shaped = np.atleast_2d(rate.to_value(1 / u.s / u.cm**2 / u.sr))
     if shaped.shape[0] != n_sources:
-        raise ValueError(
-            f"nsb2 rate rows {shaped.shape[0]} != selected sources {n_sources}"
-        )
+        raise ValueError(f"nsb2 rate rows {shaped.shape[0]} != selected sources {n_sources}")
     return reduce_pickles_template_rates(shaped) * 1e-9
 
 
-def nsb2_search_radius_rad() -> float:
-    """Catalog cone matched to NSB nside=128 HEALPix resolution."""
-    import healpy as hp
-
-    return float(hp.nside2resol(128))
-
-
-def nsb2_toa_components(ra_deg: float, dec_deg: float, sources: dict) -> dict[str, float]:
+def nsb_pixel_geometry(ra_deg: float, dec_deg: float, nside: int = 128):
+    """The exact Galactic RING footprint used by NSB's nearest-pixel lookup."""
     import astropy.units as u
-    from astropy.coordinates import AltAz, EarthLocation, SkyCoord
-    from astropy.time import Time
+    import erfa
+    import healpy as hp
+    from astropy.coordinates import SkyCoord
+
+    # NSB/Siderust uses the direct SOFA/Hipparcos rotation, not Astropy's
+    # slightly different FK5-based Galactic realization. Pyerfa ships with Astropy.
+    lon, lat = erfa.icrs2g(np.deg2rad(ra_deg), np.deg2rad(dec_deg))
+    pixel = int(hp.ang2pix(nside, np.rad2deg(lon), np.rad2deg(lat), lonlat=True))
+    lon, lat = hp.pix2ang(nside, pixel, lonlat=True)
+    ra, dec = erfa.g2icrs(np.deg2rad(lon), np.deg2rad(lat))
+    center = SkyCoord(ra=[ra] * u.rad, dec=[dec] * u.rad)
+    return pixel, center
+
+
+def catalog_pixel_field(source, ra_deg: float, dec_deg: float, *, nside: int = 128):
+    """Cone-prefilter, then exact pixel membership; cone area is never used.
+
+    max_pixrad is a conservative bound about the *pixel center*, including its
+    vertices. Membership in the Galactic pixel, rather than angular distance
+    from the pointing, defines the final aperture. Queries stay in ICRS so
+    apparent AltAz transformations/refraction cannot change pixel membership.
+    """
     from types import SimpleNamespace
 
-    site = EarthLocation.from_geodetic(
-        SITE["longitude"] * u.deg, SITE["latitude"] * u.deg, SITE["height"] * u.m
+    import erfa
+    import healpy as hp
+    from nsb2.core.dtypes import SourceField
+
+    pixel, center = nsb_pixel_geometry(ra_deg, dec_deg, nside)
+    radius = np.nextafter(hp.max_pixrad(nside), np.inf)
+    field, _ = source.query_direct(SimpleNamespace(origin="icrs"), center, np.array([radius]))
+    icrs = field.coords.icrs
+    lon, lat = erfa.icrs2g(icrs.ra.rad, icrs.dec.rad)
+    mask = hp.ang2pix(nside, np.rad2deg(lon), np.rad2deg(lat), lonlat=True) == pixel
+    selected = SourceField(
+        coords=field.coords[mask], weights=field.weights[mask],
+        spectral_data=field.spectral_data[mask], spectral_grid=field.spectral_grid,
+        radiance_field=False,
     )
-    frame = AltAz(
-        obstime=Time(MJD, format="mjd", scale="utc"),
-        location=site,
-        pressure=0 * u.hPa,
-    )
+    return selected, pixel
+
+
+def nsb2_toa_components(ra_deg: float, dec_deg: float, sources: dict) -> dict:
+    from types import SimpleNamespace
+
+    import astropy.units as u
+    from astropy.coordinates import SkyCoord
+    from nsb2.core.sources import CatalogSource, RadianceSource
+
     direction = SkyCoord(ra=[ra_deg] * u.deg, dec=[dec_deg] * u.deg)
-    catalog_radius = np.array([nsb2_search_radius_rad()])
-    out = {}
+    out, counts = {}, {}
+    pixel, _ = nsb_pixel_geometry(ra_deg, dec_deg)
     for name, source in sources.items():
-        # HEALPix radiance maps interpolate at the direction (radius unused / zero).
-        # Catalog sources need a finite cone; use NSB nside=128 resolution.
-        is_catalog = hasattr(source, "balltree") or hasattr(source, "build_balltree")
-        radii = catalog_radius if is_catalog else np.zeros(1)
-        field, _ = source.query_direct(SimpleNamespace(origin=frame), direction, radii)
-        out[name] = _nsb2_band_integral(field, BAND_NM[0], BAND_NM[1])
-    out["total"] = float(sum(out.values()))
-    return out
+        if isinstance(source, CatalogSource):
+            field, _ = catalog_pixel_field(source, ra_deg, dec_deg)
+            counts[name] = len(field.coords)
+            out[name] = _nsb2_band_integral(field, *BAND_NM, solid_angle_sr=healpix_pixel_steradian(128))
+        elif isinstance(source, RadianceSource):
+            field, _ = source.query_direct(SimpleNamespace(origin="icrs"), direction, np.zeros(1))
+            out[name] = _nsb2_band_integral(field, *BAND_NM)
+        else:
+            raise TypeError(f"Unsupported nsb2 source type: {type(source)}")
+    return {"radiances": out, "catalog_counts": counts, "nsb_galactic_ring_pixel": pixel,
+            "catalog_solid_angle_sr": healpix_pixel_steradian(128),
+            "catalog_frame_convention": "SOFA ICRS/Galactic (ERFA icrs2g/g2icrs); boundary rounding conditional"}
 
 
 def load_nsb2_sources(*, include_bright_catalog: bool) -> dict:
@@ -564,7 +627,8 @@ def level2_sky_direction_cases(*, include_bright_catalog: bool = False) -> list[
     cases = []
     for name, ra, dec in SKY_DIRECTIONS:
         nsb_val = nsb_toa_starlight(ra, dec)
-        parts = nsb2_toa_components(ra, dec, sources)
+        geometry = nsb2_toa_components(ra, dec, sources)
+        parts = geometry["radiances"]
         configs = [
             (
                 "nsb2_faint_only",
@@ -580,9 +644,9 @@ def level2_sky_direction_cases(*, include_bright_catalog: bool = False) -> list[
         if include_bright_catalog:
             configs.append(
                 (
-                    "nsb2_faint_bright_xhip",
-                    parts["total"],
-                    "nsb2 G>15 map + G<15 catalog + XHIP supplement",
+                    "nsb2_faint_bright",
+                    parts["faint"] + parts["bright"],
+                    "nsb2 nominal G>15 map + G<15 catalog; XHIP excluded (overlap unverified)",
                 )
             )
         for label, nsb2_val, population in configs:
@@ -594,6 +658,7 @@ def level2_sky_direction_cases(*, include_bright_catalog: bool = False) -> list[
                 "direction": {"name": name, "ra_deg": ra, "dec_deg": dec, "frame": "icrs"},
                 "population": population,
                 "n_sources_declared": None,
+                "source_selection": {k: v for k, v in geometry.items() if k != "radiances"},
                 "wavelength_bounds_nm": list(BAND_NM),
                 "observable": "TOA band-integrated photon radiance",
                 "model_nsb": "bundled production Gaia DR3 integrated Starlight 300–650 nm",
@@ -607,10 +672,10 @@ def level2_sky_direction_cases(*, include_bright_catalog: bool = False) -> list[
                 "units": UNIT,
                 "geometry": (
                     "Pointing ICRS direction; NSB Galactic nside=128 RING pixel mean; "
-                    "nsb2 ICRS nested map interpolation / catalog search; atmosphere excluded"
+                    "nsb2 ICRS nested map at pointing / exact NSB pixel catalog mean; atmosphere excluded"
                 ),
                 "provenance": {
-                    "nsb2_commit": NSB2_COMMIT,
+                    "nsb2_commit_requested": NSB2_COMMIT,
                     "mjd": MJD,
                     "site": SITE,
                     "pickles_template_reduction": (
@@ -622,14 +687,16 @@ def level2_sky_direction_cases(*, include_bright_catalog: bool = False) -> list[
                 "limitations": [
                     "Not source-ID matched.",
                     "Spectral models differ (NSB XP/photometric/CK04 vs nsb2 Pickles).",
-                    "HEALPix nside/frame/ordering differ.",
+                    "Faint-map point interpolation differs from NSB pixel averaging.",
+                    "No common source IDs to certify XHIP/Gaia disjointness; combined bright+XHIP unsupported.",
+                    "Pickles alternatives are model variants, not an uncertainty confidence interval.",
                     "Cross-implementation agreement ≠ observational validation.",
                     *(
                         []
                         if include_bright_catalog
                         else [
-                            "Bright G<15 catalog omitted from default Level-2 integrals; "
-                            "population count is audited separately."
+                            ("Bright G<15 catalog omitted from default Level-2 integrals; "
+                             "population count is audited separately.")
                         ]
                     ),
                 ],
@@ -646,9 +713,78 @@ def git_rev(path: Path) -> str | None:
         return None
 
 
+def git_state(path: Path) -> dict:
+    """HEAD identifies a parent, never the contents of a dirty worktree.
+
+    Include staged, unstaged and untracked paths. Only the generated artifact
+    is excluded from the execution-input digest (its own bytes cannot identify
+    themselves). Its dirty state is still reported in status.
+    """
+    head = git_rev(path)
+    status = subprocess.check_output(
+        ["git", "-C", str(path), "status", "--porcelain=v1", "--untracked-files=all"], text=True
+    ).splitlines()
+    names = subprocess.check_output(
+        ["git", "-C", str(path), "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
+    ).decode().split("\0")
+    inputs = {}
+    for name in sorted(set(names) - {"", "docs/validation/artifacts/matched-starlight-nsb2-v1.json"}):
+        file = path / name
+        inputs[name] = sha256_file(file) if file.is_file() else None
+    digest = hashlib.sha256(json.dumps(inputs, sort_keys=True).encode()).hexdigest()
+    return {"head": head, "dirty": bool(status), "status": status,
+            "input_manifest_sha256": digest,
+            "input_manifest_excludes": ["docs/validation/artifacts/matched-starlight-nsb2-v1.json"]}
+
+
+def runtime_provenance(nsb_build_revision: str | None) -> dict:
+    from importlib import metadata
+
+    import nsb2
+
+    import nsb
+
+    nsb_root = Path(nsb.__file__).resolve().parent
+    binaries = sorted(nsb_root.glob("*.so")) + sorted(nsb_root.glob("*.pyd"))
+    if not binaries:
+        raise RuntimeError("Cannot fingerprint imported NSB extension")
+    if nsb_build_revision is not None:
+        # The caller declares the revision immediately after building/installing.
+        # Verify current build inputs still match it; binary SHA identifies bytes.
+        nsb_build_revision = subprocess.check_output(
+            ["git", "-C", str(ROOT), "rev-parse", "--verify", f"{nsb_build_revision}^{{commit}}"], text=True
+        ).strip()
+        build_paths = ["crates", "Cargo.toml", "Cargo.lock", "pyproject.toml"]
+        subprocess.check_call(["git", "-C", str(ROOT), "diff", "--quiet", nsb_build_revision, "--", *build_paths])
+        if subprocess.check_output(["git", "-C", str(ROOT), "ls-files", "--others", "--exclude-standard", "--", *build_paths]):
+            raise ValueError("Untracked NSB build inputs cannot attest a committed revision")
+    nsb2_root = Path(nsb2.__file__).resolve().parent
+    package_inputs = {
+        str(f.relative_to(nsb2_root)): sha256_file(f)
+        for f in sorted(nsb2_root.rglob("*"))
+        if f.is_file() and (f.suffix == ".py" or "data" in f.relative_to(nsb2_root).parts)
+    }
+    from astropy.utils.data import cache_contents
+    cached = {url: {"sha256": sha256_file(Path(file)), "size_bytes": Path(file).stat().st_size}
+              for url, file in sorted(cache_contents().items())
+              if url in {GAIA_MAP_URL, GAIA_CATALOG_URL} or "fps.php?ID=" in url or "alpha_lyr_stis_012" in url}
+    assets = ["crates/nsb/data/manifest.toml", "crates/nsb/data/starlight_nside128.compact.release.bin",
+              "crates/nsb/data/starlight_nside128.compact.manifest.toml", str(SYNTHETIC_MAP.relative_to(ROOT))]
+    return {"executable": sys.executable, "runner_sha256": sha256_file(Path(__file__)), "nsb_build": {
+                "declared_source_revision": nsb_build_revision,
+                "declaration": "Caller attests clean build/install from this revision; checked against current build inputs",
+                "binaries": {str(b): sha256_file(b) for b in binaries}},
+            "dependencies": {dist.metadata["Name"]: dist.version for dist in sorted(
+                metadata.distributions(), key=lambda d: d.metadata["Name"].lower())},
+            "nsb2_package_inputs_sha256": hashlib.sha256(json.dumps(package_inputs, sort_keys=True).encode()).hexdigest(),
+            "nsb2_packaged_assets": {k: v for k, v in package_inputs.items() if not k.endswith(".py")},
+            "nsb_assets": {name: sha256_file(ROOT / name) for name in assets},
+            "cached_reference_assets": cached}
+
+
 def package_version(name: str) -> str | None:
     try:
-        import importlib.metadata as metadata
+        from importlib import metadata
 
         return metadata.version(name)
     except Exception:  # noqa: BLE001
@@ -718,7 +854,8 @@ def _git_commit_owned_by_nsb2(module_file: Path) -> tuple[str | None, str | None
 
 def resolve_nsb2_identity() -> dict:
     """Resolve the installed nsb2 revision without network access."""
-    import importlib.metadata as metadata
+    from importlib import metadata
+
     import nsb2
 
     identity = {
@@ -740,8 +877,14 @@ def resolve_nsb2_identity() -> dict:
             if commit:
                 identity["resolved_commit"] = commit
                 identity["resolution_source"] = "direct_url.json:vcs_info.commit_id"
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as error:  # noqa: BLE001
+            identity["resolution_error"] = str(error)
+    if source and source.startswith("git:"):
+        state = git_state(Path(source[4:]))
+        identity["checkout"] = state
+        if state["dirty"]:
+            identity["verification"] = "dirty"
+            return identity
     resolved = identity["resolved_commit"]
     if resolved == NSB2_COMMIT:
         identity["verification"] = "matched"
@@ -766,11 +909,11 @@ def require_nsb2_pin(*, allow_unverified: bool = False) -> dict:
         return identity
     if not allow_unverified:
         raise RuntimeError(
-            "Installed nsb2 revision is unverifiable (no nsb2-owned git checkout or "
+            "Installed nsb2 revision is dirty or unverifiable (no nsb2-owned git checkout or "
             "direct_url vcs_info). Refusing to publish falsely pinned evidence. "
             "Use --allow-unverified-nsb2 only for explicitly provenance-limited runs."
         )
-    identity["evidence_status"] = "provenance_limited_unverified"
+    identity["evidence_status"] = ("provenance_limited_dirty" if identity["verification"] == "dirty" else "provenance_limited_unverified")
     return identity
 
 
@@ -785,10 +928,11 @@ def level1_cross_implementation_constant_spectrum() -> list[dict]:
     import tempfile
 
     import astropy.units as u
-    import nsb
+    from astropy.coordinates import SkyCoord
     from nsb2.core.dtypes import ResolvedField
     from nsb2.core.spectral import Bandpass, integrate_wavelength
-    from astropy.coordinates import SkyCoord
+
+    import nsb
 
     density_per_nm = 1.0e-4  # photons cm^-2 ns^-1 sr^-1 nm^-1
     lo, hi = 360, 450
@@ -860,7 +1004,7 @@ def level1_cross_implementation_constant_spectrum() -> list[dict]:
     rate = resolved.integrate()
     nsb2_per_s = float(
         np.asarray(
-            rate.to_value(1 / u.s / u.cm**2 / u.sr, equivalencies=u.dimensionless_angles())
+            rate.to_value(1 / u.s / u.cm**2 / u.sr)
         ).reshape(-1)[0]
     )
     nsb2_value = nsb2_per_s * 1e-9
@@ -868,7 +1012,7 @@ def level1_cross_implementation_constant_spectrum() -> list[dict]:
     direct = integrate_wavelength(weights[:, None] * flx_n, restricted.wvl, axis=-2)
     direct_value = float(
         np.asarray(
-            direct.to_value(1 / u.s / u.cm**2 / u.sr, equivalencies=u.dimensionless_angles())
+            direct.to_value(1 / u.s / u.cm**2 / u.sr)
         ).reshape(-1)[0]
     ) * 1e-9
 
@@ -884,11 +1028,11 @@ def level1_cross_implementation_constant_spectrum() -> list[dict]:
             "case_id": case_id,
             "classification": "equivalent",
             "level": 1,
-            "population": "synthetic imposed constant spectrum",
-            "n_sources_declared": 1,
+            "population": "synthetic imposed constant spectrum; 12 NSB fixture sources, one nsb2 radiance sample",
+            "n_sources_declared": 12,
             "wavelength_bounds_nm": [lo, hi],
             "observable": "TOA band-integrated photon radiance",
-            "nsb": nsb_value if "nsb" in label_a or label_a == "nsb" else None,
+            "nsb": nsb_value,
             "nsb2": nsb2_value,
             "left": float(left),
             "right": float(right),
@@ -920,9 +1064,11 @@ def summarize_cases(cases: list[dict], key_a: str, key_b: str) -> dict | None:
         return None
     rel = [c["relative_difference"] for c in cases if c.get("relative_difference") is not None]
     absdiff = [c["absolute_difference"] for c in cases if c.get("absolute_difference") is not None]
+    units = sorted({c["units"] for c in cases})
     return {
+        "units": units,
         "n_cases": len(cases),
-        "mean_absolute_difference": float(np.mean(absdiff)) if absdiff else None,
+        "mean_absolute_difference": float(np.mean(absdiff)) if absdiff and len(units) == 1 else None,
         "median_relative_difference": float(np.median(rel)) if rel else None,
         "max_relative_difference": float(np.max(rel)) if rel else None,
         "compared_keys": [key_a, key_b],
@@ -935,6 +1081,7 @@ def build_artifact(
     offline_audit: bool,
     include_bright_catalog: bool,
     allow_unverified_nsb2: bool,
+    nsb_build_revision: str | None = None,
 ) -> dict:
     # Level-1 cross-implementation and Level-2 both import nsb2 operators.
     nsb2_identity = require_nsb2_pin(allow_unverified=allow_unverified_nsb2)
@@ -945,25 +1092,21 @@ def build_artifact(
         + level1_cross_implementation_constant_spectrum()
     )
     level2: list[dict] = []
-    level2_error = None
     if not skip_level2:
-        try:
-            level2 = level2_sky_direction_cases(
-                include_bright_catalog=include_bright_catalog
-            )
-        except Exception as error:  # noqa: BLE001
-            level2_error = str(error)
+        level2 = level2_sky_direction_cases(include_bright_catalog=include_bright_catalog)
 
     equivalent = [c for c in level1 if c.get("classification") == "equivalent"]
     cross = [c for c in equivalent if c["case_id"].startswith("L1_cross_")]
     conditional = [c for c in level2 if c.get("classification") == "conditional"]
 
-    return {
+    artifact = {
         "schema": PROTOCOL,
+        "execution": {"level2": "skipped_explicitly" if skip_level2 else "complete",
+                      "include_bright_catalog": include_bright_catalog},
         "issue": 298,
         "outcome": "B_restricted_equivalent_benchmark",
         "issue_298_closure": {
-            "closes": True,
+            "closes": not skip_level2 and nsb2_identity["evidence_status"] == "pinned_reference",
             "justification": (
                 "Acceptance requires a comparison contract, at least one genuinely "
                 "equivalent numerical paired test, explicit missing-population "
@@ -987,11 +1130,12 @@ def build_artifact(
             {"name": n, "ra_deg": ra, "dec_deg": dec} for n, ra, dec in SKY_DIRECTIONS
         ],
         "provenance": {
-            "nsb_git": git_rev(ROOT),
+            "nsb_checkout": git_state(ROOT),
+            **runtime_provenance(nsb_build_revision),
             "nsb2_commit_pinned": NSB2_COMMIT,
             "nsb2_identity": nsb2_identity,
             "nsb2_package_version": package_version("nsb2"),
-            "nsb_package_version": package_version("nsb"),
+            "nsb_package_version": package_version("nsb-py"),
             "pickles_template_reduction": (
                 "nanmedian over finite Pickles template alternatives "
                 "(nsb2 instrument central of nanmin/nanmedian/nanmax); "
@@ -1008,7 +1152,7 @@ def build_artifact(
         ],
         "level1_cases": level1,
         "level2_cases": level2,
-        "level2_execution_error": level2_error,
+        "level2_execution_error": None,
         "aggregates": {
             "level1_equivalent": summarize_cases(equivalent, "left_or_nsb", "right_or_reference"),
             "level1_cross_implementation": summarize_cases(cross, "left", "right"),
@@ -1022,13 +1166,13 @@ def build_artifact(
                 "nsb",
                 "nsb2",
             ),
-            "level2_conditional_faint_bright_xhip": summarize_cases(
-                [c for c in conditional if c["case_id"].endswith("nsb2_faint_bright_xhip")],
+            "level2_conditional_faint_bright": summarize_cases(
+                [c for c in conditional if c["case_id"].endswith("nsb2_faint_bright")],
                 "nsb",
                 "nsb2",
             ),
         },
-        "demonstrated_causes": [
+        "documented_differences_not_causal_attributions": [
             {
                 "cause": "dataset_population_mismatch",
                 "evidence": (
@@ -1064,8 +1208,8 @@ def build_artifact(
             "Level-2 cases are conditional, not population-equivalent.",
             "XP 360–570 candidate bytes are unavailable in this repository checkout.",
             "No production Starlight coefficients were changed.",
-            "Level-1 NSB-vs-analytic cases alone do not establish NSB↔nsb2 equivalence; "
-            "the imposed-spectrum cross cases do.",
+            ("Level-1 NSB-vs-analytic cases alone do not establish NSB↔nsb2 equivalence; "
+             "the imposed-spectrum cross cases do."),
         ],
         "follow_ups": [
             "Obtain checksum-pinned XP map bytes to enable 360–570 nm spectral comparisons (#304 context).",
@@ -1074,10 +1218,92 @@ def build_artifact(
         ],
     }
 
+    validate_artifact(artifact)
+    return artifact
+
+
+def validate_artifact(artifact: dict) -> None:
+    """Reject incomplete/nonfinite evidence before any output is replaced."""
+    if artifact["schema"] != PROTOCOL or artifact["execution"]["level2"] not in {"complete", "skipped_explicitly"}:
+        raise ValueError("Invalid benchmark schema or execution state")
+    if artifact["level2_execution_error"] is not None:
+        raise ValueError("Level-2 execution failed")
+    level1 = artifact["level1_cases"]
+    expected_l1 = {
+        "L1_analytic_constant_spectrum", "L1_analytic_linear_spectrum", "L1_healpix_omega_nside128",
+        "L1_synth_bin_0_360_390", "L1_synth_bin_1_390_420", "L1_synth_bin_2_420_450",
+        "L1_synth_full_native_band", "L1_synth_partial_bin_rejected",
+        "L1_cross_nsb_vs_analytic", "L1_cross_nsb2_vs_analytic", "L1_cross_nsb_vs_nsb2",
+        "L1_cross_nsb2_integrate_vs_resolved",
+    }
+    if len(level1) != len(expected_l1) or {c["case_id"] for c in level1} != expected_l1:
+        raise ValueError("Missing or duplicate Level-1 cases")
+    for c in level1:
+        if c["case_id"] == "L1_synth_partial_bin_rejected":
+            if c["passed"] is not True:
+                raise ValueError("Partial-bin rejection failed")
+        else:
+            left = c["left"] if "left" in c else c["nsb"]
+            right = c["right"] if "right" in c else c["reference"]
+            if not np.isfinite([left, right]).all():
+                raise ValueError("Nonfinite Level-1 result")
+            delta = left - right
+            if not np.isclose(c["signed_difference"], delta, rtol=1e-12, atol=1e-15) or c["absolute_difference"] != abs(delta):
+                raise ValueError("Invalid Level-1 derived metrics")
+            diff, rel = c["absolute_difference"], c["relative_difference"]
+            if not np.isfinite([diff, rel]).all() or diff < 0 or rel < 0 or (diff > 1e-15 and rel > 1e-12):
+                raise ValueError(f"Level-1 equivalence failed: {c['case_id']}")
+    l2 = artifact["level2_cases"]
+    if artifact["execution"]["level2"] == "skipped_explicitly":
+        if l2 or artifact["issue_298_closure"]["closes"]:
+            raise ValueError("Skipped Level-2 cannot claim complete evidence")
+        return
+    configs = ["nsb2_faint_only", "nsb2_faint_xhip"]
+    if artifact["execution"]["include_bright_catalog"]:
+        configs.append("nsb2_faint_bright")
+    expected = {f"L2_{name}__nsb_vs_{config}" for name, _, _ in SKY_DIRECTIONS for config in configs}
+    if len(l2) != len(expected) or {c["case_id"] for c in l2} != expected:
+        raise ValueError("Missing or duplicate Level-2 cases")
+    for c in l2:
+        if c["classification"] != "conditional" or c["wavelength_bounds_nm"] != list(BAND_NM) or c["units"] != UNIT:
+            raise ValueError("Invalid Level-2 comparison contract")
+        if not np.isfinite([c[k] for k in ("nsb", "nsb2", "signed_difference", "absolute_difference")]).all():
+            raise ValueError("Nonfinite Level-2 results")
+        delta = c["nsb2"] - c["nsb"]
+        if c["nsb"] < 0 or c["nsb2"] < 0 or not np.isclose(c["signed_difference"], delta, rtol=1e-12, atol=1e-15):
+            raise ValueError("Invalid Level-2 radiance or difference")
+        relative = None if c["nsb"] == 0 else abs(delta) / abs(c["nsb"])
+        if c["relative_difference"] != relative or c["absolute_difference"] != abs(delta):
+            raise ValueError("Invalid Level-2 derived metrics")
+
+
+def write_artifact(path: Path, artifact: dict) -> None:
+    validate_artifact(artifact)
+    official = path.resolve() == ARTIFACT.resolve()
+    if official and (artifact["execution"]["level2"] != "complete" or
+                     artifact["provenance"]["nsb2_identity"]["evidence_status"] != "pinned_reference" or
+                     not artifact["provenance"]["nsb_build"]["declared_source_revision"]):
+        raise ValueError("Official artifact requires complete pinned evidence and an NSB build revision")
+    payload = json.dumps(artifact, indent=2, sort_keys=True, allow_nan=False) + "\n"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
+                                         prefix=f".{path.name}.", delete=False) as handle:
+            temporary = Path(handle.name)
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, default=ARTIFACT)
+    parser.add_argument("--output", type=Path, help="Default: official artifact; Level-1-only: reports/matched-starlight-nsb2-level1.json")
+    parser.add_argument("--nsb-build-revision", help="Revision explicitly built/installed for this run (required for official artifact)")
     parser.add_argument("--skip-level2", action="store_true",
                         help="Run Level-1 + audit only (no nsb2 sky directions)")
     parser.add_argument("--offline-audit", action="store_true",
@@ -1101,14 +1327,13 @@ def main() -> None:
         offline_audit=args.offline_audit,
         include_bright_catalog=args.include_bright_catalog,
         allow_unverified_nsb2=args.allow_unverified_nsb2,
+        nsb_build_revision=args.nsb_build_revision,
     )
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(artifact, indent=2, sort_keys=True) + "\n")
+    args.output = args.output or (ROOT / "reports/matched-starlight-nsb2-level1.json" if args.skip_level2 else ARTIFACT)
+    write_artifact(args.output, artifact)
     print(f"Wrote {args.output}")
     print("outcome", artifact["outcome"])
     print("nsb2_identity", artifact["provenance"].get("nsb2_identity"))
-    if artifact["level2_execution_error"]:
-        print("level2_error", artifact["level2_execution_error"])
     for key, summary in artifact["aggregates"].items():
         print(key, summary)
 

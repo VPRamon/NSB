@@ -23,7 +23,7 @@ It is **not** independent empirical validation and does **not** retune Starlight
 | Level-1 bands | Analytic operators; synthetic fixture 360–450 nm; imposed constant spectrum 360–450 nm |
 | Level-2 band | **300–650 nm** (NSB integrated-map native band) |
 | Atmosphere | **Excluded** from the primary benchmark |
-| Geometry | Pointing-direction TOA; HEALPix details recorded per implementation |
+| Geometry | NSB pixel mean; nsb2 faint-map point interpolation; catalog mean over the exact NSB pixel |
 | Units | photons cm⁻² ns⁻¹ sr⁻¹ |
 | Forbidden | Solar-colour proxy on NSB’s 300–650 map; arbitrary renormalization; treating missing populations as zero; silently dropping selected sources with invalid Pickles templates |
 
@@ -34,9 +34,10 @@ It is **not** independent empirical validation and does **not** retune Starlight
 | Synthetic `StarlightMap` band integrals vs analytic fixture | **Equivalent** (NSB↔analytic; not by itself NSB↔nsb2) |
 | Imposed constant spectrum through NSB `StarlightMap` and nsb2 `SpectralGrid`/`Bandpass`/`integrate_wavelength` | **Equivalent** (genuine NSB↔nsb2 paired operators + analytic) |
 | NSB bundled 300–650 vs nsb2 faint G>15 (same directions) | **Conditional** |
-| NSB bundled 300–650 vs nsb2 faint+XHIP (+ optional bright catalog) | **Conditional** |
+| NSB bundled 300–650 vs nsb2 faint+XHIP (optional faint+bright excludes XHIP) | **Conditional** |
 | Source-ID matched XP vs Pickles (360–570 nm) | **Unsupported** |
 | Solar-colour proxy narrowing of NSB 300–650 | **Unsupported** |
+| Population-complete Gaia bright + XHIP union without common IDs/deduplication | **Unsupported** |
 
 ## 3. Source-population audit
 
@@ -66,12 +67,20 @@ It is **not** independent empirical validation and does **not** retune Starlight
 | XHIP supplement | 88 stars | ICRS points | Pickles from Johnson V/B |
 
 Exact source-ID intersection against NSB runtime aggregates is **unsupported**.
+The bright file contains 36,908,056 unique Gaia IDs, with measured G range
+1.731607–14.999999. The faint map has no IDs or magnitude-boundary audit, so
+its nominal G>15 selection does not demonstrate completeness at G=15.
+XHIP has no shared Gaia ID column. Disjointness of XHIP and either Gaia asset
+cannot be established here. The optional bright comparison therefore excludes
+XHIP; faint+XHIP remains explicitly conditional on an unverified population union.
 Missing populations are labelled unavailable — never assigned zero radiance.
 Selected sources with no finite Pickles template rate reject the evaluation
 rather than vanishing from a partial sum.
 
 The runner verifies the **installed** nsb2 implementation against the pin via
-local git metadata or package `direct_url` VCS info (no network). Matched runs
+nsb2-owned local git metadata or package `direct_url` VCS info (no network).
+Dirty nsb2 checkouts refuse by default. Installed package inputs and assets are
+also fingerprinted. Matched runs
 record `evidence_status=pinned_reference`. Unverifiable installs refuse by
 default (`--allow-unverified-nsb2` marks provenance-limited Option B).
 
@@ -103,7 +112,16 @@ difference vs nsb2 under #263) is **not** reused as map-agreement evidence.
   radiance density is evaluated through NSB `StarlightMap.integrate_band` and
   through nsb2 `SpectralGrid` + `Bandpass` + `ResolvedField.integrate` /
   `integrate_wavelength`, each checked against the analytic band integral.
-  A shared NumPy helper is not the sole reference.
+  A shared NumPy helper is not the sole reference. NSB sums native bin
+  radiances; nsb2 applies its cubic bandpass interpolation and Simpson wavelength
+  integration. These are independent operators for this imposed constant
+  spectrum, not evidence of equivalence for arbitrary spectra or populations.
+  The NSB fixture declares 12 sources, one per nside=1 pixel; each bin has
+  density × bin width as radiance. The nsb2 field is one sampled radiance
+  element, not a second declaration of a one-star sky.
+  Acceptance is absolute error ≤10⁻¹⁵ in each case’s unit OR relative error
+  ≤10⁻¹². The observed errors are near double-precision rounding. Absolute
+  errors in steradians and radiance are not averaged together.
 
 ### Level 2 — conditional real-sky directions
 
@@ -115,15 +133,42 @@ Six ICRS directions **frozen before residual inspection**:
 For each direction:
 
 - **NSB:** bundled Starlight component via `NsbEvaluator.evaluate` (TOA 300–650).
-- **nsb2:** `query_direct` with zero pressure; flat Bandpass 300–650 nm;
-  **median over finite Pickles colour-grid template alternatives** (nsb2
-  instrument central of nanmin/nanmedian/nanmax). This is an instrument-facing
-  estimator, not a physical measurement of stellar spectral radiance.
-  Empty cone selections contribute 0; selected sources with all-nonfinite
-  templates reject the direction.
+- **nsb2 diffuse:** `query_direct` in ICRS at the pointing, with a flat
+  Bandpass over 300–650 nm. The pinned spectral grid contains both band endpoints;
+  the runner refuses other endpoints instead of silently integrating a smaller
+  wavelength interval. HEALPix weights already contain inverse pixel solid angle.
+- **nsb2 catalogs:** select the Galactic RING nside=128 pixel containing the
+  direction, exactly as NSB's nearest-pixel lookup. Cone-search about the actual
+  pixel center with `healpy.max_pixrad` only to obtain candidates, then transform
+  candidate coordinates to Galactic and retain exact `ang2pix` membership.
+  The rotation is SOFA/ERFA `icrs2g`/`g2icrs`, matching NSB/Siderust's canonical
+  Hipparcos realization rather than Astropy's slightly different Galactic frame.
+  At pixel boundaries, especially the two frozen pole directions, floating-point
+  tie-breaking can still assign neighboring pixels. Catalog means there remain
+  conditional on the recorded ERFA pixel; exact agreement of NSB's boundary
+  assignment is not claimed. No XHIP sources lie in the selected polar pixels.
+  Sum selected source fluxes and divide by Ω = 4π/(12×128²) sr. This constructs
+  the physically defined pixel-mean radiance, not an instrument count rate.
+- Both routes use the **median over finite Pickles colour-grid alternatives**
+  (`nanmedian`) per selected source, then sum sources, matching nsb2's discrete instrument
+  central statistic before instrumental weights. No telescope area, throughput,
+  atmospheric extinction or angular acceptance weights are applied. Alternatives
+  are model variants, not statistical confidence intervals. An empty selected
+  catalog field is zero; any selected source without a finite template fails
+  the entire run. A population not loaded is unavailable, not a zero measurement.
 
-Default nsb2 configurations: faint-only and faint+XHIP. Full G<15 BallTree is
-opt-in (`--include-bright-catalog`). **No solar-colour fraction is applied to NSB.**
+The previous `dimensionless_angles()` conversion could relabel catalog flux as
+radiance without supplying an aperture. It is removed. The previous
+`nside2resol(128)` radius is √Ω, whose cone area is approximately πΩ, and its cone
+is not the NSB pixel footprint. Dividing by that cone area would still not match
+NSB's spatial operator. The exact pixel selection fixes both errors.
+
+Default configurations are faint-only and faint+XHIP. Full bright Gaia BallTree
+construction is opt-in (`--include-bright-catalog`), reporting faint+bright and
+keeping XHIP out of that sum because overlap cannot be certified. The diffuse
+map still uses point interpolation rather than a rotated NSB-pixel footprint
+integral: every Level-2 score is **conditional**, including geometry as well as
+population and spectral differences. No solar-colour fraction is applied to NSB.
 
 ## 6. Results
 
@@ -132,9 +177,14 @@ transcribed by hand).
 
 - Level-1 NSB↔analytic / synthetic max relative difference ≲ 2×10⁻¹⁶.
 - Level-1 NSB↔nsb2 imposed-spectrum cross cases: relative difference **0**
-  (within 10⁻⁶ absolute tolerance in tests).
-- Level-2 conditional metrics are unchanged from the post-`nanmedian` artifact
-  (fail-closed template accounting did not alter these six directions).
+  (relative acceptance tolerance 10⁻¹²).
+- Corrected Level-2 faint-only median relative difference ≈0.884767663441;
+  maximum ≈0.971094791101. Values change by <10⁻¹¹ radiance versus the old run
+  after removing the redundant apparent AltAz coordinate round trip.
+- Catalog normalization is now correct, but has no effect on these particular
+  totals: no XHIP stars are selected in the six exact NSB pixel footprints.
+  Synthetic nonempty catalog tests, rather than these empty fields, establish
+  flux normalization and source-selection correctness.
 
 ### Level-2 conditional TOA 300–650 nm (nsb2 faint G>15 only)
 
@@ -149,18 +199,19 @@ Signed difference = nsb2 − NSB. Relative difference = |nsb2 − NSB| / |NSB|.
 | anticenter | 0.08321 | 0.01460 | 0.825 |
 | galactic_center | 0.12363 | 0.02420 | 0.804 |
 
-XHIP (88 stars) did not contribute inside the nside=128 resolution cones for
-these six directions, so faint+XHIP equals faint-only here. The large deficit of
-nsb2 faint-only versus NSB is **consistent with a missing bright population** in
-the nsb2 map channel (G<15 excluded), not proof of an NSB radiometric bug.
-Bright-catalog BallTree evaluation remains opt-in (`--include-bright-catalog`).
+XHIP (88 stars globally) contributes no stars in these six exact NSB pixels,
+so faint+XHIP equals faint-only. This does not establish general population
+agreement. Bright Gaia BallTree evaluation is optional and is not part of the
+committed default evidence.
 
-### Demonstrated causes (not automatic NSB defects)
+### Documented differences, not isolated causes of residuals
 
-1. **Population mismatch** — full NSB admission vs nsb2 G-split (+ optional XHIP).
-2. **Spectral-model difference** — XP/photometric/CK04 vs Pickles templates.
-3. **Geometry difference** — Galactic RING nside=128 vs ICRS NESTED nside=1024.
-4. **Unsupported observables** — source-ID XP matching; solar proxy.
+Population selections, spectral models and spatial operators demonstrably
+differ. The experiments do not isolate how much each difference contributes to
+a residual. Missing bright stars are one plausible contributor to the faint-only
+deficit; no causal attribution, NSB calibration error or empirical superiority
+is demonstrated. Source-ID XP matching and solar-proxy narrowing are unsupported
+observables, not explanations of the numerical residuals.
 
 ## 7. Issue #298 acceptance
 
@@ -170,30 +221,84 @@ from empirical validation. This report closes that requirement via the Level-1
 imposed-spectrum NSB↔nsb2 operator pair. Level-2 remains conditional and does
 **not** claim sky-wide physical accuracy or empirical superiority.
 
-## 8. Reproduction
+## 8. Reproduction and provenance
 
-Pinned nsb2 commit: `bc9320db03fbff69997ce366c6e76a37339c5d00`.
+Use Python 3.12 (nsb2 requires ≥3.11), Rust/Cargo and a clean checkout of this
+PR's implementation commit. The verified upstream repository is
+[GerritRo/nsb2](https://github.com/GerritRo/nsb2), whose `pyproject.toml` declares
+that Repository URL. Pin: `bc9320db03fbff69997ce366c6e76a37339c5d00`.
+
+Fast tests need only NumPy ≥2 and pytest. Runtime-dependent tests skip explicitly
+in this environment; their success is not cross-implementation validation:
 
 ```bash
-# Editable checkout matching the pin (example used for the committed artifact):
-git clone https://github.com/cta-observatory/nsb2 /tmp/nsb2-reference
-cd /tmp/nsb2-reference && git checkout bc9320db03fbff69997ce366c6e76a37339c5d00
-pip install -e /tmp/nsb2-reference
-
+python3.12 -m venv /tmp/nsb-fast-venv
+. /tmp/nsb-fast-venv/bin/activate
+python -m pip install 'numpy>=2,<3' 'pytest>=8,<10'
 python -m pytest scripts/tests/test_matched_starlight_nsb2.py -q
-
-# Level 1 + audit only
-python scripts/matched_starlight_nsb2_benchmark.py --skip-level2 --offline-audit
-
-# Full Level 1 + Level 2 (requires nsb, pinned nsb2, healpy, cached Zenodo Gaia)
-python scripts/matched_starlight_nsb2_benchmark.py \
-  --output docs/validation/artifacts/matched-starlight-nsb2-v1.json
 ```
 
-Zenodo Gaia assets are checksum-fingerprinted in the artifact when the cache is
-available (offline audit mode records metadata without re-fetching).
-Environment fields such as `module_path` and `platform` vary by machine;
-scientific metrics and the verified `resolved_commit` are the invariant outputs.
+Full dependencies are declared by NSB and pinned nsb2 (Astropy, healpy, SciPy,
+scikit-learn, dust_extinction, siderust and tempoch). Install from the NSB root;
+the clone commands do not change the working directory:
+
+```bash
+python3.12 -m venv /tmp/nsb-benchmark-venv
+. /tmp/nsb-benchmark-venv/bin/activate
+python -m pip install 'maturin==1.15.0' 'numpy>=2,<3' 'pytest>=8,<10'
+# Inspection checkout; verified to contain the pinned revision:
+git clone https://github.com/GerritRo/nsb2.git ../nsb2-reference
+git -C ../nsb2-reference checkout bc9320db03fbff69997ce366c6e76a37339c5d00
+# VCS installation preserves direct_url commit provenance:
+python -m pip install 'nsb2 @ git+https://github.com/GerritRo/nsb2.git@bc9320db03fbff69997ce366c6e76a37339c5d00'
+# Build and install THIS checkout's NSB extension, not a stale installed wheel.
+maturin build --release --locked --out /tmp/nsb-matched-wheels
+python -m pip install --force-reinstall /tmp/nsb-matched-wheels/*.whl
+nsb_build_revision=$(git rev-parse HEAD)
+NSB_REQUIRE_CROSS_IMPLEMENTATION=1 python -m pytest scripts/tests/test_matched_starlight_nsb2.py -q
+
+# Level-1-only evidence: defaults to reports/matched-starlight-nsb2-level1.json.
+python scripts/matched_starlight_nsb2_benchmark.py --skip-level2 --offline-audit
+
+# Full default evidence: may download/caches Gaia, SVO passbands and CALSPEC Vega.
+python scripts/matched_starlight_nsb2_benchmark.py --nsb-build-revision "$nsb_build_revision"
+```
+
+`--offline-audit` avoids audit downloads; it does not make Level-2 source loaders
+offline. Full data include ~301,990,016-byte faint-map and ~2.36 GB bright Gaia
+assets, bundled Pickles/XHIP tables, SVO Gaia G/BP/RP and Johnson V/B passbands,
+and CALSPEC `alpha_lyr_stis_012.fits`. Cache URLs, sizes and checksums are recorded.
+`--include-bright-catalog` additionally builds the large bright-star BallTree.
+Ordinary CI uses deterministic synthetic catalogs and no Gaia downloads.
+
+Unexpected Level-2 or requested population-audit failures raise and exit nonzero.
+Case completeness, finite values, metrics, wavelength contracts and Level-1
+acceptance are checked before atomic replacement of output. `--skip-level2`
+records `skipped_explicitly`, has no Level-2 aggregates and does not claim complete
+evidence or issue closure. Partial or provenance-limited runs cannot overwrite
+the official artifact.
+
+The provenance has two separate identities: `nsb_checkout` describes the runner's
+HEAD, dirty status (including staged and untracked paths) and a SHA-256 manifest
+of working-tree inputs; `nsb_build` identifies the imported extension by binary
+checksum and the caller's declared compiled-source revision. The latter is an
+explicit build attestation, not an inference from `git HEAD`; the runner checks
+that current Rust/build inputs match that revision. Package names/versions,
+executable, NSB data hashes, nsb2 source-input digest and packaged assets are
+recorded separately. An editable dirty nsb2 install is provenance-limited.
+
+For official evidence: commit implementation, tests and report first; build NSB
+from that clean commit; generate the artifact; commit only the artifact in a
+second commit. Its provenance points to the implementation commit, not the
+later evidence commit. Only the generated JSON is excluded from its input digest
+because it cannot hash itself; its pre-run dirty state is still disclosed. A dirty
+runner records actual input hashes and never represents HEAD as its exact bytes.
+
+The old artifact's `nsb_git=0a7a0c0` was an ancestor of `817dd58`, with subsequent
+runner changes. `git_rev(ROOT)` recorded only HEAD; no dirty state or binary
+fingerprint was retained. The exact historical generating environment cannot be
+recovered from that field. The old six-direction metrics were independently
+reproduced during this review, but that does not repair its historical provenance.
 
 ## 9. What this is not
 

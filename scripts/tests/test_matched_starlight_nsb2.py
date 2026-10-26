@@ -3,8 +3,12 @@
 """Physical tests for the matched Starlight NSB↔nsb2 benchmark (#298)."""
 from __future__ import annotations
 
+import copy
 import importlib.util
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -91,7 +95,7 @@ def test_level1_analytic_cases_pass_tolerances():
 
 
 @pytest.mark.skipif(
-    importlib.util.find_spec("nsb") is None,
+    importlib.util.find_spec("nsb") is None and not os.getenv("NSB_REQUIRE_CROSS_IMPLEMENTATION"),
     reason="nsb extension unavailable",
 )
 def test_level1_synthetic_starlight_map_matches_fixture():
@@ -101,11 +105,6 @@ def test_level1_synthetic_starlight_map_matches_fixture():
             assert case["passed"] is True
             continue
         assert case["absolute_difference"] == pytest.approx(0.0, abs=1e-15)
-
-
-def test_signed_difference_convention_in_helpers():
-    # predicted(nsb2) - observed(nsb) style for level2; reference - nsb for level1
-    assert (0.5 - 0.2) == pytest.approx(0.3)
 
 
 def test_protocol_pins_nsb2_commit_and_band():
@@ -167,12 +166,22 @@ def test_committed_artifact_records_verified_nsb2_pin():
     assert identity["resolved_commit"] == study.NSB2_COMMIT
     assert identity["verification"] == "matched"
     assert identity["evidence_status"] == "pinned_reference"
-    assert artifact["issue_298_closure"]["closes"] is True
-    assert artifact["aggregates"]["level1_cross_implementation"]["max_relative_difference"] == 0.0
-    # Level-2 conditional metrics unchanged by fail-closed template accounting.
-    faint = artifact["aggregates"]["level2_conditional_faint_only"]
-    assert faint["median_relative_difference"] == pytest.approx(0.8847676634377348)
-    assert faint["max_relative_difference"] == pytest.approx(0.9710947910998103)
+    study.validate_artifact(artifact)
+    for label, suffix in (("faint_only", "nsb2_faint_only"), ("faint_xhip", "nsb2_faint_xhip")):
+        cases = [c for c in artifact["level2_cases"] if c["model_nsb2"] == suffix]
+        # Independently reconstruct residuals; no frozen scientific scores.
+        rel = [abs(c["nsb2"] - c["nsb"]) / abs(c["nsb"]) for c in cases]
+        summary = artifact["aggregates"][f"level2_conditional_{label}"]
+        assert summary["n_cases"] == len(study.SKY_DIRECTIONS)
+        assert summary["median_relative_difference"] == pytest.approx(np.median(rel))
+        assert summary["max_relative_difference"] == pytest.approx(max(rel))
+    provenance = artifact["provenance"]
+    assert len(provenance["nsb_checkout"]["input_manifest_sha256"]) == 64
+    assert provenance["nsb_build"]["declared_source_revision"]
+    assert provenance["nsb_build"]["binaries"]
+    assert "nsb-py" in provenance["dependencies"]
+    assert provenance["runner_sha256"] == study.sha256_file(SCRIPT)
+    assert provenance["nsb_assets"]
 
 
 def test_nsb2_identity_matched_against_pin(monkeypatch):
@@ -262,7 +271,8 @@ def test_git_metadata_rejected_unless_nsb2_source_tree(tmp_path, monkeypatch):
 
 
 @pytest.mark.skipif(
-    importlib.util.find_spec("nsb") is None or importlib.util.find_spec("nsb2") is None,
+    (importlib.util.find_spec("nsb") is None or importlib.util.find_spec("nsb2") is None)
+    and not os.getenv("NSB_REQUIRE_CROSS_IMPLEMENTATION"),
     reason="nsb/nsb2 unavailable",
 )
 def test_level1_cross_implementation_agrees_with_analytic():
@@ -274,9 +284,286 @@ def test_level1_cross_implementation_agrees_with_analytic():
         "L1_cross_nsb_vs_nsb2",
         "L1_cross_nsb2_integrate_vs_resolved",
     ):
-        assert cases[case_id]["relative_difference"] == pytest.approx(0.0, abs=1e-6)
+        assert cases[case_id]["relative_difference"] == pytest.approx(0.0, abs=1e-12)
 
 
 def test_comparability_matrix_includes_cross_implementation_equivalent():
     equiv = [row for row in study.COMPARABILITY_MATRIX if row["status"] == "equivalent"]
     assert any("NSB StarlightMap and nsb2" in row["comparison"] for row in equiv)
+
+
+requires_nsb2 = pytest.mark.skipif(
+    importlib.util.find_spec("nsb2") is None and not os.getenv("NSB_REQUIRE_CROSS_IMPLEMENTATION"),
+    reason="optional nsb2 geometry/radiometry dependencies unavailable",
+)
+
+
+def synthetic_catalog(lon, lat, weights):
+    import astropy.units as u
+    from astropy.coordinates import SkyCoord
+    from nsb2.core.sources import CatalogSource
+    from nsb2.core.spectral import SpectralGrid
+
+    wave = np.linspace(300, 650, 701) * u.nm
+    # Two identical parameter nodes, a single photon spectral template.
+    flux = np.ones((2, len(wave), 1)) / u.s / u.cm**2 / u.nm
+    grid = SpectralGrid([np.array([0., 1.])], wave, flux)
+    coords = SkyCoord(l=np.asarray(lon) * u.deg, b=np.asarray(lat) * u.deg, frame="galactic").icrs
+    source = CatalogSource(coords, np.asarray(weights) * u.dimensionless_unscaled,
+                           np.zeros(len(coords)), grid)
+    source.build_balltree()
+    return source
+
+
+@requires_nsb2
+def test_catalog_exact_pixel_selection_and_flux_normalization():
+    import astropy.units as u
+    import healpy as hp
+    from astropy.coordinates import SkyCoord
+
+    # Galactic nside=1 north-cap pixel centered on (45, asin(2/3)).
+    # Source at (0, 40) lies outside the pixel but inside its circumscribed cone.
+    source = synthetic_catalog([45, 44, 0, 225], [42, 43, 40, -42], [2, 3, 100, 1000])
+    target = SkyCoord(l=45*u.deg, b=42*u.deg, frame="galactic").icrs
+    field, pixel = study.catalog_pixel_field(source, target.ra.deg, target.dec.deg, nside=1)
+    assert pixel == 0
+    assert len(field.coords) == 2
+    omega = 4*np.pi/12
+    result = study._nsb2_band_integral(field, 300, 650, solid_angle_sr=omega)
+    # Integral of (2+3) photons cm^-2 s^-1 nm^-1 over 350 nm, divided by true area.
+    assert result == pytest.approx(5*350/omega*1e-9, rel=1e-12)
+    assert study._nsb2_band_integral(field, 300, 650, solid_angle_sr=omega/4) == pytest.approx(4*result)
+    with pytest.raises(ValueError, match="solid angle"):
+        study._nsb2_band_integral(field, 300, 650)
+    # Legacy resolution radius is sqrt(area), so its cone area is ~pi pixels.
+    radius = hp.nside2resol(128)
+    assert 2*np.pi*(1-np.cos(radius))/study.healpix_pixel_steradian(128) == pytest.approx(np.pi, rel=1e-5)
+
+
+@requires_nsb2
+def test_catalog_empty_pixel_is_zero_but_unavailable_source_fails():
+    import astropy.units as u
+    from astropy.coordinates import SkyCoord
+    source = synthetic_catalog([225], [-42], [1])
+    target = SkyCoord(l=45*u.deg, b=42*u.deg, frame="galactic").icrs
+    field, _ = study.catalog_pixel_field(source, target.ra.deg, target.dec.deg, nside=1)
+    assert len(field.coords) == 0
+    assert study._nsb2_band_integral(field, 300, 650, solid_angle_sr=1) == 0
+    source = synthetic_catalog([45, 46], [42, 42], [1, 1])
+    source.data[1] = 2  # outside template parameter grid -> all templates unavailable
+    field, _ = study.catalog_pixel_field(source, target.ra.deg, target.dec.deg, nside=1)
+    with pytest.raises(study.UnavailableSpectralTemplate):
+        study._nsb2_band_integral(field, 300, 650, solid_angle_sr=1)
+
+
+@requires_nsb2
+def test_diffuse_radiance_has_no_second_area_normalization():
+    import astropy.units as u
+    from nsb2.core.dtypes import SourceField
+    source = synthetic_catalog([45], [42], [2])
+    field = SourceField(source.coords, source.weight/u.sr, source.data, source.spectral_grid, True)
+    assert study._nsb2_band_integral(field, 300, 650) == pytest.approx(2*350*1e-9)
+    with pytest.raises(ValueError, match="Diffuse radiance"):
+        study._nsb2_band_integral(field, 300, 650, solid_angle_sr=2)
+    field.weights = field.weights * u.sr  # corrupted diffuse field with flux units
+    with pytest.raises(u.UnitConversionError):
+        study._nsb2_band_integral(field, 300, 650)
+
+
+@requires_nsb2
+def test_band_endpoints_and_row_accounting_fail_closed():
+    import astropy.units as u
+    from nsb2.core.dtypes import SourceField
+    source = synthetic_catalog([45], [42], [1])
+    field = SourceField(source.coords, source.weight/u.sr, source.data, source.spectral_grid, True)
+    with pytest.raises(ValueError, match="endpoints"):
+        study._nsb2_band_integral(field, 300.1, 650)
+    with pytest.raises(ValueError, match="coverage"):
+        study._nsb2_band_integral(field, 299, 650)
+    field.spectral_data = np.zeros((2, 1))
+    with pytest.raises(ValueError, match="selected-source rows"):
+        study._nsb2_band_integral(field, 300, 650)
+
+
+def test_selected_sources_with_zero_template_columns_fail_closed():
+    with pytest.raises(study.UnavailableSpectralTemplate):
+        study.reduce_pickles_template_rates(np.empty((2, 0)))
+
+
+def load_committed_artifact():
+    return json.loads(study.ARTIFACT.read_text())
+
+
+def mock_build_inputs(monkeypatch):
+    old = load_committed_artifact()
+    monkeypatch.setattr(study, "require_nsb2_pin", lambda **k: old["provenance"]["nsb2_identity"])
+    monkeypatch.setattr(study, "level1_analytic_operator_cases", lambda: old["level1_cases"])
+    monkeypatch.setattr(study, "level1_synthetic_nsb_cases", list)
+    monkeypatch.setattr(study, "level1_cross_implementation_constant_spectrum", list)
+    monkeypatch.setattr(study, "population_audit", lambda **k: {})
+    monkeypatch.setattr(study, "runtime_provenance", lambda *a: {})
+    monkeypatch.setattr(study, "git_state", lambda *a: {})
+    return old
+
+
+def test_unexpected_level2_failure_propagates(monkeypatch):
+    mock_build_inputs(monkeypatch)
+    def failure(**kwargs):
+        raise RuntimeError("synthetic Level-2 failure")
+    monkeypatch.setattr(study, "level2_sky_direction_cases", failure)
+    with pytest.raises(RuntimeError, match="synthetic Level-2 failure"):
+        study.build_artifact(skip_level2=False, offline_audit=True,
+                             include_bright_catalog=False, allow_unverified_nsb2=False)
+
+
+def test_cli_failure_is_nonzero_and_preserves_existing_output(tmp_path):
+    path = tmp_path / "valid.json"
+    path.write_text("previous evidence")
+    code = f"""import sys
+sys.path.insert(0, {str(SCRIPT.parent)!r})
+import matched_starlight_nsb2_benchmark as b
+def failure(**kwargs):
+    raise RuntimeError('synthetic Level-2 failure')
+b.build_artifact = failure
+sys.argv = ['benchmark', '--output', {str(path)!r}]
+b.main()
+"""
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
+    assert result.returncode != 0
+    assert "synthetic Level-2 failure" in result.stderr
+    assert path.read_text() == "previous evidence"
+
+
+def test_explicit_level1_run_has_no_level2_or_closure_claim(monkeypatch, tmp_path):
+    mock_build_inputs(monkeypatch)
+    def forbidden(**kwargs):
+        pytest.fail("Level-2 should not execute")
+    monkeypatch.setattr(study, "level2_sky_direction_cases", forbidden)
+    artifact = study.build_artifact(skip_level2=True, offline_audit=True,
+                                    include_bright_catalog=False, allow_unverified_nsb2=False)
+    assert artifact["execution"]["level2"] == "skipped_explicitly"
+    assert not artifact["level2_cases"]
+    assert not artifact["issue_298_closure"]["closes"]
+    study.write_artifact(tmp_path / "partial.json", artifact)
+    with pytest.raises(ValueError, match="Official artifact"):
+        study.write_artifact(study.ARTIFACT, artifact)
+
+
+@pytest.mark.parametrize("corrupt", ["missing_l1", "missing_l2", "duplicate_l2", "nonfinite", "wrong_metric", "failed_l1"])
+def test_incomplete_or_invalid_evidence_cannot_replace_output(tmp_path, corrupt):
+    artifact = load_committed_artifact()
+    if corrupt == "missing_l1":
+        artifact["level1_cases"].pop()
+    elif corrupt == "missing_l2":
+        artifact["level2_cases"].pop()
+    elif corrupt == "duplicate_l2":
+        artifact["level2_cases"][-1] = copy.deepcopy(artifact["level2_cases"][0])
+    elif corrupt == "nonfinite":
+        artifact["level2_cases"][0]["nsb2"] = float("nan")
+    elif corrupt == "wrong_metric":
+        artifact["level2_cases"][0]["absolute_difference"] = 1000
+    else:
+        artifact["level1_cases"][0]["relative_difference"] = 0.1
+        artifact["level1_cases"][0]["absolute_difference"] = 0.1
+    output = tmp_path / "valid.json"
+    output.write_text("previous evidence")
+    with pytest.raises(ValueError):
+        study.write_artifact(output, artifact)
+    assert output.read_text() == "previous evidence"
+
+
+def test_atomic_replace_failure_preserves_output_and_cleans_temporary(monkeypatch, tmp_path):
+    artifact = load_committed_artifact()
+    path = tmp_path / "valid.json"
+    path.write_text("previous evidence")
+    def fail(*args):
+        raise OSError("replace failed")
+    monkeypatch.setattr(study.os, "replace", fail)
+    with pytest.raises(OSError):
+        study.write_artifact(path, artifact)
+    assert path.read_text() == "previous evidence"
+    assert list(tmp_path.iterdir()) == [path]
+
+
+def test_git_provenance_distinguishes_staged_unstaged_and_untracked(tmp_path):
+    def git(*args):
+        return subprocess.check_output(["git", "-C", str(tmp_path), *args], text=True)
+    git("init", "-q")
+    git("config", "user.email", "fixture@example.org")
+    git("config", "user.name", "Fixture")
+    source = tmp_path / "source.py"
+    source.write_text("one")
+    git("add", ".")
+    git("commit", "-qm", "initial")
+    clean = study.git_state(tmp_path)
+    source.write_text("two")
+    git("add", "source.py")
+    source.write_text("three")
+    (tmp_path / "new.txt").write_text("untracked")
+    dirty = study.git_state(tmp_path)
+    assert clean["head"] == dirty["head"]
+    assert clean["dirty"] is False and dirty["dirty"] is True
+    assert "MM source.py" in dirty["status"] and "?? new.txt" in dirty["status"]
+    assert clean["input_manifest_sha256"] != dirty["input_manifest_sha256"]
+    generated = tmp_path / "docs/validation/artifacts/matched-starlight-nsb2-v1.json"
+    generated.parent.mkdir(parents=True)
+    generated.write_text("generated result")
+    assert study.git_state(tmp_path)["input_manifest_sha256"] == dirty["input_manifest_sha256"]
+
+
+def test_dirty_nsb2_checkout_refuses_pinned_reference(monkeypatch):
+    monkeypatch.setattr(study, "resolve_nsb2_identity", lambda: {
+        "verification": "dirty", "resolved_commit": study.NSB2_COMMIT})
+    with pytest.raises(RuntimeError, match="dirty"):
+        study.require_nsb2_pin()
+    assert study.require_nsb2_pin(allow_unverified=True)["evidence_status"] == "provenance_limited_dirty"
+
+
+@requires_nsb2
+def test_actual_healpix_source_matches_uniform_catalog_pixel_mean():
+    from types import SimpleNamespace
+
+    import astropy.units as u
+    import healpy as hp
+    from astropy.coordinates import SkyCoord
+    # Populate every native ICRS cell so colour interpolation has no missing neighbours.
+    lon_i, lat_i = hp.pix2ang(1, np.arange(12), nest=True, lonlat=True)
+    source = synthetic_catalog(lon_i, lat_i, np.full(12, 2.))
+    source.coords = SkyCoord(ra=lon_i*u.deg, dec=lat_i*u.deg)
+    source.frame = source.coords.frame
+    mapped = source.to_map(1)
+    field, _ = mapped.query_direct(SimpleNamespace(origin="icrs"), source.coords[:1], np.zeros(1))
+    expected = 2*350/study.healpix_pixel_steradian(1)*1e-9
+    assert study._nsb2_band_integral(field, 300, 650) == pytest.approx(expected, rel=1e-12)
+
+
+def test_required_cross_implementation_dependencies_and_pin():
+    if os.getenv("NSB_REQUIRE_CROSS_IMPLEMENTATION"):
+        import nsb2  # noqa: F401
+
+        import nsb  # noqa: F401
+        assert study.require_nsb2_pin()["evidence_status"] == "pinned_reference"
+
+
+def test_optional_bright_comparison_excludes_unverified_xhip_union(monkeypatch):
+    monkeypatch.setattr(study, "load_nsb2_sources", lambda **k: {})
+    monkeypatch.setattr(study, "nsb_toa_starlight", lambda *a: 1.)
+    monkeypatch.setattr(study, "nsb2_toa_components", lambda *a: {
+        "radiances": {"faint": 1., "bright": 2., "suppl": 100.},
+        "catalog_counts": {"bright": 1, "suppl": 1},
+        "nsb_galactic_ring_pixel": 0, "catalog_solid_angle_sr": 1.})
+    cases = study.level2_sky_direction_cases(include_bright_catalog=True)
+    assert len(cases) == 3*len(study.SKY_DIRECTIONS)
+    assert all(c["nsb2"] == 3 for c in cases if c["model_nsb2"] == "nsb2_faint_bright")
+    assert not any(c["model_nsb2"] == "nsb2_faint_bright_xhip" for c in cases)
+
+
+def test_resolver_detects_dirty_nsb2_owned_checkout(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    monkeypatch.setitem(sys.modules, "nsb2", SimpleNamespace(__file__=str(tmp_path / "nsb2/__init__.py")))
+    monkeypatch.setattr(study, "_git_commit_owned_by_nsb2", lambda p: (study.NSB2_COMMIT, f"git:{tmp_path}"))
+    monkeypatch.setattr(study, "git_state", lambda p: {"head": study.NSB2_COMMIT, "dirty": True, "status": [" M nsb2/core/sources.py"]})
+    identity = study.resolve_nsb2_identity()
+    assert identity["resolved_commit"] == study.NSB2_COMMIT
+    assert identity["verification"] == "dirty"
+    assert identity["checkout"]["dirty"] is True

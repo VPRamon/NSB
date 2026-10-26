@@ -55,6 +55,9 @@ jobs:
           python -m pytest scripts/tests/test_reproduce_f107_cadence.py -q
           python -m pytest scripts/tests/test_spectral_window_diagnostics.py -q
 
+      - name: Test matched Starlight helpers and artifact consistency
+        run: python -m pytest scripts/tests/test_matched_starlight_nsb2.py -q
+
       - uses: actions/setup-go@v6
         with:
           go-version: '1.24'
@@ -649,3 +652,28 @@ jobs:
           ${{ matrix.additional-venv-python }} -m pip install --upgrade pip "pytest>=8,<10"
           ${{ matrix.additional-venv-python }} -c "import pathlib, subprocess, sys; wheels = list(pathlib.Path('dist').glob('*.whl')); assert len(wheels) == 1, wheels; subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--only-binary=:all:', str(wheels[0])])"
           ${{ matrix.additional-venv-python }} -m pytest python/tests -q
+
+
+  matched_starlight_operators:
+    name: Matched Starlight NSB and pinned nsb2 operators
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install NSB interface and pinned reference with test dependencies
+        run: |
+          python -m pip install "maturin==1.15.0" "pytest>=8,<10" "numpy>=2,<3"
+          maturin build --release --locked --out dist-matched
+          python -m pip install dist-matched/*.whl
+          python -m pip install "nsb2 @ git+https://github.com/GerritRo/nsb2.git@bc9320db03fbff69997ce366c6e76a37339c5d00"
+      - name: Require and run independent numerical operators (no Gaia downloads)
+        env:
+          NSB_REQUIRE_CROSS_IMPLEMENTATION: "1"
+        run: python -m pytest scripts/tests/test_matched_starlight_nsb2.py -q
