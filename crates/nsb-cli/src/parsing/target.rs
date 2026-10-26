@@ -104,5 +104,40 @@ mod tests {
             az: Some(4.0),
         })
         .is_err());
+        assert!(resolve_target(&TargetArgs {
+            ra: None,
+            dec: None,
+            alt: None,
+            az: None,
+        })
+        .is_err());
+        assert!(resolve_target(&TargetArgs {
+            ra: None,
+            dec: None,
+            alt: Some(60.0),
+            az: None,
+        })
+        .is_err());
+        assert!(resolve_target(&TargetArgs {
+            ra: Some(f64::NAN),
+            dec: Some(1.0),
+            alt: None,
+            az: None,
+        })
+        .is_err());
+        assert!(resolve_target(&TargetArgs {
+            ra: None,
+            dec: None,
+            alt: Some(f64::INFINITY),
+            az: Some(10.0),
+        })
+        .is_err());
+        assert!(resolve_target(&TargetArgs {
+            ra: None,
+            dec: None,
+            alt: Some(95.0),
+            az: Some(10.0),
+        })
+        .is_err());
     }
 }

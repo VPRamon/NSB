@@ -94,12 +94,10 @@ pub(super) fn prepared_bounds(
             return Ok(BoundOutcome::NeedsSubdivision);
         }
     }
+    // Dynamic is rejected above; keep the match exhaustive without a dead arm.
     let value = match prepared.starlight {
         PreparedStarlight::Constant(value) => value,
-        PreparedStarlight::Disabled => Radiance::new(0.0),
-        PreparedStarlight::Dynamic => {
-            return Ok(BoundOutcome::Unsupported);
-        }
+        PreparedStarlight::Disabled | PreparedStarlight::Dynamic => Radiance::new(0.0),
     };
     Ok(BoundOutcome::enclosure(RadianceBounds::constant(value)?))
 }

@@ -124,3 +124,85 @@ pub(crate) fn starlight_healpix_transitions(
     transitions.dedup();
     Ok(transitions)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{HorizontalTarget, NsbEvaluator, NsbModelConfig, Target, TargetDirection, DEG};
+    use siderust::catalogs::observatories::ROQUE_DE_LOS_MUCHACHOS;
+    use siderust::qtty::Days;
+    use tempoch::{Time, UTC};
+
+    fn utc(s: &str) -> Time<UTC> {
+        Time::<UTC>::from_chrono(
+            chrono::DateTime::parse_from_rfc3339(s)
+                .expect("valid RFC3339")
+                .with_timezone(&chrono::Utc),
+        )
+    }
+
+    fn tt_window(start: &str, end: &str) -> TimePeriod<ModifiedJulianDate> {
+        use super::super::intervals::utc_time_to_tt_mjd;
+        TimePeriod::new(utc_time_to_tt_mjd(utc(start)), utc_time_to_tt_mjd(utc(end)))
+    }
+
+    #[test]
+    fn equatorial_targets_yield_no_healpix_cuts() {
+        let evaluator = NsbEvaluator::with_config(NsbModelConfig::generic_clear_sky()).unwrap();
+        let cuts = starlight_healpix_transitions(
+            &evaluator,
+            ROQUE_DE_LOS_MUCHACHOS.geodetic(),
+            TargetDirection::equatorial(Target::new(83.633 * DEG, 22.014 * DEG)),
+            tt_window("2024-06-18T22:00:00Z", "2024-06-19T04:00:00Z"),
+        )
+        .unwrap();
+        assert!(cuts.is_empty());
+    }
+
+    #[test]
+    fn empty_or_inverted_windows_yield_no_cuts() {
+        let evaluator = NsbEvaluator::with_config(NsbModelConfig::generic_clear_sky()).unwrap();
+        let horizontal = TargetDirection::horizontal(HorizontalTarget::new(60.0 * DEG, 130.0 * DEG));
+        let start = {
+            use super::super::intervals::utc_time_to_tt_mjd;
+            utc_time_to_tt_mjd(utc("2024-06-18T22:00:00Z"))
+        };
+        let zero = TimePeriod::new(start, start);
+        assert!(starlight_healpix_transitions(
+            &evaluator,
+            ROQUE_DE_LOS_MUCHACHOS.geodetic(),
+            horizontal,
+            zero,
+        )
+        .unwrap()
+        .is_empty());
+        let inverted = TimePeriod::new(start + Days::new(1.0), start);
+        assert!(starlight_healpix_transitions(
+            &evaluator,
+            ROQUE_DE_LOS_MUCHACHOS.geodetic(),
+            horizontal,
+            inverted,
+        )
+        .unwrap()
+        .is_empty());
+    }
+
+    #[test]
+    fn horizontal_starlight_finds_pixel_transitions_over_hours() {
+        let evaluator = NsbEvaluator::with_config(NsbModelConfig::generic_clear_sky()).unwrap();
+        if evaluator.starlight().is_none() {
+            return;
+        }
+        let cuts = starlight_healpix_transitions(
+            &evaluator,
+            ROQUE_DE_LOS_MUCHACHOS.geodetic(),
+            TargetDirection::horizontal(HorizontalTarget::new(55.0 * DEG, 120.0 * DEG)),
+            tt_window("2024-06-18T22:00:00Z", "2024-06-19T06:00:00Z"),
+        )
+        .unwrap();
+        assert!(
+            !cuts.is_empty(),
+            "fixed Alt/Az over eight hours should cross HEALPix pixels"
+        );
+    }
+}

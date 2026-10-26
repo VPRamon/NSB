@@ -51,7 +51,7 @@ fn target_direction_from_python(value: &Bound<'_, PyAny>) -> PyResult<TargetDire
             az * DEG,
         )));
     }
-    Err(invalid_input(
+    Err(pyo3::exceptions::PyTypeError::new_err(
         "target must be siderust.Direction (ICRS) or siderust.HorizontalDirection (geometric Alt/Az)",
     ))
 }

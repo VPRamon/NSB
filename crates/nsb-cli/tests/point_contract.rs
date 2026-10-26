@@ -341,6 +341,39 @@ fn horizontal_point_json_preserves_frame_identity() {
 }
 
 #[test]
+fn horizontal_point_table_preserves_frame_identity() {
+    let stdout = String::from_utf8(
+        Command::cargo_bin("nsb")
+            .unwrap()
+            .args([
+                "--format",
+                "table",
+                "point",
+                "--time",
+                "2024-06-18T23:00:00Z",
+                "--site",
+                "ORM",
+                "--alt",
+                "60",
+                "--az",
+                "130",
+                "--components",
+                "zodiacal",
+            ])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    assert!(stdout.contains("frame=horizontal"));
+    assert!(stdout.contains("alt="));
+    assert!(stdout.contains("az="));
+    assert!(stdout.contains("N-CW geometric"));
+}
+
+#[test]
 fn mixed_ra_and_alt_flags_are_rejected() {
     Command::cargo_bin("nsb")
         .unwrap()

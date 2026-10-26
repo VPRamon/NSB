@@ -252,4 +252,20 @@ mod tests {
         let err = validate_target_direction(observer, TargetDirection::from(nan)).unwrap_err();
         assert!(matches!(err, NsbError::OutOfRange(_)));
     }
+
+    #[test]
+    fn constructors_and_frame_accessors_preserve_identity() {
+        let equatorial = Target::new(10.0 * DEG, 20.0 * DEG);
+        let horizontal = HorizontalTarget::new(55.0 * DEG, 200.0 * DEG);
+        let eq = TargetDirection::equatorial(equatorial);
+        let hz = TargetDirection::horizontal(horizontal);
+        assert!(eq.is_equatorial());
+        assert!(!eq.is_horizontal());
+        assert!(hz.is_horizontal());
+        assert!(!hz.is_equatorial());
+        assert!(eq.altitude().is_none());
+        assert!(eq.azimuth().is_none());
+        assert!((hz.altitude().unwrap().value() - 55.0).abs() < 1e-12);
+        assert!((hz.azimuth().unwrap().value() - 200.0).abs() < 1e-12);
+    }
 }

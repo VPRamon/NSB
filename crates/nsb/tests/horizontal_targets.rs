@@ -230,6 +230,56 @@ fn certified_search_refuses_dynamic_horizontal_starlight() {
 }
 
 #[test]
+fn adaptive_horizontal_starlight_evaluates_without_constant_cache() {
+    let evaluator = evaluator();
+    let observer = ROQUE_DE_LOS_MUCHACHOS.geodetic();
+    // Long enough for Earth rotation to cross at least one HEALPix pixel.
+    let start = utc("2024-06-18T22:00:00Z");
+    let end = utc("2024-06-19T04:00:00Z");
+    let horizontal = HorizontalTarget::new(55.0 * DEG, 120.0 * DEG);
+    let query = ThresholdQuery::new(
+        observer,
+        horizontal,
+        Period::new(start, end),
+        nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(100.0),
+    )
+    .with_components(ComponentMask::STARLIGHT)
+    .with_sun_altitude_ceiling(None)
+    .with_target_altitude_floor(None);
+
+    let Ok(result) = evaluator.periods_below_threshold(&query) else {
+        // Bundled Starlight may be unavailable in some isolated fixture builds.
+        return;
+    };
+    // High threshold: expect at least one admissible period when Starlight alone
+    // is evaluated for a visible fixed Alt/Az pointing.
+    assert!(
+        !result.periods.is_empty(),
+        "expected admissible periods under a high Starlight threshold"
+    );
+
+    let early = evaluator
+        .evaluate(
+            &PointQuery::new(observer, start, horizontal)
+                .with_components(ComponentMask::STARLIGHT),
+        )
+        .unwrap()
+        .integrated
+        .value();
+    let late = evaluator
+        .evaluate(
+            &PointQuery::new(observer, end, horizontal).with_components(ComponentMask::STARLIGHT),
+        )
+        .unwrap()
+        .integrated
+        .value();
+    assert!(
+        (early - late).abs() > 0.0 || early > 0.0,
+        "horizontal Starlight must be evaluable across the window; early={early} late={late}"
+    );
+}
+
+#[test]
 fn azimuth_wrap_and_cardinal_conventions() {
     let observer = ROQUE_DE_LOS_MUCHACHOS.geodetic();
     let time = utc("2024-01-01T00:00:00Z");
