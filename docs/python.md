@@ -21,12 +21,14 @@ Python 3.10 or newer is supported.
 python -m pip install nsb-py
 ```
 
-The distribution declares `siderust>=0.6.0,<0.7` and `tempoch>=0.5.0,<0.6`
-as runtime dependencies (HorizontalDirection and bridge protocol 2), so pip
-installs the matching canonical upstream packages. NSB's Rust crate and Python
-distribution share the same NSB release version; upstream Siderust and Tempoch
-use their own versions. See
+The distribution declares `siderust>=0.5.1,<0.6` and `tempoch>=0.5.0,<0.6`
+as runtime dependencies, so pip installs the matching canonical upstream
+packages. NSB's Rust crate and Python distribution share the same NSB release
+version; upstream Siderust and Tempoch use their own versions. See
 [Siderust compatibility](specifications/siderust-compatibility.md).
+`siderust.HorizontalDirection` is provided by
+[Siderust/siderust-py#15](https://github.com/Siderust/siderust-py/pull/15)
+(`>=0.6.0`); install that companion release when using horizontal targets.
 
 ## Ownership boundary
 
@@ -38,20 +40,20 @@ Generic scientific primitives belong upstream:
 - **qtty** owns physical quantities and units.
 - **tempoch / tempoch-py** own time-scale, interval, and Python datetime conversion semantics.
 
-Python observers and directions are the canonical `siderust.Observer`,
-`siderust.Direction` (ICRS) and, with `siderust>=0.6.0`,
-`siderust.HorizontalDirection` (geometric Alt/Az) classes. `PointQuery` and
-`ThresholdQuery` accept either direction type. NSB consumes `siderust-py`'s
-versioned cross-extension bridge and does not register duplicate `nsb.Observer`
-or direction classes. At the Rust boundary, bridge ICRS directions transform
-through Siderust's frame-bias rotation to NSB's `EquatorialMeanJ2000` target;
-horizontal targets resolve per evaluation instant. Getters apply the inverse
-transform before constructing the matching canonical Python object.
+Python observers and directions are the canonical `siderust.Observer` and
+`siderust.Direction` (ICRS) classes. With `siderust>=0.6.0`,
+`siderust.HorizontalDirection` (geometric Alt/Az) is also accepted. `PointQuery`
+and `ThresholdQuery` accept either direction type via the same `target`
+argument. NSB consumes `siderust-py`'s versioned ICRS bridge and duck-types
+horizontal objects through `alt_deg` / `az_deg` so a second NSB-owned
+coordinate class is not required. At the Rust boundary, bridge ICRS directions
+transform through Siderust's frame-bias rotation to NSB's `EquatorialMeanJ2000`
+target; horizontal targets resolve per evaluation instant. Getters reconstruct
+the matching canonical Python object (ICRS via the bridge; horizontal via
+`siderust.HorizontalDirection` when installed).
 
-Siderust owns coordinate validity. Canonical `siderust.Observer`,
-`siderust.Direction` and `siderust.HorizontalDirection` construction rejects
-non-finite coordinate components upstream; NSB does not duplicate Siderust's
-coordinate-range policy.
+Siderust owns coordinate validity for its classes. NSB additionally rejects
+non-finite or out-of-range horizontal duck-typed inputs.
 
 ## Package layout
 
@@ -178,7 +180,8 @@ Evaluator construction, point evaluation, and planning operations detach from th
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install -U pip "maturin>=1.9,<2" pytest
-python -m pip install "siderust>=0.6.0,<0.7"
+python -m pip install "siderust>=0.5.1,<0.6"
+# Optional: HorizontalDirection from Siderust/siderust-py#15 when published as 0.6+
 maturin develop --locked
 python -m pytest python/tests
 ```

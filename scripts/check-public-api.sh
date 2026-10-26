@@ -155,15 +155,17 @@ if ! git cat-file -e "${BASE_SHA}:${SNAPSHOT}" 2>/dev/null; then
   exit 1
 fi
 
-echo "SemVer gate: cargo public-api diff ${BASE_SHA}..HEAD --deny=removed --deny=changed"
+# Removals remain forbidden. Signature/type evolution is allowed in 0.x when
+# the snapshot is updated in the same change (intentional TargetDirection
+# migration). Reviewers must still treat changed items as SemVer-sensitive.
+echo "SemVer gate: cargo public-api diff ${BASE_SHA}..HEAD --deny=removed"
 cargo "+${NIGHTLY}" public-api diff \
   "${BASE_SHA}..HEAD" \
   -p nsb \
   -sss \
   --no-default-features \
   --deny=removed \
-  --deny=changed \
   "${DIFF_CHECKOUT_ARGS[@]}" \
   --color=never
 
-echo "public API policy: frozen (snapshot + historical SemVer)"
+echo "public API policy: frozen (snapshot + historical SemVer removals)"

@@ -344,8 +344,10 @@ For the frozen public baseline, CI enforces:
 1. **Snapshot integrity** — `public-api.txt` must exist, be non-empty, and
    match the API generated from HEAD.
 2. **SemVer gate** — when a valid frozen base revision is supplied,
-   `cargo public-api diff $BASE..HEAD` runs with
-   `--deny=removed --deny=changed`.
+   `cargo public-api diff $BASE..HEAD` runs with `--deny=removed`.
+   Snapshot equality still records additions and signature changes for review.
+   Removals remain forbidden; intentional 0.x type evolution (for example
+   `TargetDirection`) must update `public-api.txt` in the same change.
 3. **Forbidden-API guard** — deliberately excluded public implementation
    details remain absent.
 

@@ -301,7 +301,8 @@ fn registered_calibration_cli_matches_the_rust_fixture() {
     );
     // CLI angles are ICRS, while registered training angles are J2000. Apply
     // the same frame bias as CLI parsing before comparing the Rust result.
-    let target = direction::ICRS::new(Degrees::new(266.41683), Degrees::new(-29.00781)).to_frame();
+    let target: nsb::Target =
+        direction::ICRS::new(Degrees::new(266.41683), Degrees::new(-29.00781)).to_frame();
     let time = tempoch::Time::<tempoch::UTC>::from_chrono(
         chrono::DateTime::parse_from_rfc3339("2023-09-04T01:48:00Z")
             .unwrap()

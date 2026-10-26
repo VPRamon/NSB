@@ -2,13 +2,12 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 use crate::units::angular::Degrees;
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
-use crate::{HorizontalTarget, TargetDirection};
+use crate::{HorizontalTarget, TargetDirection, DEG};
 use pyo3::prelude::*;
 use siderust::coordinates::spherical::direction;
 use siderust::coordinates::transform::TransformFrame;
 use siderust_py::interop::{
-    direction_from_python, direction_to_python, horizontal_direction_from_python,
-    horizontal_direction_to_python, observer_from_python, observer_to_python,
+    direction_from_python, direction_to_python, observer_from_python, observer_to_python,
 };
 use tempoch::{Period, Time, UTC};
 use tempoch_py::interop::{datetime_to_time as upstream_datetime_to_time, time_to_datetime};
@@ -33,8 +32,24 @@ fn target_direction_from_python(value: &Bound<'_, PyAny>) -> PyResult<TargetDire
     if let Ok(icrs) = direction_from_python(value) {
         return Ok(TargetDirection::Equatorial(target_from_icrs(icrs)));
     }
-    if let Ok(horizontal) = horizontal_direction_from_python(value) {
-        return Ok(TargetDirection::Horizontal(horizontal));
+    // Duck-type `siderust.HorizontalDirection` (and compatible objects) so NSB
+    // can accept horizontal targets without requiring an unpublished siderust-py
+    // bridge protocol bump at compile time. Returning horizontal values still
+    // needs the installed package to expose `HorizontalDirection`.
+    if value.hasattr("alt_deg")? && value.hasattr("az_deg")? {
+        let alt: f64 = value.getattr("alt_deg")?.extract()?;
+        let az: f64 = value.getattr("az_deg")?.extract()?;
+        finite("alt_deg", alt)?;
+        finite("az_deg", az)?;
+        if !(-90.0..=90.0).contains(&alt) {
+            return Err(invalid_input(
+                "horizontal target altitude must be within [-90, 90] degrees",
+            ));
+        }
+        return Ok(TargetDirection::Horizontal(HorizontalTarget::new(
+            alt * DEG,
+            az * DEG,
+        )));
     }
     Err(invalid_input(
         "target must be siderust.Direction (ICRS) or siderust.HorizontalDirection (geometric Alt/Az)",
@@ -46,7 +61,18 @@ fn target_direction_to_python(py: Python<'_>, target: TargetDirection) -> PyResu
         TargetDirection::Equatorial(equatorial) => {
             direction_to_python(py, &target_to_icrs(&equatorial))
         }
-        TargetDirection::Horizontal(horizontal) => horizontal_direction_to_python(py, &horizontal),
+        TargetDirection::Horizontal(horizontal) => {
+            let siderust = py.import("siderust")?;
+            let cls = siderust.getattr("HorizontalDirection").map_err(|_| {
+                invalid_input(
+                    "returning a horizontal target requires siderust.HorizontalDirection \
+                     (install siderust>=0.6.0 from Siderust/siderust-py#15)",
+                )
+            })?;
+            cls.call1((horizontal.alt().value(), horizontal.az().value()))
+                .map(Bound::unbind)
+        }
+        _ => Err(invalid_input("unsupported target frame")),
     }
 }
 
@@ -242,6 +268,7 @@ mod tests {
                 assert!((value.az().value() - 130.0).abs() < 1e-12);
             }
             TargetDirection::Equatorial(_) => panic!("expected horizontal"),
+            _ => panic!("unexpected target frame"),
         }
     }
 }

@@ -8,11 +8,14 @@ tag-triggered publication workflow succeeds.
 ### Added
 
 - Native horizontal (Alt/Az) observing targets alongside equatorial directions:
-  Rust `TargetDirection` / `HorizontalTarget`, Python
-  `siderust.HorizontalDirection` on `PointQuery` and `ThresholdQuery`, and CLI
-  horizontal target flags. Horizontal Starlight is dynamic under Earth rotation;
-  adaptive planning partitions at Galactic HEALPix transitions, and certified
-  search refuses a constant-Starlight certificate for horizontal targets.
+  Rust `TargetDirection` / `HorizontalTarget`, Python acceptance of
+  `siderust.HorizontalDirection` (companion Siderust/siderust-py#15) on
+  `PointQuery` / `ThresholdQuery`, and CLI `--alt`/`--az`. Horizontal Starlight
+  is dynamic under Earth rotation; adaptive planning partitions at Galactic
+  HEALPix transitions; certified search refuses a constant-Starlight certificate
+  for horizontal targets. Intentional public-API type evolution for query
+  targets is recorded in `crates/nsb/api/public-api.txt` (existing equatorial
+  constructors remain usable via `Into<TargetDirection>`).
 
 ## [0.2.0]
 
