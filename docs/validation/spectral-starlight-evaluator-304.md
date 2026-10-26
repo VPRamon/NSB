@@ -165,6 +165,8 @@ Errors are exercised for checksum mismatch, integrated product, invalid/missing
 bins, invalid epoch/site/view, atmospheric coverage, invalid controls, independent
 wavelength/grid/order non-convergence and excessive work/workspace. The core
 unit test separately exercises an evaluator with no configured Starlight source.
+A fast in-crate public vacuum workflow also verifies the component-availability
+matrix across all four modes; external tests retain the independent numerical checks.
 
 ## Optional frozen seven-bin replay
 

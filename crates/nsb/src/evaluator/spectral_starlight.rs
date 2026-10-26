@@ -269,3 +269,6 @@ impl NsbEvaluator {
         })
     }
 }
+
+#[cfg(test)]
+mod tests;
