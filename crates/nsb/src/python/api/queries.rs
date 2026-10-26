@@ -72,7 +72,6 @@ fn target_direction_to_python(py: Python<'_>, target: TargetDirection) -> PyResu
             cls.call1((horizontal.alt().value(), horizontal.az().value()))
                 .map(Bound::unbind)
         }
-        _ => Err(invalid_input("unsupported target frame")),
     }
 }
 
@@ -268,7 +267,6 @@ mod tests {
                 assert!((value.az().value() - 130.0).abs() < 1e-12);
             }
             TargetDirection::Equatorial(_) => panic!("expected horizontal"),
-            _ => panic!("unexpected target frame"),
         }
     }
 }
