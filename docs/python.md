@@ -1,6 +1,6 @@
 # Python bindings
 
-Status: Python public interface for NSB 0.2.0.
+Status: Python public interface for NSB 0.2.1.
 Audience: Python users, integrators, and binding maintainers.
 Scope: Installation, canonical upstream types, evaluation/planning, units,
 errors, and local development.

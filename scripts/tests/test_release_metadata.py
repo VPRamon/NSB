@@ -4,6 +4,7 @@
 import shutil
 import subprocess
 import sys
+import tomllib
 import tempfile
 import unittest
 from pathlib import Path
@@ -24,6 +25,9 @@ class ReleaseMetadataTests(unittest.TestCase):
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / name, target)
+        self.release_version = tomllib.loads(
+            (self.root / "crates/nsb/Cargo.toml").read_text(encoding="utf-8")
+        )["package"]["version"]
 
     def run_preflight(self, *args):
         return subprocess.run([sys.executable, str(self.root / "scripts/check-release-metadata.py"),
@@ -36,13 +40,14 @@ class ReleaseMetadataTests(unittest.TestCase):
         target.write_text(content.replace(old, new, 1))
 
     def test_current_registry_release_and_tag_pass(self):
-        for args in [(), ("--tag", "v0.2.0")]:
+        for args in [(), ("--tag", f"v{self.release_version}")]:
             result = self.run_preflight(*args)
             self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_wrong_tag_and_workspace_version_fail(self):
         self.assertNotEqual(self.run_preflight("--tag", "v0.1.1").returncode, 0)
-        self.replace("crates/nsb-cli/Cargo.toml", 'version = "0.2.0"', 'version = "0.1.1"')
+        self.replace("crates/nsb-cli/Cargo.toml",
+                     f'version = "{self.release_version}"', 'version = "0.1.1"')
         self.assertNotEqual(self.run_preflight().returncode, 0)
 
     def test_old_python_bridge_requirements_fail(self):
