@@ -19,6 +19,7 @@ from pathlib import Path
 import tarfile
 
 import numpy as np
+from siderust.direction import ICRS
 
 ROOT = Path(__file__).resolve().parents[1]
 ARTIFACT = ROOT / "docs/validation/artifacts/spectral-window-diagnostics-v1.json"
@@ -693,7 +694,6 @@ COMPARABILITY_MATRIX = [
 def build_artifact(args) -> dict:
     import nsb
     import siderust
-from siderust.direction import ICRS
     from astropy.time import Time
     from astropy.utils import data as astropy_data, iers
 
