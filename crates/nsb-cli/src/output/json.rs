@@ -237,25 +237,25 @@ struct PeriodJson {
 }
 
 fn target_json(target: TargetDirection) -> TargetJson {
-    match target {
-        TargetDirection::Equatorial(equatorial) => {
-            let icrs: direction::ICRS = equatorial.to_frame();
-            TargetJson {
-                frame: "icrs",
-                ra_deg: Some(icrs.ra().value()),
-                dec_deg: Some(icrs.dec().value()),
-                alt_deg: None,
-                az_deg: None,
-            }
-        }
-        TargetDirection::Horizontal(horizontal) => TargetJson {
+    if let (Some(alt), Some(az)) = (target.altitude(), target.azimuth()) {
+        return TargetJson {
             frame: "horizontal",
             ra_deg: None,
             dec_deg: None,
-            alt_deg: Some(horizontal.alt().value()),
-            az_deg: Some(horizontal.az().value()),
-        },
-        _ => unreachable!("NSB currently supports equatorial and horizontal targets only"),
+            alt_deg: Some(alt.value()),
+            az_deg: Some(az.value()),
+        };
+    }
+    let equatorial = target
+        .as_equatorial()
+        .expect("target is equatorial or horizontal");
+    let icrs: direction::ICRS = equatorial.to_frame();
+    TargetJson {
+        frame: "icrs",
+        ra_deg: Some(icrs.ra().value()),
+        dec_deg: Some(icrs.dec().value()),
+        alt_deg: None,
+        az_deg: None,
     }
 }
 

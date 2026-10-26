@@ -841,6 +841,7 @@ pub nsb::TargetDirection::Equatorial(nsb::Target)
 pub nsb::TargetDirection::Horizontal(nsb::HorizontalTarget)
 impl nsb::TargetDirection
 pub fn nsb::TargetDirection::altitude(self) -> core::option::Option<qtty_core::units::angular::Degrees>
+pub fn nsb::TargetDirection::as_equatorial(self) -> core::option::Option<nsb::Target>
 pub fn nsb::TargetDirection::azimuth(self) -> core::option::Option<qtty_core::units::angular::Degrees>
 pub fn nsb::TargetDirection::equatorial(target: nsb::Target) -> Self
 pub fn nsb::TargetDirection::horizontal(target: nsb::HorizontalTarget) -> Self

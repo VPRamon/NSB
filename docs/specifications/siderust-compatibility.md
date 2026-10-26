@@ -1,6 +1,6 @@
 # Siderust compatibility
 
-Status: Registry dependency baseline for NSB 0.2.0; corrected Python bridge 0.5.1.
+Status: Registry dependency baseline for NSB 0.2.0; Python bridge 0.6.0 (protocol 2).
 Audience: Maintainers and downstream packagers.
 Scope: Provider identities, interoperability, provenance and release requirements.
 Non-goals: Scientific admission or observational accuracy claims.
@@ -14,9 +14,9 @@ Non-goals: Scientific admission or observational accuracy claims.
 | Affn / derive | 0.12.1 / 0.12.0 | crates.io, through upstream providers |
 | Qtty / core | 0.8.6 | crates.io, through Siderust re-exports |
 | Principia / Optica / Keplerian | 0.7.0 / 0.5.0 / 0.5.1 | crates.io, through Siderust |
-| siderust-py / tempoch-py | 0.5.1 / 0.5.0 | crates.io |
+| siderust-py / tempoch-py | 0.6.0 / 0.5.0 | crates.io |
 | PyO3 / pyo3-ffi | 0.30.1 | crates.io; one linking identity |
-| Python siderust / tempoch | 0.5.1 / 0.5.0 | PyPI; `siderust>=0.5.1,<0.6`, `tempoch>=0.5.0,<0.6` |
+| Python siderust / tempoch | 0.6.0 / 0.5.0 | PyPI; `siderust>=0.6.0,<0.7`, `tempoch>=0.5.0,<0.6` |
 
 The coordinated 0.5 bridges resolve the former Affn/Tempoch/PyO3 mismatch.
 Siderust 0.15.1 is the published documentation-fix patch over 0.15.0, which
@@ -44,30 +44,24 @@ manifest/lock agreement. No public API snapshot is changed merely for this upgra
 
 ## Python ownership and safety
 
-NSB uses `siderust_py::interop` for canonical Observer/Direction objects and
+NSB uses `siderust_py::interop` for canonical Observer, `direction.ICRS` and `direction.Horizontal` objects and
 `tempoch_py::interop` for UTC datetimes and periods. PyO3 0.30 makes by-value
 class extraction opt-in; removing obsolete `skip_from_py_object` attributes
 preserves NSB's existing class behavior. Computational methods retain GIL release
 and the existing error translation. No replacement wrapper classes or unsafe
 casts are introduced.
 
-Published siderust-py and Python siderust **0.5.1** correct
-[upstream #13](https://github.com/Siderust/siderust-py/issues/13): 0.5.0 cast
-`PyObject` header pointers to Rust Star/Direction payload references and dropped
-the borrow guards. The correction stores `PyRef` guards in `Subject` and retains
-them throughout every query operation, without unchecked casts or clones. It also
-rejects non-finite search-window endpoints. The published crates.io source and
-PyPI sdist were compared with the merged
-[fix #14](https://github.com/Siderust/siderust-py/pull/14); installed PyPI wheels
-pass the former Direction reproduction and Star/Direction method parity checks.
+Siderust-py **0.6.0** (bridge protocol 2) replaces the implicit ICRS
+`Direction` class with explicit `siderust.direction.ICRS` and adds
+`siderust.direction.Horizontal`. Interop uses `IcrsParts` /
+`icrs_{from,to}_python` and `HorizontalParts` /
+`horizontal_{from,to}_python`. Protocol 1 consumers must rebuild.
 
-NSB's primitive-only official interop protocol does not call that dispatcher.
 Existing installed NSB tests cover canonical classes, UTC offsets, subsecond
-round trips, periods and invalid inputs. The Cargo requirement `0.5.1` and Python
-requirement `>=0.5.1,<0.6` exclude affected 0.5.0 even without this workspace's
-lockfile. Release preflight independently rejects a lower manifest minimum,
-unsafe locked bridge, or old Python bounds. No upstream implementation is copied
-into NSB, and no unsafe workaround is added.
+round trips, periods, horizontal round trips and invalid inputs. The Cargo
+requirement `0.6.0` and Python requirement `>=0.6.0,<0.7` select protocol 2.
+Release preflight rejects older bridge bounds. No upstream implementation is
+copied into NSB, and no unsafe workaround is added.
 
 ## Scientific and release boundaries
 

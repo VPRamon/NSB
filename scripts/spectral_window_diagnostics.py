@@ -693,6 +693,7 @@ COMPARABILITY_MATRIX = [
 def build_artifact(args) -> dict:
     import nsb
     import siderust
+from siderust.direction import ICRS
     from astropy.time import Time
     from astropy.utils import data as astropy_data, iers
 
@@ -731,7 +732,7 @@ def build_artifact(args) -> dict:
         query = nsb.PointQuery(
             observer,
             Time(row["mjd"], format="mjd", scale="utc").to_datetime(timezone=UTC),
-            siderust.Direction(ra_deg=row["ra"], dec_deg=row["dec"]),
+            ICRS(ra_deg=row["ra"], dec_deg=row["dec"]),
             components=nsb.ComponentMask.AIRGLOW,
         )
         nat = predict_nsb_windows(query, windows)

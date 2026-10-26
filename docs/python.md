@@ -21,15 +21,11 @@ Python 3.10 or newer is supported.
 python -m pip install nsb-py
 ```
 
-The distribution declares `siderust>=0.5.1,<0.6` and `tempoch>=0.5.0,<0.6`
+The distribution declares `siderust>=0.6.0,<0.7` and `tempoch>=0.5.0,<0.6`
 as runtime dependencies, so pip installs the matching canonical upstream
 packages. NSB's Rust crate and Python distribution share the same NSB release
 version; upstream Siderust and Tempoch use their own versions. See
 [Siderust compatibility](specifications/siderust-compatibility.md).
-`siderust.HorizontalDirection` is provided by
-[Siderust/siderust-py#15](https://github.com/Siderust/siderust-py/pull/15)
-(`>=0.6.0`); install that companion release when using horizontal targets.
-
 ## Ownership boundary
 
 NSB owns the Python API for model configuration, component selection, NSB evaluation, result/component metadata, threshold planning, and reusable planning contexts.
@@ -41,19 +37,17 @@ Generic scientific primitives belong upstream:
 - **tempoch / tempoch-py** own time-scale, interval, and Python datetime conversion semantics.
 
 Python observers and directions are the canonical `siderust.Observer` and
-`siderust.Direction` (ICRS) classes. With `siderust>=0.6.0`,
-`siderust.HorizontalDirection` (geometric Alt/Az) is also accepted. `PointQuery`
-and `ThresholdQuery` accept either direction type via the same `target`
-argument. NSB consumes `siderust-py`'s versioned ICRS bridge and duck-types
-horizontal objects through `alt_deg` / `az_deg` so a second NSB-owned
-coordinate class is not required. At the Rust boundary, bridge ICRS directions
-transform through Siderust's frame-bias rotation to NSB's `EquatorialMeanJ2000`
-target; horizontal targets resolve per evaluation instant. Getters reconstruct
-the matching canonical Python object (ICRS via the bridge; horizontal via
-`siderust.HorizontalDirection` when installed).
+`siderust.direction.ICRS` / `siderust.direction.Horizontal` classes from
+siderust-py 0.6 (bridge protocol 2). `PointQuery` and `ThresholdQuery` accept
+either direction type via the same `target` argument. NSB consumes
+`siderust_py::interop::{icrs,horizontal}_{from,to}_python`. At the Rust
+boundary, ICRS directions transform through Siderust's frame-bias rotation to
+NSB's `EquatorialMeanJ2000` target; horizontal targets resolve per evaluation
+instant. Getters reconstruct the matching canonical Python object and preserve
+the originally requested frame.
 
 Siderust owns coordinate validity for its classes. NSB additionally rejects
-non-finite or out-of-range horizontal duck-typed inputs.
+out-of-range horizontal altitudes that escape Siderust canonicalization.
 
 ## Package layout
 
@@ -69,6 +63,7 @@ from datetime import datetime, timezone
 
 import nsb
 import siderust
+from siderust.direction import ICRS
 
 # CTAO South WGS84 coordinates from the bundled observatory catalog.
 ctao_south = siderust.Observer(
@@ -77,7 +72,7 @@ ctao_south = siderust.Observer(
     height_m=2184.6,
 )
 # Sagittarius A* in ICRS coordinates.
-sgr_a_star = siderust.Direction(
+sgr_a_star = ICRS(
     ra_deg=266.41683,
     dec_deg=-29.00781,
 )
@@ -180,8 +175,7 @@ Evaluator construction, point evaluation, and planning operations detach from th
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install -U pip "maturin>=1.9,<2" pytest
-python -m pip install "siderust>=0.5.1,<0.6"
-# Optional: HorizontalDirection from Siderust/siderust-py#15 when published as 0.6+
+python -m pip install "siderust>=0.6.0,<0.7" "tempoch>=0.5.0,<0.6"
 maturin develop --locked
 python -m pytest python/tests
 ```
@@ -198,8 +192,8 @@ The NSB binding uses PyO3's CPython stable ABI with a Python 3.10 floor
 (`abi3-py310`). Python support and the `siderust-py` / `tempoch-py` Rust bridge
 dependencies remain feature-gated, so normal Rust builds do not enable PyO3.
 
-The installed wheel tests resolve released Siderust and Tempoch 0.5 wheels
-from PyPI. The Rust extension links siderust-py / tempoch-py 0.5 against
+The installed wheel tests resolve released Siderust 0.6 and Tempoch 0.5 wheels
+from PyPI. The Rust extension links siderust-py 0.6 / tempoch-py 0.5 against
 Siderust 0.15.1 and Tempoch 0.11.1. CLI, Rust and Python band searches use the
 same joint algorithm; `periods_in_band_adaptive(query, minimum)` accepts
 `minimum <= NSB <= query.threshold`, with both crossing brackets contracted
@@ -208,8 +202,8 @@ requires a sound enclosure of the whole band and fails for unsupported models.
 Ordinary Python timestamps remain timezone-aware `datetime` values, with
 inward projection checked at microsecond precision.
 
-The supported Siderust Python runtime and Rust bridge begin at 0.5.1.
-NSB excludes the incompatible 0.5.0 bridge and validates installed-wheel
-interop in CI. For scientific use, record the installed NSB, Siderust and
+The supported Siderust Python runtime and Rust bridge begin at 0.6.0
+(bridge protocol 2 with explicit `direction.ICRS` / `direction.Horizontal`).
+NSB validates installed-wheel interop in CI. For scientific use, record the installed NSB, Siderust and
 Tempoch versions and review the
 [validation and applicability guide](scientific-validation.md).

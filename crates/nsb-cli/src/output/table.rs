@@ -23,23 +23,22 @@ pub fn write_point(
         observer.lat.value(),
         observer.height.value()
     );
-    match target {
-        TargetDirection::Equatorial(equatorial) => {
-            let icrs: direction::ICRS = equatorial.to_frame();
-            println!(
-                "target: frame=icrs ra={:.6} deg dec={:.6} deg",
-                icrs.ra().value(),
-                icrs.dec().value()
-            );
-        }
-        TargetDirection::Horizontal(horizontal) => {
-            println!(
-                "target: frame=horizontal alt={:.6} deg az={:.6} deg (N-CW geometric)",
-                horizontal.alt().value(),
-                horizontal.az().value()
-            );
-        }
-        _ => unreachable!("NSB currently supports equatorial and horizontal targets only"),
+    if let (Some(alt), Some(az)) = (target.altitude(), target.azimuth()) {
+        println!(
+            "target: frame=horizontal alt={:.6} deg az={:.6} deg (N-CW geometric)",
+            alt.value(),
+            az.value()
+        );
+    } else {
+        let equatorial = target
+            .as_equatorial()
+            .expect("target is equatorial or horizontal");
+        let icrs: direction::ICRS = equatorial.to_frame();
+        println!(
+            "target: frame=icrs ra={:.6} deg dec={:.6} deg",
+            icrs.ra().value(),
+            icrs.dec().value()
+        );
     }
     println!("component    integrated_ph_cm2_ns_sr        B_s10        V_s10");
     for c in &result.components {

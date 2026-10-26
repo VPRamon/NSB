@@ -4,6 +4,7 @@ import math
 
 import nsb
 import pytest
+from siderust.direction import ICRS
 
 
 def test_point_fixture_matches_rust_public_contract(observer, direction, evaluator, point_time):
@@ -83,7 +84,7 @@ def test_automatic_and_explicit_oxygen_identity_and_domain(observer, direction, 
     assert auto.integrate_band(query, 300, 650) == oxygen.integrate_band(query, 300, 650)
     assert auto.evaluate(query).components[0].metadata.airglow_selection_kind == "automatic"
     assert oxygen.evaluate(query).components[0].metadata.airglow_selection_kind == "explicit"
-    outside = siderust.Direction(ra_deg=90, dec_deg=-24.6275)
+    outside = ICRS(ra_deg=90, dec_deg=-24.6275)
     query = nsb.PointQuery(observer, point_time, outside, components=nsb.ComponentMask.AIRGLOW)
     for evaluator in (auto, oxygen):
         with pytest.raises(nsb.OutOfRangeError, match="zenith distance <= 60"):

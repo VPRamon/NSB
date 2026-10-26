@@ -104,10 +104,11 @@ pub use evaluator::SpectralStarlightResult;
 pub use evaluator::StarlightDirect;
 pub use evaluator::StarlightIncident;
 pub use evaluator::{
-    BandDiagnostic, CalibrationStatus as ComponentCalibrationStatus, ComponentMask,
-    HorizontalTarget, NsbComponent, NsbComponentDescriptor, NsbComponentMetadata, NsbEvaluator,
-    NsbModelConfig, NsbResult, Observer, PointQuery, Target, TargetDirection,
+    BandDiagnostic, CalibrationStatus as ComponentCalibrationStatus, ComponentMask, NsbComponent,
+    NsbComponentDescriptor, NsbComponentMetadata, NsbEvaluator, NsbModelConfig, NsbResult,
+    Observer, PointQuery, Target,
 };
+pub use evaluator::{HorizontalTarget, TargetDirection};
 pub use planning::{SiteWindowContext, ThresholdQuery, ThresholdQueryResult};
 pub use site::{CalibrationStatus, GenericClearSky, SiteProfile, SiteProfileTag};
 use units::photometry::SurfaceBrightness;

@@ -260,8 +260,7 @@ fn adaptive_horizontal_starlight_evaluates_without_constant_cache() {
 
     let early = evaluator
         .evaluate(
-            &PointQuery::new(observer, start, horizontal)
-                .with_components(ComponentMask::STARLIGHT),
+            &PointQuery::new(observer, start, horizontal).with_components(ComponentMask::STARLIGHT),
         )
         .unwrap()
         .integrated

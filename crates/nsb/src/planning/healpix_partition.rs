@@ -162,7 +162,8 @@ mod tests {
     #[test]
     fn empty_or_inverted_windows_yield_no_cuts() {
         let evaluator = NsbEvaluator::with_config(NsbModelConfig::generic_clear_sky()).unwrap();
-        let horizontal = TargetDirection::horizontal(HorizontalTarget::new(60.0 * DEG, 130.0 * DEG));
+        let horizontal =
+            TargetDirection::horizontal(HorizontalTarget::new(60.0 * DEG, 130.0 * DEG));
         let start = {
             use super::super::intervals::utc_time_to_tt_mjd;
             utc_time_to_tt_mjd(utc("2024-06-18T22:00:00Z"))

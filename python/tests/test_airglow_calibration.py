@@ -7,6 +7,7 @@ from pathlib import Path
 import nsb
 import pytest
 import siderust
+from siderust.direction import ICRS
 
 
 @pytest.mark.parametrize("producer", [None, "nsb-0.2.7+archived-reduction"])
@@ -21,7 +22,7 @@ def test_registered_artifact_load_and_experimental_oxygen(producer):
     query = nsb.PointQuery(
         siderust.Observer(lon_deg=-70.4044, lat_deg=-24.6275, height_m=2635),
         datetime(2023, 9, 4, 1, 48, tzinfo=timezone.utc),
-        siderust.Direction(ra_deg=266.41683, dec_deg=-29.00781),
+        ICRS(ra_deg=266.41683, dec_deg=-29.00781),
         components=nsb.ComponentMask.AIRGLOW,
     )
     evaluator = nsb.NsbEvaluator(fitted)

@@ -128,7 +128,7 @@ without a checkout, GitHub access or Rust build. If setup changes already import
 packages, restart the kernel and Run All as instructed. The notebook uses bundled
 NSB assets, requires no scientific data acquisition and exports no files.
 
-`lst1-night-sky-background.ipynb` demonstrates native `siderust.HorizontalDirection`
+`lst1-night-sky-background.ipynb` demonstrates native `siderust.direction.Horizontal`
 alongside ICRS targets at the Roque de los Muchachos / CTAO-North planning
 coordinates. It requires a local editable NSB build with `siderust>=0.6.0`
 (companion siderust-py release); shipped outputs are left empty until that

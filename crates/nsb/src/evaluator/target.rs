@@ -82,6 +82,14 @@ impl TargetDirection {
         }
     }
 
+    /// Mean-J2000 direction of an equatorial target, if that frame is stored.
+    pub fn as_equatorial(self) -> Option<Target> {
+        match self {
+            Self::Equatorial(direction) => Some(direction),
+            Self::Horizontal(_) => None,
+        }
+    }
+
     /// Resolve this target to the internal scientific frame at `time`.
     ///
     /// Equatorial targets return the stored direction. Horizontal targets use
@@ -267,5 +275,7 @@ mod tests {
         assert!(eq.azimuth().is_none());
         assert!((hz.altitude().unwrap().value() - 55.0).abs() < 1e-12);
         assert!((hz.azimuth().unwrap().value() - 200.0).abs() < 1e-12);
+        assert!(eq.as_equatorial().is_some());
+        assert!(hz.as_equatorial().is_none());
     }
 }
