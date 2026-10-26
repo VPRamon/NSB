@@ -8,9 +8,10 @@
 //! validated production catalogue-derived map.
 //!
 //! The library API is intentionally typed and CLI-free: callers pass
-//! [`Observer`] values, `Time<UTC>` instants, and equatorial [`Target`]
-//! directions directly. Named-site parsing, command-line flags, and output
-//! formatting belong in a separate CLI crate that consumes this library.
+//! [`Observer`] values, `Time<UTC>` instants, and [`TargetDirection`] values
+//! (fixed equatorial [`Target`] or fixed geometric [`HorizontalTarget`])
+//! directly. Named-site parsing, command-line flags, and output formatting
+//! belong in a separate CLI crate that consumes this library.
 //!
 //! # Supported public API
 //!
@@ -103,9 +104,9 @@ pub use evaluator::SpectralStarlightResult;
 pub use evaluator::StarlightDirect;
 pub use evaluator::StarlightIncident;
 pub use evaluator::{
-    BandDiagnostic, CalibrationStatus as ComponentCalibrationStatus, ComponentMask, NsbComponent,
-    NsbComponentDescriptor, NsbComponentMetadata, NsbEvaluator, NsbModelConfig, NsbResult,
-    Observer, PointQuery, Target,
+    BandDiagnostic, CalibrationStatus as ComponentCalibrationStatus, ComponentMask,
+    HorizontalTarget, NsbComponent, NsbComponentDescriptor, NsbComponentMetadata, NsbEvaluator,
+    NsbModelConfig, NsbResult, Observer, PointQuery, Target, TargetDirection,
 };
 pub use planning::{SiteWindowContext, ThresholdQuery, ThresholdQueryResult};
 pub use site::{CalibrationStatus, GenericClearSky, SiteProfile, SiteProfileTag};

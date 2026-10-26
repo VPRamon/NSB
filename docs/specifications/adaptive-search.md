@@ -35,16 +35,23 @@ factor. Scalars remain at interpolation, transcendental and empirical-calibratio
 boundaries with explicit units. SFU, S10 and nanolambert conventions are domain
 calibrations; they must not be treated as generic SI conversions.
 
-Rust targets are `Direction<EquatorialMeanJ2000>`. Python and CLI inputs are ICRS
-and transform into that native type. Planning transforms native targets through
-`TransformFrame` before calling Siderust's ICRS altitude-event provider; copying
-RA/Dec into a differently tagged direction would omit frame bias. Zodiacal
-geometry rotates targets into mean J2000 ecliptic axes shared by solar longitude.
-Lunar positions start geocentric/ecliptic, rotate to J2000 equatorial axes, and use
-Siderust's apparent topocentric and horizontal transformations. Moon/source
-separation uses Affn direction geometry at the same observer; lunar distance is
-topocentric, while the published phase triangle is geocentric. No tag-only center
-or frame substitution is used.
+Rust queries accept [`TargetDirection`](../../crates/nsb/src/evaluator/target.rs):
+fixed equatorial (`Direction<EquatorialMeanJ2000>`) or fixed geometric horizontal
+Alt/Az. Python and CLI equatorial inputs are ICRS and transform into that native
+type; horizontal inputs keep Alt/Az and resolve per sample time. Planning
+transforms resolved equatorial targets through `TransformFrame` before calling
+Siderust's ICRS altitude-event provider; copying RA/Dec into a differently tagged
+direction would omit frame bias. For horizontal Starlight, adaptive discovery
+inserts HEALPix pixel-transition partitions so fits do not cross nearest-pixel
+jumps. Certified search refuses a constant-Starlight whole-interval certificate
+for horizontal targets (`PreparedStarlight::Dynamic`); only equatorial cached
+Starlight retains that enclosure. Zodiacal geometry rotates targets into mean
+J2000 ecliptic axes shared by solar longitude. Lunar positions start
+geocentric/ecliptic, rotate to J2000 equatorial axes, and use Siderust's apparent
+topocentric and horizontal transformations. Moon/source separation uses Affn
+direction geometry at the same observer; lunar distance is topocentric, while the
+published phase triangle is geocentric. No tag-only center or frame substitution
+is used.
 
 Siderust's public phase API recomputes the ephemeris and cannot consume the Moon
 position already used for horizontal geometry. The small position-based phase

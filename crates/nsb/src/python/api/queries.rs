@@ -2,11 +2,13 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 use crate::units::angular::Degrees;
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
+use crate::{HorizontalTarget, TargetDirection};
 use pyo3::prelude::*;
 use siderust::coordinates::spherical::direction;
 use siderust::coordinates::transform::TransformFrame;
 use siderust_py::interop::{
-    direction_from_python, direction_to_python, observer_from_python, observer_to_python,
+    direction_from_python, direction_to_python, horizontal_direction_from_python,
+    horizontal_direction_to_python, observer_from_python, observer_to_python,
 };
 use tempoch::{Period, Time, UTC};
 use tempoch_py::interop::{datetime_to_time as upstream_datetime_to_time, time_to_datetime};
@@ -27,6 +29,29 @@ fn target_to_icrs(value: &crate::Target) -> direction::ICRS {
     value.to_frame()
 }
 
+fn target_direction_from_python(value: &Bound<'_, PyAny>) -> PyResult<TargetDirection> {
+    if let Ok(icrs) = direction_from_python(value) {
+        return Ok(TargetDirection::Equatorial(target_from_icrs(icrs)));
+    }
+    if let Ok(horizontal) = horizontal_direction_from_python(value) {
+        return Ok(TargetDirection::Horizontal(horizontal));
+    }
+    Err(invalid_input(
+        "target must be siderust.Direction (ICRS) or siderust.HorizontalDirection (geometric Alt/Az)",
+    ))
+}
+
+fn target_direction_to_python(py: Python<'_>, target: TargetDirection) -> PyResult<Py<PyAny>> {
+    match target {
+        TargetDirection::Equatorial(equatorial) => {
+            direction_to_python(py, &target_to_icrs(&equatorial))
+        }
+        TargetDirection::Horizontal(horizontal) => {
+            horizontal_direction_to_python(py, &horizontal)
+        }
+    }
+}
+
 fn finite(name: &str, value: f64) -> PyResult<()> {
     if value.is_finite() {
         Ok(())
@@ -45,7 +70,7 @@ impl PointQuery {
         target: &Bound<'_, PyAny>,
         components: Option<ComponentMask>,
     ) -> PyResult<Self> {
-        let target = target_from_icrs(direction_from_python(target)?);
+        let target = target_direction_from_python(target)?;
         let mut query = Self::new(
             observer_from_python(observer)?,
             datetime_to_time(time, "time")?,
@@ -67,10 +92,10 @@ impl PointQuery {
         time_to_datetime(py, self.time)
     }
 
+    /// Original target frame: `siderust.Direction` or `siderust.HorizontalDirection`.
     #[getter(target)]
     fn py_target(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let target = target_to_icrs(&self.target);
-        direction_to_python(py, &target)
+        target_direction_to_python(py, self.target)
     }
 
     #[getter(components)]
@@ -122,7 +147,7 @@ impl ThresholdQuery {
         let window = Period::try_new(start, end)
             .map_err(|error| invalid_input(format!("invalid UTC search window: {error}")))?;
 
-        let target = target_from_icrs(direction_from_python(target)?);
+        let target = target_direction_from_python(target)?;
         let mut query = Self::new(
             observer_from_python(observer)?,
             target,
@@ -143,10 +168,10 @@ impl ThresholdQuery {
         observer_to_python(py, &self.observer)
     }
 
+    /// Original target frame: `siderust.Direction` or `siderust.HorizontalDirection`.
     #[getter(target)]
     fn py_target(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
-        let target = target_to_icrs(&self.target);
-        direction_to_python(py, &target)
+        target_direction_to_python(py, self.target)
     }
 
     #[getter(start)]
@@ -207,5 +232,18 @@ mod tests {
             wrapped_difference_degrees(recovered.azimuth.value(), icrs.azimuth.value()) < 1.0e-12
         );
         assert!((recovered.polar.value() - icrs.polar.value()).abs() < 1.0e-12);
+    }
+
+    #[test]
+    fn horizontal_python_parts_preserve_altitude_azimuth() {
+        let horizontal = HorizontalTarget::new(Degrees::new(60.0), Degrees::new(130.0));
+        let direction = TargetDirection::from(horizontal);
+        match direction {
+            TargetDirection::Horizontal(value) => {
+                assert!((value.alt().value() - 60.0).abs() < 1e-12);
+                assert!((value.az().value() - 130.0).abs() < 1e-12);
+            }
+            TargetDirection::Equatorial(_) => panic!("expected horizontal"),
+        }
     }
 }

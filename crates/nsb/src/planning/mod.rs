@@ -13,6 +13,7 @@
 
 mod astronomy;
 mod filters;
+mod healpix_partition;
 mod intervals;
 mod prepare;
 #[cfg(test)]

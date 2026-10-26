@@ -836,6 +836,21 @@ pub fn nsb::StarlightProduct::validated_external(map: nsb::components::starlight
 pub fn nsb::StarlightProduct::with_experimental_map(map: nsb::components::starlight::StarlightMap) -> Self
 pub fn nsb::StarlightProduct::with_shared_experimental_map(map: alloc::sync::Arc<nsb::components::starlight::StarlightMap>) -> Self
 pub fn nsb::StarlightProduct::with_shared_validated_external_map(map: alloc::sync::Arc<nsb::components::starlight::ValidatedStarlightMap>) -> Self
+#[non_exhaustive] pub enum nsb::TargetDirection
+pub nsb::TargetDirection::Equatorial(nsb::Target)
+pub nsb::TargetDirection::Horizontal(nsb::HorizontalTarget)
+impl nsb::TargetDirection
+pub fn nsb::TargetDirection::altitude(self) -> core::option::Option<qtty_core::units::angular::Degrees>
+pub fn nsb::TargetDirection::azimuth(self) -> core::option::Option<qtty_core::units::angular::Degrees>
+pub fn nsb::TargetDirection::equatorial(target: nsb::Target) -> Self
+pub fn nsb::TargetDirection::horizontal(target: nsb::HorizontalTarget) -> Self
+pub const fn nsb::TargetDirection::is_equatorial(self) -> bool
+pub const fn nsb::TargetDirection::is_horizontal(self) -> bool
+pub fn nsb::TargetDirection::resolve(self, observer: nsb::Observer, time: tempoch_core::model::time::Time<tempoch_core::model::scale::UTC>) -> nsb::Result<nsb::Target>
+impl core::convert::From<affn::spherical::direction::Direction<affn::frames::astro::EquatorialMeanJ2000>> for nsb::TargetDirection
+pub fn nsb::TargetDirection::from(value: nsb::Target) -> Self
+impl core::convert::From<affn::spherical::direction::Direction<affn::frames::astro::Horizontal>> for nsb::TargetDirection
+pub fn nsb::TargetDirection::from(value: nsb::HorizontalTarget) -> Self
 #[non_exhaustive] pub enum nsb::ZodiacalExtinction
 pub nsb::ZodiacalExtinction::Noll2012Approx
 pub nsb::ZodiacalExtinction::None
@@ -1023,10 +1038,10 @@ pub nsb::NsbResult::v_mag: qtty_core::units::photometry::SurfaceBrightness
 #[non_exhaustive] pub struct nsb::PointQuery
 pub nsb::PointQuery::components: nsb::ComponentMask
 pub nsb::PointQuery::observer: nsb::Observer
-pub nsb::PointQuery::target: nsb::Target
+pub nsb::PointQuery::target: nsb::TargetDirection
 pub nsb::PointQuery::time: tempoch_core::model::time::Time<tempoch_core::model::scale::UTC>
 impl nsb::PointQuery
-pub fn nsb::PointQuery::new(observer: nsb::Observer, time: tempoch_core::model::time::Time<tempoch_core::model::scale::UTC>, target: nsb::Target) -> Self
+pub fn nsb::PointQuery::new(observer: nsb::Observer, time: tempoch_core::model::time::Time<tempoch_core::model::scale::UTC>, target: impl core::convert::Into<nsb::TargetDirection>) -> Self
 pub fn nsb::PointQuery::with_components(self, components: nsb::ComponentMask) -> Self
 #[non_exhaustive] pub struct nsb::RestrictedBandComponent
 pub nsb::RestrictedBandComponent::integrated: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
@@ -1080,14 +1095,14 @@ pub nsb::StarlightIncident::view: siderust::coordinates::spherical::direction::H
 pub nsb::ThresholdQuery::components: nsb::ComponentMask
 pub nsb::ThresholdQuery::observer: nsb::Observer
 pub nsb::ThresholdQuery::sun_altitude_ceiling: core::option::Option<qtty_core::units::angular::Degrees>
-pub nsb::ThresholdQuery::target: nsb::Target
+pub nsb::ThresholdQuery::target: nsb::TargetDirection
 pub nsb::ThresholdQuery::target_altitude_floor: core::option::Option<qtty_core::units::angular::Degrees>
 pub nsb::ThresholdQuery::threshold: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
 pub nsb::ThresholdQuery::window: tempoch_core::period::Period<tempoch_core::model::scale::UTC>
 impl nsb::ThresholdQuery
 pub const nsb::ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING: qtty_core::units::angular::Degrees
 pub const nsb::ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR: qtty_core::units::angular::Degrees
-pub fn nsb::ThresholdQuery::new(observer: nsb::Observer, target: nsb::Target, window: tempoch_core::period::Period<tempoch_core::model::scale::UTC>, threshold: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian) -> Self
+pub fn nsb::ThresholdQuery::new(observer: nsb::Observer, target: impl core::convert::Into<nsb::TargetDirection>, window: tempoch_core::period::Period<tempoch_core::model::scale::UTC>, threshold: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian) -> Self
 pub fn nsb::ThresholdQuery::with_components(self, components: nsb::ComponentMask) -> Self
 pub fn nsb::ThresholdQuery::with_sun_altitude_ceiling(self, sun_altitude_ceiling: core::option::Option<qtty_core::units::angular::Degrees>) -> Self
 pub fn nsb::ThresholdQuery::with_target_altitude_floor(self, target_altitude_floor: core::option::Option<qtty_core::units::angular::Degrees>) -> Self
@@ -1102,6 +1117,7 @@ pub trait nsb::SiteProfileTag: 'static
 pub const nsb::SiteProfileTag::NAME: &'static str
 impl nsb::site::SiteProfileTag for nsb::site::GenericClearSky
 pub const nsb::site::GenericClearSky::NAME: &'static str
+pub type nsb::HorizontalTarget = affn::spherical::direction::Direction<affn::frames::astro::Horizontal>
 pub type nsb::Observer = siderust::coordinates::centers::Geodetic<affn::frames::astro::ECEF>
 pub type nsb::Result<T> = core::result::Result<T, nsb::NsbError>
 pub type nsb::SolarFluxUnits = qtty_core::quantity::Quantity<nsb::SolarFluxUnit>

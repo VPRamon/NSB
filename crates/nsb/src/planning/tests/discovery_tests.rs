@@ -360,14 +360,14 @@ fn adaptive_f107_issuance_and_local_month_regimes_are_partitioned() {
             .value
     );
     let mut q = query(ComponentMask::AIRGLOW.bits());
-    q.target = Target::new(266.41683 * DEG, -29.00781 * DEG);
+    q.target = Target::new(266.41683 * DEG, -29.00781 * DEG).into();
     q.window = Period::new(
         instant("2026-08-27T01:00:00Z"),
         instant("2026-08-27T06:00:00Z"),
     );
     let context = evaluator.prepare_site_window_context(&q).unwrap();
     let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
-    let cuts = filters::adaptive_threshold_windows(&p).unwrap();
+    let cuts = filters::adaptive_threshold_windows(&evaluator, &p).unwrap();
     let t = scan::utc_time_to_tt_mjd(transition);
     assert!(cuts.iter().any(|w| w.start == t));
     q.threshold = Radiance::new(
@@ -407,7 +407,7 @@ fn adaptive_f107_issuance_and_local_month_regimes_are_partitioned() {
     q.target_altitude_floor = None;
     let context = evaluator.prepare_site_window_context(&q).unwrap();
     let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
-    let cuts = filters::adaptive_threshold_windows(&p).unwrap();
+    let cuts = filters::adaptive_threshold_windows(&evaluator, &p).unwrap();
     let midnight = scan::utc_time_to_tt_mjd(instant("2026-02-01T00:00:00Z"));
     assert!(cuts.iter().any(|w| w.start == midnight));
     let local = crate::components::airglow::temporal::palace_climatology_boundaries_for_window(
@@ -457,10 +457,12 @@ fn adaptive_zodiacal_corner_cells_and_reddening_boundaries_match_fine_scan() {
         let mut q = query(ComponentMask::ZODIACAL.bits());
         q.window = Period::new(start, start + Seconds::new(3.0 * 86400.0));
         q.sun_altitude_ceiling = None;
-        q.target = Direction::<EclipticMeanJ2000>::new((sun + delta) * DEG, beta * DEG).to_frame();
+        let equatorial: Target =
+            Direction::<EclipticMeanJ2000>::new((sun + delta) * DEG, beta * DEG).to_frame();
+        q.target = equatorial.into();
         let context = evaluator.prepare_site_window_context(&q).unwrap();
         let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
-        let windows = filters::adaptive_threshold_windows(&p).unwrap();
+        let windows = filters::adaptive_threshold_windows(&evaluator, &p).unwrap();
         let mut values = Vec::new();
         for w in &windows {
             values.push(
@@ -594,7 +596,7 @@ fn adaptive_moon_horizons_near_and_far_targets_without_visibility_filters() {
                 .to_frame();
             let close = position.to_spherical().direction();
             for target in [close, Target::new(266.41683 * DEG, -29.00781 * DEG)] {
-                q.target = target;
+                q.target = target.into();
                 let context = evaluator.prepare_site_window_context(&q).unwrap();
                 let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
                 let result = evaluator
@@ -670,7 +672,7 @@ fn adaptive_airglow_configured_profile_and_outside_night_validation() {
             .unwrap(),
     );
     q.window.end = q.window.start + Seconds::new(3.0 * 3600.0);
-    q.target = Target::new(266.41683 * DEG, -29.00781 * DEG);
+    q.target = Target::new(266.41683 * DEG, -29.00781 * DEG).into();
     let context = evaluator.prepare_site_window_context(&q).unwrap();
     let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
     let actual: Vec<_> = evaluator
@@ -700,7 +702,7 @@ fn adaptive_airglow_configured_profile_and_outside_night_validation() {
     q.sun_altitude_ceiling = None;
     q.target_altitude_floor = None;
     q.threshold = Radiance::new(1e6);
-    q.target = Target::new(266.41683 * DEG, -29.00781 * DEG);
+    q.target = Target::new(266.41683 * DEG, -29.00781 * DEG).into();
     let restricted_context = restricted.prepare_site_window_context(&q).unwrap();
     let restricted_prepared =
         prepare::prepare_target_threshold(&restricted, &restricted_context, &q).unwrap();
@@ -966,7 +968,7 @@ fn real_joint_band_all_masks_both_moon_models_have_no_sampled_false_positives() 
                 }
                 let context = evaluator.prepare_site_window_context(&q).unwrap();
                 let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
-                let windows = filters::adaptive_threshold_windows(&p).unwrap();
+                let windows = filters::adaptive_threshold_windows(&evaluator, &p).unwrap();
                 let mut values = Vec::new();
                 for w in windows {
                     for u in [0.1, 0.3, 0.5, 0.7, 0.9] {
@@ -1149,7 +1151,7 @@ fn adaptive_rejects_eighty_seven_second_twilight_scan120_false_positive() {
     q.target = Target::new(
         (83.6331_f64 + 36.0 * 137.507764).rem_euclid(360.0) * DEG,
         -5.0 * DEG,
-    );
+    ).into();
     q.observer = siderust::coordinates::centers::Geodetic::new_raw(
         crate::units::angular::Degrees::new(-70.31634444444444),
         crate::units::angular::Degrees::new(-24.683427777777776),
@@ -1272,7 +1274,7 @@ fn physical_boundary_accuracy_reference() {
                 if bits & ComponentMask::STARLIGHT.bits() != 0
                     && bits != ComponentMask::STARLIGHT.bits()
                 {
-                    q.threshold += p.starlight_integrated;
+                    q.threshold += match p.starlight { super::types::PreparedStarlight::Constant(v) => v, _ => panic!("expected constant starlight") };
                 }
                 let actual: Vec<_> = evaluator
                     .periods_below_threshold_adaptive_with_context(&context, &q)
@@ -1462,7 +1464,7 @@ fn adaptive_accepted_islands_missed_by_scan120_have_millisecond_references() {
             coarse.extend(below);
         }
         let extent = Interval::new(legacy.first().unwrap().start, legacy.last().unwrap().end);
-        let windows: Vec<_> = filters::adaptive_threshold_windows(&p)
+        let windows: Vec<_> = filters::adaptive_threshold_windows(&evaluator, &p)
             .unwrap()
             .into_iter()
             .filter_map(|w| {

@@ -30,6 +30,7 @@ fn default_point_json_reports_schema_versions_and_components() {
         .clone();
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
     assert_eq!(value["schema_version"], "nsb-cli-point-json-v1");
+    assert_eq!(value["target"]["frame"], "icrs");
     assert!((value["target"]["ra_deg"].as_f64().unwrap() - 181.8).abs() < 1e-10);
     assert!((value["target"]["dec_deg"].as_f64().unwrap() + 24.6275).abs() < 1e-10);
     assert_eq!(value["version"]["model_version"], "nsb-model-v1");
@@ -301,4 +302,63 @@ fn point_json_reports_none_zodiacal_extinction_without_noll_provenance() {
     assert!(provenance.contains("scientific model leinert-1998"));
     assert!(provenance.contains("atmospheric propagation none"));
     assert!(!provenance.contains("Noll+2012"));
+}
+
+#[test]
+fn horizontal_point_json_preserves_frame_identity() {
+    let mut cmd = Command::cargo_bin("nsb").unwrap();
+    let output = cmd
+        .args([
+            "--format",
+            "json",
+            "point",
+            "--time",
+            "2024-06-18T23:00:00Z",
+            "--lon",
+            "-17.8925",
+            "--lat",
+            "28.7543",
+            "--height",
+            "2396",
+            "--alt",
+            "60",
+            "--az",
+            "130",
+            "--components",
+            "zodiacal,moon",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(value["target"]["frame"], "horizontal");
+    assert!((value["target"]["alt_deg"].as_f64().unwrap() - 60.0).abs() < 1e-12);
+    assert!((value["target"]["az_deg"].as_f64().unwrap() - 130.0).abs() < 1e-12);
+    assert!(value["target"]["ra_deg"].is_null());
+    assert!(value["target"]["dec_deg"].is_null());
+}
+
+#[test]
+fn mixed_ra_and_alt_flags_are_rejected() {
+    Command::cargo_bin("nsb")
+        .unwrap()
+        .args([
+            "point",
+            "--time",
+            "2024-06-18T23:00:00Z",
+            "--site",
+            "PARANAL",
+            "--ra",
+            "83.633",
+            "--dec",
+            "22.014",
+            "--alt",
+            "60",
+            "--az",
+            "130",
+        ])
+        .assert()
+        .failure();
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
 use crate::components::airglow;
-use crate::evaluator::{ComponentMask, Observer, Target};
+use crate::evaluator::{ComponentMask, Observer, TargetDirection};
 use crate::units::angular::Degrees;
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use siderust::time::{Interval as TimePeriod, ModifiedJulianDate};
@@ -19,8 +19,9 @@ use tempoch::{Period, UTC};
 pub struct ThresholdQuery {
     /// Ground observer.
     pub observer: Observer,
-    /// Equatorial target direction.
-    pub target: Target,
+    /// Target direction. Equatorial targets keep a fixed celestial footprint;
+    /// horizontal targets keep fixed Alt/Az and resolve per sample time.
+    pub target: TargetDirection,
     /// Inclusive search extent in UTC.
     pub window: Period<UTC>,
     /// Maximum accepted integrated radiance.
@@ -40,15 +41,18 @@ impl ThresholdQuery {
     pub const DEFAULT_TARGET_ALTITUDE_FLOOR: Degrees = Degrees::new(0.0);
 
     /// Window search with production-safe default components and night/horizon filters.
+    ///
+    /// `target` accepts a mean-J2000 [`crate::Target`], a geometric
+    /// [`crate::HorizontalTarget`], or a [`TargetDirection`].
     pub fn new(
         observer: Observer,
-        target: Target,
+        target: impl Into<TargetDirection>,
         window: Period<UTC>,
         threshold: BandPhotonRadiance,
     ) -> Self {
         Self {
             observer,
-            target,
+            target: target.into(),
             window,
             threshold,
             components: ComponentMask::ALL,
@@ -134,13 +138,29 @@ pub struct ThresholdQueryResult {
     pub periods: Vec<Period<UTC>>,
 }
 
+/// Starlight contribution prepared for threshold sampling.
+///
+/// Equatorial targets keep a constant Galactic HEALPix footprint, so the
+/// integrated radiance is cached once. Horizontal targets sweep the map as
+/// Earth rotates; radiance must be looked up after resolving the instantaneous
+/// equatorial direction. Certified search only admits the constant case.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum PreparedStarlight {
+    /// Component not selected.
+    Disabled,
+    /// Fixed celestial target — one HEALPix scalar for the whole search.
+    Constant(BandPhotonRadiance),
+    /// Fixed horizontal pointing — resolve and look up at each sample time.
+    Dynamic,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct PreparedThresholdQuery {
     pub(crate) astronomy: Arc<super::astronomy::AstronomyCache>,
     pub(crate) observer: Observer,
-    pub(crate) target: Target,
+    pub(crate) target: TargetDirection,
     pub(crate) components: ComponentMask,
-    pub(crate) starlight_integrated: BandPhotonRadiance,
+    pub(crate) starlight: PreparedStarlight,
     pub(crate) tt_window: TimePeriod<ModifiedJulianDate>,
     pub(crate) astronomical_night_periods: Arc<[airglow::temporal::AstronomicalNightPeriod]>,
     pub(crate) candidate_windows: Vec<TimePeriod<ModifiedJulianDate>>,

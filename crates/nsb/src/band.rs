@@ -162,10 +162,12 @@ impl NsbEvaluator {
                 "starlight TOA maps cannot be added to ground-level restricted-band NSB without validated atmospheric transport".into(),
             ));
         }
+        let target =
+            crate::evaluator::resolve_target_direction(query.target, query.observer, query.time)?;
         let mut total = Radiance::new(0.0);
         if query.components.contains(ComponentMask::MOON)
             && self
-                .evaluate_moonlight(query.observer, query.time, query.target)?
+                .evaluate_moonlight(query.observer, query.time, target)?
                 .integrated
                 .value()
                 != 0.0
@@ -178,7 +180,7 @@ impl NsbEvaluator {
             let value = self.zodiacal().compute_band(
                 query.time,
                 query.observer,
-                query.target,
+                target,
                 lower,
                 upper,
             )?;
@@ -198,7 +200,7 @@ impl NsbEvaluator {
             .with_solar_radio_flux(solar.value)
             .with_scale(profile.airglow.scale)
             .with_calibration(config.site_profile().airglow_profile.clone())
-            .compute_band(query.time, query.target, lower.value(), upper.value())?;
+            .compute_band(query.time, target, lower.value(), upper.value())?;
             total += value;
             emit(BandContribution::Airglow(value, &solar));
         }
@@ -330,7 +332,7 @@ mod tests {
         let evaluator = NsbEvaluator::new().unwrap();
         let mut day = query(ComponentMask::AIRGLOW, "2023-09-15T15:00:00Z");
         // Daytime zero is only valid inside the selected Oxygen geometry domain.
-        day.target = crate::Target::new(150.0 * crate::DEG, -24.6275 * crate::DEG);
+        day.target = crate::Target::new(150.0 * crate::DEG, -24.6275 * crate::DEG).into();
         assert_eq!(
             evaluator
                 .integrate_band(&day, Nanometers::new(360.0), Nanometers::new(570.0))
@@ -339,7 +341,7 @@ mod tests {
             0.0
         );
         let mut below = query(ComponentMask::ZODIACAL, "2023-09-15T05:00:00Z");
-        below.target = crate::Target::new(190.0 * crate::DEG, 20.0 * crate::DEG);
+        below.target = crate::Target::new(190.0 * crate::DEG, 20.0 * crate::DEG).into();
         assert_eq!(evaluator.evaluate(&below).unwrap().integrated.value(), 0.0);
         assert_eq!(
             evaluator

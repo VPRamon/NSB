@@ -21,9 +21,11 @@ Python 3.10 or newer is supported.
 python -m pip install nsb-py
 ```
 
-The distribution declares `siderust>=0.5.1,<0.6` and `tempoch>=0.5.0,<0.6`
-as runtime dependencies, so pip installs the matching canonical upstream packages. NSB's Rust crate and Python distribution share the same NSB release version;
-upstream Siderust and Tempoch use their own versions. See
+The distribution declares `siderust>=0.6.0,<0.7` and `tempoch>=0.5.0,<0.6`
+as runtime dependencies (HorizontalDirection and bridge protocol 2), so pip
+installs the matching canonical upstream packages. NSB's Rust crate and Python
+distribution share the same NSB release version; upstream Siderust and Tempoch
+use their own versions. See
 [Siderust compatibility](specifications/siderust-compatibility.md).
 
 ## Ownership boundary
@@ -36,17 +38,20 @@ Generic scientific primitives belong upstream:
 - **qtty** owns physical quantities and units.
 - **tempoch / tempoch-py** own time-scale, interval, and Python datetime conversion semantics.
 
-Python observers and directions are the canonical `siderust.Observer` and
-`siderust.Direction` classes. NSB consumes `siderust-py`'s versioned
-cross-extension bridge and does not register duplicate `nsb.Observer` or
-`nsb.Direction` classes. At the Rust boundary, the bridge's ICRS direction is
-transformed through Siderust's frame-bias rotation to NSB's
-`EquatorialMeanJ2000` target type; getters apply the inverse transform before
-constructing the canonical Python object.
+Python observers and directions are the canonical `siderust.Observer`,
+`siderust.Direction` (ICRS) and, with `siderust>=0.6.0`,
+`siderust.HorizontalDirection` (geometric Alt/Az) classes. `PointQuery` and
+`ThresholdQuery` accept either direction type. NSB consumes `siderust-py`'s
+versioned cross-extension bridge and does not register duplicate `nsb.Observer`
+or direction classes. At the Rust boundary, bridge ICRS directions transform
+through Siderust's frame-bias rotation to NSB's `EquatorialMeanJ2000` target;
+horizontal targets resolve per evaluation instant. Getters apply the inverse
+transform before constructing the matching canonical Python object.
 
-Siderust owns coordinate validity. Canonical `siderust.Observer` and
-`siderust.Direction` construction rejects non-finite coordinate components
-upstream; NSB does not duplicate Siderust's coordinate-range policy.
+Siderust owns coordinate validity. Canonical `siderust.Observer`,
+`siderust.Direction` and `siderust.HorizontalDirection` construction rejects
+non-finite coordinate components upstream; NSB does not duplicate Siderust's
+coordinate-range policy.
 
 ## Package layout
 
@@ -173,7 +178,7 @@ Evaluator construction, point evaluation, and planning operations detach from th
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install -U pip "maturin>=1.9,<2" pytest
-python -m pip install "siderust>=0.5.1,<0.6"
+python -m pip install "siderust>=0.6.0,<0.7"
 maturin develop --locked
 python -m pytest python/tests
 ```

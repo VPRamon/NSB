@@ -2,38 +2,53 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 //! Physical regime partitions and eligibility edges for numerical discovery.
 
-use super::types::PreparedThresholdQuery;
+use super::types::{PreparedStarlight, PreparedThresholdQuery};
 use crate::components::airglow;
-use crate::evaluator::ComponentMask;
+use crate::evaluator::{resolve_target_direction, ComponentMask, TargetDirection};
+use crate::NsbEvaluator;
 use siderust::time::{Interval as TimePeriod, ModifiedJulianDate};
 
 /// Additional regimes used by practical discovery only. The independent reference scanner
 /// retains the original windows and therefore the original grid phase.
 pub(crate) fn adaptive_threshold_windows(
+    evaluator: &NsbEvaluator,
     prepared: &PreparedThresholdQuery,
 ) -> crate::Result<Vec<TimePeriod<ModifiedJulianDate>>> {
     use super::intervals::{tt_mjd_to_utc_time, utc_time_to_tt_mjd};
     use siderust::coordinates::{spherical::direction, transform::TransformFrame};
     use siderust::event::altitude::{above_threshold, SearchOpts};
     let mut windows = threshold_windows(prepared, false);
+    // Constant equatorial Starlight alone needs no extra regime cuts. Dynamic
+    // horizontal Starlight still requires HEALPix pixel-transition partitions.
     if prepared
         .components
         .difference(ComponentMask::STARLIGHT)
         .is_empty()
+        && !matches!(prepared.starlight, PreparedStarlight::Dynamic)
     {
         return Ok(windows);
     }
+    let mut cuts: Vec<ModifiedJulianDate> = Vec::new();
+
     // Source and Moonlight have a physical horizon branch even if the caller
     // clears the visibility filter or requests a negative altitude floor.
-    let target_icrs: direction::ICRS = prepared.target.to_frame();
-    let horizon = above_threshold(
-        &target_icrs,
-        &prepared.observer,
-        prepared.tt_window,
-        crate::units::angular::Degrees::new(0.0),
-        SearchOpts::default(),
-    );
-    let mut cuts: Vec<_> = horizon.iter().flat_map(|p| [p.start, p.end]).collect();
+    // Fixed horizontal targets have constant altitude: either always above or
+    // always below the geometric horizon — no time-varying horizon cuts.
+    match prepared.target {
+        TargetDirection::Equatorial(target) => {
+            let target_icrs: direction::ICRS = target.to_frame();
+            let horizon = above_threshold(
+                &target_icrs,
+                &prepared.observer,
+                prepared.tt_window,
+                crate::units::angular::Degrees::new(0.0),
+                SearchOpts::default(),
+            );
+            cuts.extend(horizon.iter().flat_map(|p| [p.start, p.end]));
+        }
+        TargetDirection::Horizontal(_) => {}
+    }
+
     let start = tt_mjd_to_utc_time(prepared.tt_window.start)
         .to_chrono()
         .ok_or_else(|| {
@@ -69,6 +84,14 @@ pub(crate) fn adaptive_threshold_windows(
     if prepared.components.contains(ComponentMask::ZODIACAL) {
         cuts.extend(zodiacal_boundaries(prepared)?);
     }
+    if matches!(prepared.starlight, PreparedStarlight::Dynamic) {
+        cuts.extend(super::healpix_partition::starlight_healpix_transitions(
+            evaluator,
+            prepared.observer,
+            prepared.target,
+            prepared.tt_window,
+        )?);
+    }
     cuts.sort_by(|a, b| a.partial_cmp(b).expect("finite TT instants"));
     cuts.dedup();
     let mut out = Vec::new();
@@ -86,11 +109,23 @@ pub(crate) fn adaptive_threshold_windows(
 fn zodiacal_boundaries(
     prepared: &PreparedThresholdQuery,
 ) -> crate::Result<Vec<ModifiedJulianDate>> {
+    match prepared.target {
+        TargetDirection::Equatorial(target) => {
+            zodiacal_boundaries_fixed_ecliptic(prepared, target)
+        }
+        TargetDirection::Horizontal(_) => zodiacal_boundaries_moving_target(prepared),
+    }
+}
+
+fn zodiacal_boundaries_fixed_ecliptic(
+    prepared: &PreparedThresholdQuery,
+    target: crate::Target,
+) -> crate::Result<Vec<ModifiedJulianDate>> {
     use siderust::bodies::Sun;
     use siderust::coordinates::{
         frames::EclipticMeanJ2000, spherical::Direction, transform::TransformFrame,
     };
-    let ecl: Direction<EclipticMeanJ2000> = prepared.target.to_frame();
+    let ecl: Direction<EclipticMeanJ2000> = target.to_frame();
     let lon = ecl.lon().value();
     let beta = ecl.lat().value().to_radians();
     // All 5-degree Leinert cells, folding points, and constant-fill corner
@@ -149,6 +184,83 @@ fn zodiacal_boundaries(
         a = b;
     }
     Ok(out)
+}
+
+/// Zodiacal table cells for a moving (horizontal) target.
+///
+/// Both solar longitude and the target's ecliptic coordinates evolve. Sample
+/// the `(λ_target, β_target, λ_sun)` Leinert cell identity and cut where it
+/// changes. This is an empirical partition aligned with the adaptive contract,
+/// not a continuous certificate of every infinitesimal table edge.
+fn zodiacal_boundaries_moving_target(
+    prepared: &PreparedThresholdQuery,
+) -> crate::Result<Vec<ModifiedJulianDate>> {
+    use super::intervals::tt_mjd_to_utc_time;
+    use siderust::bodies::Sun;
+    use siderust::coordinates::{
+        frames::EclipticMeanJ2000, spherical::Direction, transform::TransformFrame,
+    };
+    use siderust::qtty::Days;
+
+    let origin = prepared.tt_window.start;
+    let end = prepared.tt_window.length().value();
+    // ~2 min samples: finer than typical solar-longitude cell motion and
+    // comparable to equatorial HEALPix transit times near nside=128.
+    let step = (2.0_f64 / 1_440.0).min(end.max(1e-12));
+
+    let cell_at = |offset_days: f64| -> crate::Result<(i32, i32, i32)> {
+        let mjd = origin + Days::new(offset_days);
+        let time = tt_mjd_to_utc_time(mjd);
+        let target = resolve_target_direction(prepared.target, prepared.observer, time)?;
+        let ecl: Direction<EclipticMeanJ2000> = target.to_frame();
+        let lon = ecl.lon().value().rem_euclid(360.0);
+        let lat = ecl.lat().value();
+        let sun = Sun::ecliptic_longitude_geocentric(mjd.to::<tempoch::JD>())
+            .value()
+            .to_degrees()
+            .rem_euclid(360.0);
+        // 5° Leinert longitude cells; 5° latitude bands; solar elongation proxy.
+        Ok((
+            (lon / 5.0).floor() as i32,
+            (lat / 5.0).floor() as i32,
+            (sun / 5.0).floor() as i32,
+        ))
+    };
+
+    let mut cuts = Vec::new();
+    let mut a = 0.0;
+    let mut prev = cell_at(0.0)?;
+    while a < end {
+        let b = (a + step).min(end);
+        let next = cell_at(b)?;
+        if next != prev {
+            let (mut lo, mut hi) = (a, b);
+            let left = prev;
+            while hi - lo > 0.1 / 86_400.0 {
+                let mid = lo + (hi - lo) * 0.5;
+                if mid == lo || mid == hi {
+                    break;
+                }
+                if cell_at(mid)? == left {
+                    lo = mid;
+                } else {
+                    hi = mid;
+                }
+            }
+            let cut = origin + Days::new(lo + (hi - lo) * 0.5);
+            if prepared.tt_window.start < cut && cut < prepared.tt_window.end {
+                cuts.push(cut);
+            }
+            prev = next;
+        }
+        a = b;
+        if cuts.len() > 25_000 {
+            return Err(crate::NsbError::Unsupported(
+                "horizontal Zodiacal partition budget".into(),
+            ));
+        }
+    }
+    Ok(cuts)
 }
 
 pub(crate) fn contains_time(

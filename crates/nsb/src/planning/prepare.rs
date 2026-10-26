@@ -2,11 +2,12 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 //! Target-independent and target-specific preparation for window searches.
 
-use super::types::{PreparedThresholdQuery, SiteWindowContext, ThresholdQuery};
+use super::types::{
+    PreparedStarlight, PreparedThresholdQuery, SiteWindowContext, ThresholdQuery,
+};
 use crate::components::airglow;
 use crate::error::{NsbError, Result};
-use crate::evaluator::{ComponentMask, NsbEvaluator};
-use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
+use crate::evaluator::{ComponentMask, NsbEvaluator, TargetDirection};
 use siderust::bodies::Moon as MoonBody;
 use siderust::coordinates::{spherical::direction, transform::TransformFrame};
 use siderust::event::altitude::{above_threshold as altitude_above_threshold, SearchOpts};
@@ -153,23 +154,8 @@ pub(crate) fn prepare_target_threshold(
     context: &SiteWindowContext,
     query: &ThresholdQuery,
 ) -> Result<PreparedThresholdQuery> {
-    let starlight_integrated = if query.components.contains(ComponentMask::STARLIGHT) {
-        evaluator.evaluate_starlight(query.target)?.integrated
-    } else {
-        BandPhotonRadiance::new(0.0)
-    };
-    let target_visible_periods = if let Some(target_min) = query.target_altitude_floor {
-        let target_dir: direction::ICRS = query.target.to_frame();
-        altitude_above_threshold(
-            &target_dir,
-            &query.observer,
-            context.tt_window,
-            target_min,
-            SearchOpts::default(),
-        )
-    } else {
-        vec![context.tt_window]
-    };
+    let starlight = prepare_starlight(evaluator, query)?;
+    let target_visible_periods = target_visible_periods(query, context.tt_window)?;
     let candidate_windows =
         intersect_periods(context.sun_filter_periods.as_ref(), &target_visible_periods);
     let prepared = PreparedThresholdQuery {
@@ -177,7 +163,7 @@ pub(crate) fn prepare_target_threshold(
         observer: query.observer,
         target: query.target,
         components: query.components,
-        starlight_integrated,
+        starlight,
         tt_window: context.tt_window,
         astronomical_night_periods: Arc::clone(&context.astronomical_night_periods),
         candidate_windows,
@@ -187,4 +173,53 @@ pub(crate) fn prepare_target_threshold(
         moon_visible_periods: context.moon_visible_periods.clone(),
     };
     Ok(prepared)
+}
+
+fn prepare_starlight(
+    evaluator: &NsbEvaluator,
+    query: &ThresholdQuery,
+) -> Result<PreparedStarlight> {
+    if !query.components.contains(ComponentMask::STARLIGHT) {
+        return Ok(PreparedStarlight::Disabled);
+    }
+    match query.target {
+        TargetDirection::Equatorial(target) => Ok(PreparedStarlight::Constant(
+            evaluator.evaluate_starlight(target)?.integrated,
+        )),
+        TargetDirection::Horizontal(_) => Ok(PreparedStarlight::Dynamic),
+    }
+}
+
+/// Target altitude eligibility over the search window.
+///
+/// Fixed equatorial targets use Siderust ICRS altitude-event periods. Fixed
+/// horizontal targets have constant altitude, so the filter is all-or-nothing
+/// for the whole TT window (equality at the floor remains eligible).
+fn target_visible_periods(
+    query: &ThresholdQuery,
+    tt_window: TimePeriod<ModifiedJulianDate>,
+) -> Result<Vec<TimePeriod<ModifiedJulianDate>>> {
+    let Some(target_min) = query.target_altitude_floor else {
+        return Ok(vec![tt_window]);
+    };
+    match query.target {
+        TargetDirection::Equatorial(target) => {
+            let target_dir: direction::ICRS = target.to_frame();
+            Ok(altitude_above_threshold(
+                &target_dir,
+                &query.observer,
+                tt_window,
+                target_min,
+                SearchOpts::default(),
+            ))
+        }
+        TargetDirection::Horizontal(direction) => {
+            let alt = direction.alt();
+            if alt >= target_min {
+                Ok(vec![tt_window])
+            } else {
+                Ok(Vec::new())
+            }
+        }
+    }
 }

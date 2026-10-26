@@ -12,7 +12,7 @@ use nsb::solar_activity::SolarActivitySource;
 use nsb::{
     data::bundled::{bundled_assets, ASSET_MANIFEST_SCHEMA_VERSION},
     BandDiagnostic, ComponentMask, NsbComponentDescriptor, NsbComponentMetadata, NsbModelConfig,
-    NsbResult, StarlightProduct, Target, MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE,
+    NsbResult, StarlightProduct, TargetDirection, MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE,
     SIDERUST_VERSION,
 };
 use serde::Serialize;
@@ -109,8 +109,16 @@ struct ObserverJson {
 
 #[derive(Serialize)]
 struct TargetJson {
-    ra_deg: f64,
-    dec_deg: f64,
+    /// `icrs` for fixed celestial targets; `horizontal` for fixed geometric Alt/Az.
+    frame: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ra_deg: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    dec_deg: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    alt_deg: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    az_deg: Option<f64>,
 }
 
 #[derive(Serialize)]
@@ -228,14 +236,36 @@ struct PeriodJson {
     duration_seconds: Option<f64>,
 }
 
+fn target_json(target: TargetDirection) -> TargetJson {
+    match target {
+        TargetDirection::Equatorial(equatorial) => {
+            let icrs: direction::ICRS = equatorial.to_frame();
+            TargetJson {
+                frame: "icrs",
+                ra_deg: Some(icrs.ra().value()),
+                dec_deg: Some(icrs.dec().value()),
+                alt_deg: None,
+                az_deg: None,
+            }
+        }
+        TargetDirection::Horizontal(horizontal) => TargetJson {
+            frame: "horizontal",
+            ra_deg: None,
+            dec_deg: None,
+            alt_deg: Some(horizontal.alt().value()),
+            az_deg: Some(horizontal.az().value()),
+        },
+        _ => unreachable!("NSB currently supports equatorial and horizontal targets only"),
+    }
+}
+
 pub fn write_point(
     time: Time<UTC>,
     observer: Geodetic<ECEF>,
-    target: Target,
+    target: TargetDirection,
     config: &NsbModelConfig,
     result: &NsbResult,
 ) -> Result<()> {
-    let target: direction::ICRS = target.to_frame();
     let payload = PointJson {
         schema_version: "nsb-cli-point-json-v1",
         version: version_json(),
@@ -250,10 +280,7 @@ pub fn write_point(
             latitude_deg: observer.lat.value(),
             height_m: observer.height.value(),
         },
-        target: TargetJson {
-            ra_deg: target.ra().value(),
-            dec_deg: target.dec().value(),
-        },
+        target: target_json(target),
         components: result
             .components
             .iter()

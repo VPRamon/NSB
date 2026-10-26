@@ -1771,9 +1771,8 @@ dependencies = [
 
 [[package]]
 name = "siderust-py"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b47f33e87d499ebc31a41f7cfd9c90725d8b23dbc5b01c327e1a63a3e548beb0"
+version = "0.6.0"
+source = "git+https://github.com/Siderust/siderust-py?rev=a426fd8f8338c8d5bb40c12e03ddce17e51050be#a426fd8f8338c8d5bb40c12e03ddce17e51050be"
 dependencies = [
  "affn",
  "pyo3",

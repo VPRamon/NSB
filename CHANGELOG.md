@@ -5,6 +5,15 @@ tag-triggered publication workflow succeeds.
 
 ## [Unreleased]
 
+### Added
+
+- Native horizontal (Alt/Az) observing targets alongside equatorial directions:
+  Rust `TargetDirection` / `HorizontalTarget`, Python
+  `siderust.HorizontalDirection` on `PointQuery` and `ThresholdQuery`, and CLI
+  horizontal target flags. Horizontal Starlight is dynamic under Earth rotation;
+  adaptive planning partitions at Galactic HEALPix transitions, and certified
+  search refuses a constant-Starlight certificate for horizontal targets.
+
 ## [0.2.0]
 
 Release candidate; registry availability depends on the tag-triggered

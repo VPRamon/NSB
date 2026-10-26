@@ -53,7 +53,7 @@ Typical imports from the crate root:
 
 | Task | Primary types |
 | --- | --- |
-| Point evaluation | `NsbEvaluator`, `PointQuery`, `ComponentMask`, `Observer`, `Target`, `DEG` |
+| Point evaluation | `NsbEvaluator`, `PointQuery`, `ComponentMask`, `Observer`, `Target`, `TargetDirection`, `HorizontalTarget`, `DEG` |
 | Threshold / window search | `ThresholdQuery`, `ThresholdQueryResult`, `SiteWindowContext` |
 | Model configuration | `NsbModelConfig`, `AirglowModel`, `AirglowSelection`, `MoonlightModel`, `StarlightProduct`, `ZodiacalModel`, `ZodiacalExtinction`, `SiteProfileTag`, `SiteProfile`, `GenericClearSky`, `CalibrationStatus` |
 | Site profiles | `SiteProfile::<GenericClearSky>::generic_clear_sky()`, `SiteProfile::<P>::planning(...)` with caller-defined `P: SiteProfileTag`; `AtmosphericConditions` under `nsb::site` |
@@ -70,7 +70,8 @@ fall into one of four intended classes.
 Intended for normal integrations and to become stable at the public API freeze.
 
 Includes evaluator types (`NsbEvaluator`, queries, results, `ComponentMask`,
-`Observer`, `Target`), opaque `NsbModelConfig` with getters/builders,
+`Observer`, `Target`, `TargetDirection`, `HorizontalTarget`), opaque
+`NsbModelConfig` with getters/builders,
 model-selection enums (`AirglowModel`, `AirglowSelection`, `MoonlightModel`,
 `ZodiacalModel`, `ZodiacalExtinction`, `StarlightProduct`), `SiteProfileTag`,
 `SiteProfile`, `GenericClearSky`, `CalibrationStatus`, crate version constants
@@ -240,6 +241,7 @@ Re-export policy:
 | `qtty` | Re-exported as `nsb::units::qtty`; common qtty quantity modules are also available directly under `nsb::units` |
 | `siderust::qtty::DEG` | Re-exported as `nsb::DEG` for documented constructors |
 | `Geodetic<ECEF>`, `SphericalDirection<EquatorialMeanJ2000>` | Type aliases `Observer`, `Target` |
+| `SphericalDirection<Horizontal>` | Type alias `HorizontalTarget`; with `Target` as variants of `TargetDirection` |
 | `Time<UTC>`, `Period<UTC>`, radiance and spectral quantity units | May appear in public signatures |
 | Other Siderust frames/catalog helpers | Import from Siderust when needed |
 

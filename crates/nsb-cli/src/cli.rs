@@ -66,13 +66,24 @@ pub struct ObserverArgs {
 
 #[derive(Debug, Args)]
 pub struct TargetArgs {
-    /// Target right ascension in degrees, ICRS.
-    #[arg(long, allow_hyphen_values = true)]
-    pub ra: f64,
+    /// Target right ascension in degrees (ICRS). Mutually exclusive with --alt/--az.
+    #[arg(long, allow_hyphen_values = true, requires = "dec")]
+    pub ra: Option<f64>,
 
-    /// Target declination in degrees, ICRS.
-    #[arg(long, allow_hyphen_values = true)]
-    pub dec: f64,
+    /// Target declination in degrees (ICRS). Mutually exclusive with --alt/--az.
+    #[arg(long, allow_hyphen_values = true, requires = "ra")]
+    pub dec: Option<f64>,
+
+    /// Geometric altitude in degrees above the local astronomical horizon
+    /// (`[-90, 90]`). Mutually exclusive with --ra/--dec. Atmospheric refraction
+    /// is not applied.
+    #[arg(long, allow_hyphen_values = true, requires = "az")]
+    pub alt: Option<f64>,
+
+    /// Geometric azimuth in degrees from North, increasing clockwise through
+    /// East. Mutually exclusive with --ra/--dec.
+    #[arg(long, allow_hyphen_values = true, requires = "alt")]
+    pub az: Option<f64>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
