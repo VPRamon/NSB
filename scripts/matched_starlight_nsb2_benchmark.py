@@ -707,7 +707,7 @@ def level2_sky_direction_cases(*, include_bright_catalog: bool = False) -> list[
 def git_rev(path: Path) -> str | None:
     try:
         return subprocess.check_output(
-            ["git", "-C", str(path), "rev-parse", "HEAD"], text=True
+            ["git", "-C", str(path), "rev-parse", "HEAD"], text=True, stderr=subprocess.DEVNULL
         ).strip()
     except (OSError, subprocess.CalledProcessError):
         return None
@@ -804,7 +804,7 @@ def _direct_url_commit(dist) -> str | None:
 def git_toplevel(path: Path) -> Path | None:
     try:
         text = subprocess.check_output(
-            ["git", "-C", str(path), "rev-parse", "--show-toplevel"], text=True
+            ["git", "-C", str(path), "rev-parse", "--show-toplevel"], text=True, stderr=subprocess.DEVNULL
         ).strip()
     except (OSError, subprocess.CalledProcessError):
         return None
@@ -1239,6 +1239,8 @@ def validate_artifact(artifact: dict) -> None:
     if len(level1) != len(expected_l1) or {c["case_id"] for c in level1} != expected_l1:
         raise ValueError("Missing or duplicate Level-1 cases")
     for c in level1:
+        if c["classification"] != "equivalent" or c["level"] != 1:
+            raise ValueError("Invalid Level-1 comparison contract")
         if c["case_id"] == "L1_synth_partial_bin_rejected":
             if c["passed"] is not True:
                 raise ValueError("Partial-bin rejection failed")
@@ -1251,6 +1253,8 @@ def validate_artifact(artifact: dict) -> None:
             if not np.isclose(c["signed_difference"], delta, rtol=1e-12, atol=1e-15) or c["absolute_difference"] != abs(delta):
                 raise ValueError("Invalid Level-1 derived metrics")
             diff, rel = c["absolute_difference"], c["relative_difference"]
+            if rel != abs(delta) / abs(right):
+                raise ValueError("Invalid Level-1 relative difference")
             if not np.isfinite([diff, rel]).all() or diff < 0 or rel < 0 or (diff > 1e-15 and rel > 1e-12):
                 raise ValueError(f"Level-1 equivalence failed: {c['case_id']}")
     l2 = artifact["level2_cases"]

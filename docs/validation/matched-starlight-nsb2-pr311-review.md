@@ -105,8 +105,8 @@ source-row accounting, failed/incomplete/nonfinite evidence, CLI exit status,
 atomic output preservation, staged/unstaged/untracked Git states and dirty nsb2
 pin policy. Optional bright-population assembly is checked to exclude XHIP.
 
-The fast environment contains only NumPy and pytest: **39 passed, 7 skipped**;
-runtime-dependent tests skip explicitly. Required integration mode: **46 passed,
+The fast environment contains only NumPy and pytest: **40 passed, 7 skipped**;
+runtime-dependent tests skip explicitly. Required integration mode: **47 passed,
 0 skipped** in a clean Python 3.12 environment. A separate clean Python 3.12 environment installs pinned nsb2
 from the documented VCS URL and the locally built NSB wheel; required integration
 mode executes the operators without skips. A negative check with dependencies

@@ -449,7 +449,7 @@ def test_explicit_level1_run_has_no_level2_or_closure_claim(monkeypatch, tmp_pat
         study.write_artifact(study.ARTIFACT, artifact)
 
 
-@pytest.mark.parametrize("corrupt", ["missing_l1", "missing_l2", "duplicate_l2", "nonfinite", "wrong_metric", "failed_l1"])
+@pytest.mark.parametrize("corrupt", ["missing_l1", "missing_l2", "duplicate_l2", "nonfinite", "wrong_metric", "failed_l1", "wrong_l1_relative"])
 def test_incomplete_or_invalid_evidence_cannot_replace_output(tmp_path, corrupt):
     artifact = load_committed_artifact()
     if corrupt == "missing_l1":
@@ -462,6 +462,13 @@ def test_incomplete_or_invalid_evidence_cannot_replace_output(tmp_path, corrupt)
         artifact["level2_cases"][0]["nsb2"] = float("nan")
     elif corrupt == "wrong_metric":
         artifact["level2_cases"][0]["absolute_difference"] = 1000
+    elif corrupt == "wrong_l1_relative":
+        case = artifact["level1_cases"][0]
+        case["nsb"] += 0.01
+        delta = case["nsb"] - case["reference"]
+        case["signed_difference"] = delta
+        case["absolute_difference"] = abs(delta)
+        case["relative_difference"] = 0.0
     else:
         artifact["level1_cases"][0]["relative_difference"] = 0.1
         artifact["level1_cases"][0]["absolute_difference"] = 0.1
