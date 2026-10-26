@@ -1479,22 +1479,22 @@
         "/tmp/nsb311-reproduction/lib/python3.12/site-packages/nsb/nsb.abi3.so": "1b30f9331464b0a1a59b230ce55edcea6aa902f4e2a64cb992dbda865b2535cb"
       },
       "declaration": "Caller attests clean build/install from this revision; checked against current build inputs",
-      "declared_source_revision": "4ab83422c3bb6f16fcb60b09f79d0c45a2183025"
+      "declared_source_revision": "dabb827c4f8b9ea84ff28441e8cfc7d8367dd4c2"
     },
     "nsb_checkout": {
       "dirty": false,
-      "head": "4ab83422c3bb6f16fcb60b09f79d0c45a2183025",
+      "head": "dabb827c4f8b9ea84ff28441e8cfc7d8367dd4c2",
       "input_manifest_excludes": [
         "docs/validation/artifacts/matched-starlight-nsb2-v1.json"
       ],
-      "input_manifest_sha256": "361962ec5e664b0323d914cc9fd3c7418f8f177dcce68ae38b9d6f37ab5949e1",
+      "input_manifest_sha256": "9f1253381fa3c4ba55db13767d1df11cdc3ac47f51c2bd5c1c0ee4034480ab2f",
       "status": []
     },
     "nsb_package_version": "0.2.0",
     "pickles_template_reduction": "nanmedian over finite Pickles template alternatives (nsb2 instrument central of nanmin/nanmedian/nanmax); selected sources with no finite template reject the evaluation",
     "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43",
     "python": "3.12.13",
-    "runner_sha256": "3747e0c6699a655a0fd700258897dbb578b8ddca5f5d6957aa3a5ab3f4e66175"
+    "runner_sha256": "b07624a4f0651573df6397efb46700591094527a2b3c6231c4e070f616a03e96"
   },
   "schema": "matched-starlight-nsb2-v1",
   "scientific_question": "When NSB and nsb2 represent stellar sources over a shared wavelength interval with the same physical observation operator, how closely do their predictions agree?",
