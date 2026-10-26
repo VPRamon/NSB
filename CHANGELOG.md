@@ -5,6 +5,71 @@ tag-triggered publication workflow succeeds.
 
 ## [Unreleased]
 
+## [0.2.1]
+
+Scientific diagnostics and opt-in evaluation capabilities added after v0.2.0.
+Existing broadband prediction behavior and production physics remain unchanged.
+
+### Added
+
+- Opt-in Rust `NsbEvaluator::evaluate_spectral_starlight` for complete native
+  Starlight bins in the experimental 360–570 nm domain, composing explicit
+  observer geometry and atmospheric identity, direct, single-scattering or
+  projected multiple-scattering modes. Keep top-of-atmosphere, transmitted and
+  scattered quantities separate; partial/unavailable totals and physical
+  uncertainties remain unavailable rather than zero (#312).
+- Typed Oxygen F10.7 domain diagnostics in Rust, Python and CLI JSON: applied
+  solar flux and the asset-derived 67–166 sfu training interval. Numerical
+  membership does not certify physical conditions or scientific maturity (#309).
+- Deterministic observational validation receipts with manifest, model/scenario
+  predictions, per-night results, condition groups and source checksums,
+  reproducible independently of the notebook (#307).
+
+### Scientific validation and reproducibility
+
+- Night-clustered signed-bias intervals, paired differences, night-weighted
+  errors and predeclared solar/airmass condition summaries for the historical
+  Patat/FORS1 development cohort; prevent pooled statistics from obscuring
+  between-night variation (#293).
+- Reproduce prospective-versus-retrospective F10.7 cadence diagnostics using
+  checksum-verified scientific inputs. Smaller historical errors from trailing
+  or previous-month solar proxies do not justify changing runtime defaults;
+  centred-window inputs depend on future observations (#308).
+- Add matched continuum and O I 557.7/630/636 nm window diagnostics, including
+  air/vacuum wavelength conventions and integrated line-flux operators; retain
+  the frozen cohort and distinguish developmental from independent evidence
+  (#310).
+- Verify matched NSB–nsb2 Starlight operators to floating-point accuracy in
+  synthetic controlled cases, while documenting differences in real catalog
+  populations and angular sampling. This does not demonstrate astrophysical
+  superiority or full-sky accuracy (#311).
+
+### Fixed and clarified
+
+- Keep Automatic Oxygen's planning release-policy fallback distinct from its
+  experimental scientific status and the independent absolute admission gate
+  (#302).
+- Restore standalone execution of the observational notebook using released
+  Python packages and a clean Jupyter setup (#284).
+- Ensure tag-triggered publication validates successful main-branch CI for the
+  exact release commit, allowing that CI to finish before checking status (#288).
+
+### Compatibility and scientific limitations
+
+- Additive public diagnostics and opt-in Rust spectral evaluation; existing
+  default broadband evaluation, physical coefficients and production assets
+  are unchanged. The Python package `nsb-py` derives this same version from
+  the Rust crate; `nsb-cli` and `nsb-data-tools` remain unpublished workspace
+  crates.
+- Historical Oxygen error changes were measured on data that informed model
+  development, not an independent absolute admission sample. The full
+  sky-to-detector accuracy experiment remains blocked by missing matched
+  calibration and spectral coverage. CTAO site profiles remain planning
+  presets, not calibrated instrument predictions.
+- The separately maintained `nsb-validation` PRs #27 and #28 preserve public
+  measurement provenance and instrument-admission NO-GO decisions; those
+  observational data fixtures are **not** newly bundled in this NSB release.
+
 ## [0.2.0]
 
 Release candidate; registry availability depends on the tag-triggered

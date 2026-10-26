@@ -17,7 +17,7 @@ python -m pip install nsb-py
 
 The installed **distribution** is `nsb-py`; the **import** is `nsb`.
 Compatible `siderust` and `tempoch` Python runtime packages are installed as
-dependencies. Version 0.2.0 requires successful registry publication.
+dependencies. Version 0.2.1 requires successful registry publication.
 
 ## Evaluate a point
 
@@ -56,7 +56,7 @@ NSB combines zodiacal light, integrated starlight, airglow and scattered
 moonlight. The default configuration is a **planning model**, not a prediction
 of absolute night-sky brightness calibrated at an observatory.
 
-In 0.2.0, Automatic Airglow selects experimental PALACE Oxygen, limited to
+In 0.2.1, Automatic Airglow selects experimental PALACE Oxygen, limited to
 standard continuum geometry and zenith distance **≤60°**. Out-of-domain queries
 raise errors; no alternative model is silently substituted.
 The bundled Gaia-derived Starlight map has verified provenance and
