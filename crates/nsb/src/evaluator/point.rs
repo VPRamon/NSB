@@ -20,6 +20,7 @@ pub(crate) fn evaluate(
     query: &PreparedPointQuery,
     time: Time<UTC>,
 ) -> Result<NsbResult> {
+    let target = super::resolve_target_direction(query.target, query.observer, time)?;
     let mut components = Vec::new();
     let mut total = BandPhotonRadiance::new(0.0);
     let (mut b_total, mut v_total) = (S10::new(0.0), S10::new(0.0));
@@ -28,9 +29,7 @@ pub(crate) fn evaluate(
     let mut bv_complete = true;
 
     if query.components.contains(ComponentMask::ZODIACAL) {
-        let out = evaluator
-            .zodiacal()
-            .compute(time, query.observer, query.target)?;
+        let out = evaluator.zodiacal().compute(time, query.observer, target)?;
         total += out.integrated;
         b_total += out.b_flux_s10;
         v_total += out.v_flux_s10;
@@ -51,7 +50,7 @@ pub(crate) fn evaluate(
         });
     }
     if query.components.contains(ComponentMask::STARLIGHT) {
-        let out = evaluator.evaluate_starlight(query.target)?;
+        let out = evaluator.evaluate_starlight(target)?;
         total += out.integrated;
         bv_complete &= out.s10_diagnostics_provided;
         b_total += out.b_flux_s10;
@@ -73,8 +72,7 @@ pub(crate) fn evaluate(
         });
     }
     if query.components.contains(ComponentMask::AIRGLOW) {
-        let (out, solar) =
-            evaluator.evaluate_airglow_resolved(query.observer, time, query.target)?;
+        let (out, solar) = evaluator.evaluate_airglow_resolved(query.observer, time, target)?;
         total += out.integrated;
         b_total += out.b_flux_s10;
         v_total += out.v_flux_s10;
@@ -115,7 +113,7 @@ pub(crate) fn evaluate(
         });
     }
     if query.components.contains(ComponentMask::MOON) {
-        let out = evaluator.evaluate_moonlight(query.observer, time, query.target)?;
+        let out = evaluator.evaluate_moonlight(query.observer, time, target)?;
         total += out.integrated;
         b_total += out.b_flux_s10;
         v_total += out.v_flux_s10;

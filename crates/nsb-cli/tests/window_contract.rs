@@ -443,3 +443,35 @@ fn joint_band_cli_millisecond_boundaries_satisfy_both_constraints() {
         }
     }
 }
+
+#[test]
+fn horizontal_window_search_accepts_alt_az_flags() {
+    Command::cargo_bin("nsb")
+        .unwrap()
+        .args([
+            "--format",
+            "json",
+            "window",
+            "--start",
+            "2024-06-18T22:00:00Z",
+            "--end",
+            "2024-06-19T02:00:00Z",
+            "--lon",
+            "-17.8925",
+            "--lat",
+            "28.7543",
+            "--height",
+            "2396",
+            "--alt",
+            "60",
+            "--az",
+            "130",
+            "--max-nsb",
+            "100",
+            "--components",
+            "zodiacal",
+            "--no-pre-filter",
+        ])
+        .assert()
+        .success();
+}

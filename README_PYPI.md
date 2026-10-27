@@ -30,11 +30,12 @@ from datetime import datetime, timezone
 
 import nsb
 import siderust
+from siderust.direction import ICRS
 
 observer = siderust.Observer(
     lon_deg=-70.31634, lat_deg=-24.683427, height_m=2184.6
 )
-target = siderust.Direction(ra_deg=266.41683, dec_deg=-29.00781)
+target = ICRS(ra_deg=266.41683, dec_deg=-29.00781)
 
 evaluator = nsb.NsbEvaluator()
 query = nsb.PointQuery(

@@ -4,7 +4,7 @@ use crate::parsing::location::ObservatoryOutput;
 use crate::parsing::time::format_utc;
 use anyhow::Result;
 use nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
-use nsb::{NsbResult, Target};
+use nsb::{NsbResult, TargetDirection};
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use siderust::coordinates::{spherical::direction, transform::TransformFrame};
@@ -13,10 +13,9 @@ use tempoch::{Period, Time, UTC};
 pub fn write_point(
     time: Time<UTC>,
     observer: Geodetic<ECEF>,
-    target: Target,
+    target: TargetDirection,
     result: &NsbResult,
 ) -> Result<()> {
-    let target: direction::ICRS = target.to_frame();
     println!("time_utc: {}", format_utc(time));
     println!(
         "observer: lon={:.6} deg lat={:.6} deg height={:.1} m",
@@ -24,11 +23,23 @@ pub fn write_point(
         observer.lat.value(),
         observer.height.value()
     );
-    println!(
-        "target: ra={:.6} deg dec={:.6} deg",
-        target.ra().value(),
-        target.dec().value()
-    );
+    if let (Some(alt), Some(az)) = (target.altitude(), target.azimuth()) {
+        println!(
+            "target: frame=horizontal alt={:.6} deg az={:.6} deg (N-CW geometric)",
+            alt.value(),
+            az.value()
+        );
+    } else {
+        let equatorial = target
+            .as_equatorial()
+            .expect("target is equatorial or horizontal");
+        let icrs: direction::ICRS = equatorial.to_frame();
+        println!(
+            "target: frame=icrs ra={:.6} deg dec={:.6} deg",
+            icrs.ra().value(),
+            icrs.dec().value()
+        );
+    }
     println!("component    integrated_ph_cm2_ns_sr        B_s10        V_s10");
     for c in &result.components {
         println!(

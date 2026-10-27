@@ -440,6 +440,7 @@ def population_audit(offline: bool) -> dict:
 
 def nsb_toa_starlight(ra_deg: float, dec_deg: float) -> float:
     import siderust
+    from siderust.direction import ICRS
     from astropy.time import Time
 
     import nsb
@@ -453,7 +454,7 @@ def nsb_toa_starlight(ra_deg: float, dec_deg: float) -> float:
     query = nsb.PointQuery(
         obs,
         t,
-        siderust.Direction(ra_deg=ra_deg, dec_deg=dec_deg),
+        ICRS(ra_deg=ra_deg, dec_deg=dec_deg),
         components=nsb.ComponentMask.STARLIGHT,
     )
     result = ev.evaluate(query)

@@ -1494,7 +1494,7 @@
     "pickles_template_reduction": "nanmedian over finite Pickles template alternatives (nsb2 instrument central of nanmin/nanmedian/nanmax); selected sources with no finite template reject the evaluation",
     "platform": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43",
     "python": "3.12.13",
-    "runner_sha256": "b07624a4f0651573df6397efb46700591094527a2b3c6231c4e070f616a03e96"
+    "runner_sha256": "0a5c8c9cb4886a03e1c9baf9eb9a02a13ddea9e90f4f7945771691748acad878"
   },
   "schema": "matched-starlight-nsb2-v1",
   "scientific_question": "When NSB and nsb2 represent stellar sources over a shared wavelength interval with the same physical observation operator, how closely do their predictions agree?",

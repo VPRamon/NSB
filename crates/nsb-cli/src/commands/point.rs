@@ -23,17 +23,19 @@ pub fn run(args: PointArgs, format: OutputFormat) -> Result<()> {
 
     let observer = location::resolve_observer(&args.observer)?;
     let time = time::parse_utc(&args.time)?;
-    let target = target::resolve_target(&args.target);
+    let target = target::resolve_target(&args.target)?;
     let selection = components::parse_components(&args.model.components)?;
     let components = selection.mask;
     debug!(
-        "resolved point query: site={:?}, lon={:?}, lat={:?}, height={:?}, ra={}, dec={}, components={components:?}",
+        "resolved point query: site={:?}, lon={:?}, lat={:?}, height={:?}, ra={:?}, dec={:?}, alt={:?}, az={:?}, components={components:?}",
         args.observer.site,
         args.observer.lon,
         args.observer.lat,
         args.observer.height,
         args.target.ra,
-        args.target.dec
+        args.target.dec,
+        args.target.alt,
+        args.target.az
     );
 
     let evaluator = NsbEvaluator::with_config(model_config(&args.model, selection)?)?;

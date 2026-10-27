@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
 use super::metadata::{BandDiagnostic, NsbComponentMetadata};
+use super::target::{validate_target_direction, TargetDirection};
 use crate::components::zodiacal;
 use crate::components::{airglow, moonlight, starlight};
 use crate::site::{
@@ -73,18 +74,8 @@ pub type Target = SphericalDirection<EquatorialMeanJ2000>;
 
 // Quantity/frame types carry dimensions and axes, but their constructors can
 // still contain non-finite scalars. Check before eligibility or zero shortcuts.
-pub(crate) fn validate_geometry(observer: Observer, target: Target) -> crate::Result<()> {
-    if !observer.lon.is_finite()
-        || !observer.lat.is_finite()
-        || !observer.height.is_finite()
-        || !target.ra().is_finite()
-        || !target.dec().is_finite()
-    {
-        return Err(crate::NsbError::OutOfRange(
-            "observer and target coordinates must be finite".into(),
-        ));
-    }
-    Ok(())
+pub(crate) fn validate_geometry(observer: Observer, target: TargetDirection) -> crate::Result<()> {
+    validate_target_direction(observer, target)
 }
 
 #[cfg_attr(feature = "python", pyo3::pyclass(frozen, module = "nsb"))]
@@ -100,19 +91,24 @@ pub struct PointQuery {
     pub observer: Observer,
     /// Observation instant in UTC.
     pub time: Time<UTC>,
-    /// Equatorial target direction.
-    pub target: Target,
+    /// Target direction. Equatorial targets are fixed on the celestial sphere;
+    /// horizontal targets are fixed Alt/Az for [`Self::observer`] and resolve
+    /// to mean J2000 at [`Self::time`].
+    pub target: TargetDirection,
     /// Components to compose.
     pub components: ComponentMask,
 }
 
 impl PointQuery {
     /// Point evaluation of the production-safe default component set.
-    pub fn new(observer: Observer, time: Time<UTC>, target: Target) -> Self {
+    ///
+    /// `target` accepts a mean-J2000 [`Target`], a geometric
+    /// [`super::HorizontalTarget`], or a [`TargetDirection`].
+    pub fn new(observer: Observer, time: Time<UTC>, target: impl Into<TargetDirection>) -> Self {
         Self {
             observer,
             time,
-            target,
+            target: target.into(),
             components: ComponentMask::ALL,
         }
     }
@@ -392,7 +388,8 @@ fn default_starlight_product() -> Option<starlight::StarlightProduct> {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct PreparedPointQuery {
     pub(crate) observer: Observer,
-    pub(crate) target: Target,
+    /// Frame-preserving input; resolved to [`Target`] at the evaluation instant.
+    pub(crate) target: TargetDirection,
     pub(crate) components: ComponentMask,
 }
 

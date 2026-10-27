@@ -79,7 +79,7 @@ def main() -> None:
     require(python["build-system"]["requires"] == ["maturin==1.15.0"],
             "PEP 517 builds must use the tested Maturin version")
     deps = set(project["dependencies"])
-    require({"siderust>=0.5.1,<0.6", "tempoch>=0.5.0,<0.6"} <= deps,
+    require({"siderust>=0.6.0,<0.7", "tempoch>=0.5.0,<0.6"} <= deps,
             "Python must include the supported Siderust/Tempoch runtime dependencies")
     notices = maturin.get("include", [])
     require(any(isinstance(item, dict)
@@ -127,12 +127,12 @@ def main() -> None:
             "Siderust must pin the registry release represented by public provenance")
 
     bridge = core_manifest["dependencies"]["siderust-py"]
-    require(bridge.get("version") == "0.5.1"
+    require(bridge.get("version") == "0.6.0"
             and set(bridge).isdisjoint({"git", "path", "branch", "rev", "tag"}),
-            "siderust-py must require corrected registry releases >=0.5.1,<0.6")
+            "siderust-py must require published registry releases 0.6.x (bridge protocol 2)")
     locked_bridge = next(p for p in lockfile["package"] if p["name"] == "siderust-py")
-    require(re.fullmatch(r"0\.5\.[1-9]\d*", locked_bridge["version"]) is not None,
-            "locked siderust-py must exclude the unsafe 0.5.0 release")
+    require(re.fullmatch(r"0\.6\.\d+", locked_bridge["version"]) is not None,
+            "locked siderust-py must be the published 0.6 bridge protocol release")
 
     if args.tag is not None:
         require(re.fullmatch(r"v\d+\.\d+\.\d+", args.tag) is not None,

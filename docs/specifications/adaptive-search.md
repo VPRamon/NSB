@@ -35,16 +35,47 @@ factor. Scalars remain at interpolation, transcendental and empirical-calibratio
 boundaries with explicit units. SFU, S10 and nanolambert conventions are domain
 calibrations; they must not be treated as generic SI conversions.
 
-Rust targets are `Direction<EquatorialMeanJ2000>`. Python and CLI inputs are ICRS
-and transform into that native type. Planning transforms native targets through
-`TransformFrame` before calling Siderust's ICRS altitude-event provider; copying
-RA/Dec into a differently tagged direction would omit frame bias. Zodiacal
-geometry rotates targets into mean J2000 ecliptic axes shared by solar longitude.
-Lunar positions start geocentric/ecliptic, rotate to J2000 equatorial axes, and use
-Siderust's apparent topocentric and horizontal transformations. Moon/source
-separation uses Affn direction geometry at the same observer; lunar distance is
-topocentric, while the published phase triangle is geocentric. No tag-only center
-or frame substitution is used.
+Rust queries accept [`TargetDirection`](../../crates/nsb/src/evaluator/target.rs):
+fixed equatorial (`Direction<EquatorialMeanJ2000>`) or fixed geometric horizontal
+Alt/Az. Python and CLI equatorial inputs are ICRS and transform into that native
+type; horizontal inputs keep Alt/Az and resolve per sample time. Planning
+transforms resolved equatorial targets through `TransformFrame` before calling
+Siderust's ICRS altitude-event provider; copying RA/Dec into a differently tagged
+direction would omit frame bias. For horizontal Starlight, adaptive discovery
+inserts sampled HEALPix pixel-transition partitions before fitting smooth
+interiors. Only eligible intervals are probed, and empty eligibility skips
+partition discovery. The grid is streamed with constant sample memory and
+bounded output (5,000,000 probes and 100,000 cuts per discovery call); the
+search's separate 25,000 physical-window limit still applies.
+
+HEALPix discovery probes at most 1/64 of a mean pixel transit apart, using
+58.6/NSIDE degrees and 360.985612 degrees/day as its resolution scales (about
+1.71 s at NSIDE=128). Mean width is not a minimum chord length: grazing visits
+near vertices may be arbitrarily short. Midpoints are probed even when endpoint
+pixels agree, and both halves of detected changes are recursively refined to
+0.1 ms. Cuts within that resolution coalesce to avoid fitting artificial
+sub-resolution intervals; the 1 ms open-interior inset covers their uncertainty.
+Excursions wholly between discovery probes can still be missed. This
+remains an empirical partition, not a geometric completeness guarantee.
+
+Moving Zodiacal targets use signed ecliptic latitude and wrapped relative
+longitude to preserve the absolute-latitude and folded-longitude cusps. The
+5-degree grid includes all three constant-fill corner edges. Additional cuts
+track true elongation at 30/90 degrees and the Noll brightness switches at
+log10(I500 / (1e-8 W m^-2 sr^-1 um^-1)) = 2.244/2.255. Wavelength branches are
+fixed during a query and introduce no temporal edges. Discovery probes are
+15 s apart, with the same recursive refinement and empirical limitation for
+unwitnessed return excursions. Solar longitude uses the exact shared cache.
+
+Certified search refuses a constant-Starlight whole-interval certificate
+for horizontal targets (`PreparedStarlight::Dynamic`); only equatorial cached
+Starlight retains that enclosure. Zodiacal geometry rotates targets into mean
+J2000 ecliptic axes shared by solar longitude. Lunar positions start
+geocentric/ecliptic, rotate to J2000 equatorial axes, and use Siderust's apparent
+topocentric and horizontal transformations. Moon/source separation uses Affn
+direction geometry at the same observer; lunar distance is topocentric, while the
+published phase triangle is geocentric. No tag-only center or frame substitution
+is used.
 
 Siderust's public phase API recomputes the ephemeris and cannot consume the Moon
 position already used for horizontal geometry. The small position-based phase

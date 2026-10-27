@@ -10,6 +10,7 @@ mod core;
 mod metadata;
 mod point;
 mod spectral_starlight;
+mod target;
 pub use spectral_starlight::SpectralStarlightMode;
 pub use spectral_starlight::SpectralStarlightResult;
 pub use spectral_starlight::StarlightDirect;
@@ -21,6 +22,8 @@ pub(crate) use metadata::{airglow_selection_metadata, moonlight_metadata, zodiac
 pub use metadata::{
     BandDiagnostic, ComponentCalibrationStatus as CalibrationStatus, NsbComponentMetadata,
 };
+pub(crate) use target::resolve_target_direction;
+pub use target::{HorizontalTarget, TargetDirection};
 pub(crate) use types::validate_geometry;
 pub use types::{
     ComponentMask, NsbComponent, NsbComponentDescriptor, NsbModelConfig, NsbResult, Observer,

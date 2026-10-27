@@ -69,7 +69,7 @@ fn threshold_query(
     let end = Time::<UTC>::from_chrono(start.to_chrono().unwrap() + Duration::hours(hours));
     ThresholdQuery {
         observer,
-        target,
+        target: target.into(),
         window: Period::new(start, end),
         threshold: BandPhotonRadiance::new(0.21),
         components,
@@ -237,7 +237,7 @@ fn authoritative_search_matches_exact_scan_across_components_and_year_boundary()
         let context = evaluator.prepare_site_window_context(&query).unwrap();
         let prepared =
             super::prepare::prepare_target_threshold(&evaluator, &context, &query).unwrap();
-        let windows = super::filters::adaptive_threshold_windows(&prepared).unwrap();
+        let windows = super::filters::adaptive_threshold_windows(&evaluator, &prepared).unwrap();
         let (native, _) = super::discovery::search_windows(
             &windows,
             query.threshold,
@@ -309,7 +309,7 @@ fn reusable_site_context_matches_independent_queries_for_multiple_targets() {
         (266.41683, -29.00781, 0.0, 0.20),
     ] {
         let mut query = first.clone();
-        query.target = Target::new(ra * crate::DEG, dec * crate::DEG);
+        query.target = Target::new(ra * crate::DEG, dec * crate::DEG).into();
         query.target_altitude_floor = Some(Degrees::new(floor));
         query.threshold = BandPhotonRadiance::new(threshold);
         let reused = evaluator
@@ -775,8 +775,8 @@ fn invalid_geometry_and_filters_fail_before_eligibility_can_hide_them() {
     for field in 0..7 {
         let mut q = query.clone();
         match field {
-            0 => q.target = Target::new(Degrees::new(f64::NAN), Degrees::new(0.0)),
-            1 => q.target = Target::new(Degrees::new(0.0), Degrees::new(f64::NAN)),
+            0 => q.target = Target::new(Degrees::new(f64::NAN), Degrees::new(0.0)).into(),
+            1 => q.target = Target::new(Degrees::new(0.0), Degrees::new(f64::NAN)).into(),
             2 => q.observer.lon = Degrees::new(f64::NAN),
             3 => q.observer.lat = Degrees::new(f64::NAN),
             4 => q.observer.height = Meters::new(f64::INFINITY),

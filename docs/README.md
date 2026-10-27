@@ -26,7 +26,7 @@ through explicit runtime-manifest contracts.
 
 The Python distribution is named `nsb-py` and imports as `nsb`. It wraps
 the same Rust evaluator and uses canonical `siderust.Observer` and
-`siderust.Direction` objects rather than maintaining parallel astronomy types.
+`siderust.direction.ICRS` objects rather than maintaining parallel astronomy types.
 
 ## Choose your documentation path
 

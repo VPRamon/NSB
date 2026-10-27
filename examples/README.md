@@ -37,6 +37,7 @@ selection, errors and units.
 |---|---|
 | [observational-validation.ipynb](observational-validation.ipynb) | Scientific assessment of nsb-py against Patat/FORS1 observations, nsb2 and a calibration-only baseline |
 | [ctao-sky-background.ipynb](ctao-sky-background.ipynb) | Practical nsb-py 0.2.0 guide: point radiance, components, Airglow and observation windows at both CTAO sites |
+| [lst1-night-sky-background.ipynb](lst1-night-sky-background.ipynb) | ORM/CTAO-North capabilities demo: equatorial vs native horizontal targets, components and ThresholdQuery planning in both frames |
 | [airglow-solar-activity.ipynb](airglow-solar-activity.ipynb) | Controlled F10.7 sweep of PALACE continuum Airglow at fixed Paranal geometry |
 
 All notebooks are standalone: no local checkout or private service is required.
@@ -127,8 +128,14 @@ without a checkout, GitHub access or Rust build. If setup changes already import
 packages, restart the kernel and Run All as instructed. The notebook uses bundled
 NSB assets, requires no scientific data acquisition and exports no files.
 
-All three notebooks retain their saved outputs and execution counts so readers
-can inspect the scientific results without running the code. The existing
+`lst1-night-sky-background.ipynb` demonstrates native `siderust.direction.Horizontal`
+alongside ICRS targets at the Roque de los Muchachos / CTAO-North planning
+coordinates. It requires a local editable NSB build with `siderust>=0.6.0`
+(companion siderust-py release); shipped outputs are left empty until that
+stack is available. It does not claim LST-1 observational validation.
+
+The first three notebooks retain their saved outputs and execution counts so
+readers can inspect the scientific results without running the code. The existing
 documentation gate, `python scripts/check-product-docs.py`, checks notebook
 structure, Python syntax, setup ordering, the NSB version selection and local
 documentation links; saved outputs are permitted. It runs in the existing CI job.
