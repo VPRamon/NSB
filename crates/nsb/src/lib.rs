@@ -8,9 +8,10 @@
 //! validated production catalogue-derived map.
 //!
 //! The library API is intentionally typed and CLI-free: callers pass
-//! [`Observer`] values, `Time<UTC>` instants, and equatorial [`Target`]
-//! directions directly. Named-site parsing, command-line flags, and output
-//! formatting belong in a separate CLI crate that consumes this library.
+//! [`Observer`] values, `Time<UTC>` instants, and [`TargetDirection`] values
+//! (fixed equatorial [`Target`] or fixed geometric [`HorizontalTarget`])
+//! directly. Named-site parsing, command-line flags, and output formatting
+//! belong in a separate CLI crate that consumes this library.
 //!
 //! # Supported public API
 //!
@@ -107,6 +108,7 @@ pub use evaluator::{
     NsbComponentDescriptor, NsbComponentMetadata, NsbEvaluator, NsbModelConfig, NsbResult,
     Observer, PointQuery, Target,
 };
+pub use evaluator::{HorizontalTarget, TargetDirection};
 pub use planning::{SiteWindowContext, ThresholdQuery, ThresholdQueryResult};
 pub use site::{CalibrationStatus, GenericClearSky, SiteProfile, SiteProfileTag};
 use units::photometry::SurfaceBrightness;

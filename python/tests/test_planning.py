@@ -6,6 +6,7 @@ import threading
 
 import nsb
 import pytest
+from siderust.direction import ICRS
 
 
 def planning_query(observer, direction):
@@ -108,7 +109,7 @@ def test_adaptive_models_context_and_inward_datetime_precision(observer, directi
 
 def test_adaptive_supports_both_lunar_models(observer):
     import siderust
-    direction = siderust.Direction(83.6331, 22.0145)
+    direction = ICRS(ra_deg=83.6331, dec_deg=22.0145)
     for model in (nsb.MoonlightModel.JONES2013_SPECTRAL, nsb.MoonlightModel.KRISCIUNAS_SCHAEFER1991):
         evaluator = nsb.NsbEvaluator(nsb.NsbModelConfig.generic_clear_sky().with_moonlight_model(model))
         query = nsb.ThresholdQuery(observer, direction,
@@ -125,7 +126,7 @@ def test_joint_band_checks_minimum_at_exported_datetime_boundaries(
     import siderust
     start = datetime(2023, 9, 4, 0, tzinfo=timezone.utc)
     end = start + timedelta(hours=6)
-    target = siderust.Direction(266.41683, -29.00781)
+    target = ICRS(ra_deg=266.41683, dec_deg=-29.00781)
     mask = nsb.ComponentMask.ZODIACAL | nsb.ComponentMask.AIRGLOW
     values = [
         continuum_evaluator.evaluate(

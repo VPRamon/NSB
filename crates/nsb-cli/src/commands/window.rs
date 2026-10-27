@@ -23,7 +23,7 @@ pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
     );
 
     let observer = location::resolve_observer(&args.observer)?;
-    let target = target::resolve_target(&args.target);
+    let target = target::resolve_target(&args.target)?;
     let start = time::parse_utc(&args.start)?;
     let end = time::parse_utc(&args.end)?;
     let max = radiance::parse_max_nsb(args.max_nsb)?;
@@ -31,13 +31,15 @@ pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
     let selection = components::parse_components(&args.model.components)?;
     let components = selection.mask;
     debug!(
-        "resolved window query: site={:?}, lon={:?}, lat={:?}, height={:?}, ra={}, dec={}, components={components:?}, pre_filter_enabled={}",
+        "resolved window query: site={:?}, lon={:?}, lat={:?}, height={:?}, ra={:?}, dec={:?}, alt={:?}, az={:?}, components={components:?}, pre_filter_enabled={}",
         args.observer.site,
         args.observer.lon,
         args.observer.lat,
         args.observer.height,
         args.target.ra,
         args.target.dec,
+        args.target.alt,
+        args.target.az,
         !args.no_pre_filter
     );
 

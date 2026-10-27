@@ -69,6 +69,20 @@ Existing broadband prediction behavior and production physics remain unchanged.
 - The separately maintained `nsb-validation` PRs #27 and #28 preserve public
   measurement provenance and instrument-admission NO-GO decisions; those
   observational data fixtures are **not** newly bundled in this NSB release.
+### Added
+
+- Native horizontal (Alt/Az) observing targets alongside equatorial directions:
+  Rust `TargetDirection` / `HorizontalTarget`, Python
+  `siderust.direction.ICRS` / `siderust.direction.Horizontal` via siderust-py
+  0.6.0 bridge protocol 2 on `PointQuery` / `ThresholdQuery`, and CLI
+  `--alt`/`--az`. Horizontal Starlight is dynamic under Earth rotation; adaptive
+  planning partitions at Galactic HEALPix transitions; certified search refuses
+  a constant-Starlight certificate for horizontal targets. Intentional
+  public-API type evolution for query targets is recorded in
+  `crates/nsb/api/public-api.txt` (existing equatorial constructors remain
+  usable via `Into<TargetDirection>`).
+- **Breaking (Python):** require `siderust>=0.6.0,<0.7` / `siderust-py` 0.6.0.
+  Replace `siderust.Direction` with `siderust.direction.ICRS`.
 
 ## [0.2.0]
 

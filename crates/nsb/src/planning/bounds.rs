@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 //! Closed-interval certificates for the authoritative prepared planning signal.
 
-use super::types::PreparedThresholdQuery;
+use super::types::{PreparedStarlight, PreparedThresholdQuery};
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as Radiance;
 use crate::{ComponentMask, NsbError, Result};
 use siderust::time::{Interval, ModifiedJulianDate};
@@ -50,8 +50,14 @@ impl BoundOutcome {
 }
 
 /// Only two proofs are currently admitted:
-/// - cached Starlight is exactly the same scalar added by evaluate_integrated;
+/// - cached constant Starlight is exactly the same scalar added by
+///   evaluate_integrated (equatorial targets only);
 /// - the prepared evaluator skips Moonlight outside its closed visibility set.
+///
+/// Dynamic (horizontal) Starlight has no whole-interval constant certificate:
+/// HEALPix nearest-pixel jumps make a smooth enclosure invalid, and adaptive
+/// evidence is never promoted to a certificate. Callers receive
+/// [`BoundOutcome::Unsupported`] rather than a false enclosure.
 ///
 /// No interpolation, geometry, sum rounding, or new physical assumptions are
 /// involved. This certifies the prepared planning signal, conditional on the
@@ -63,6 +69,11 @@ pub(super) fn prepared_bounds(
 ) -> Result<BoundOutcome> {
     let supported = ComponentMask::STARLIGHT | ComponentMask::MOON;
     if !prepared.components.difference(supported).is_empty() {
+        return Ok(BoundOutcome::Unsupported);
+    }
+    if matches!(prepared.starlight, PreparedStarlight::Dynamic) {
+        // Horizontal Starlight varies with Earth rotation and HEALPix pixels.
+        // Do not manufacture a constant-target certificate.
         return Ok(BoundOutcome::Unsupported);
     }
     if prepared.components.contains(ComponentMask::MOON) {
@@ -83,10 +94,10 @@ pub(super) fn prepared_bounds(
             return Ok(BoundOutcome::NeedsSubdivision);
         }
     }
-    let value = if prepared.components.contains(ComponentMask::STARLIGHT) {
-        prepared.starlight_integrated
-    } else {
-        Radiance::new(0.0)
+    // Dynamic is rejected above; keep the match exhaustive without a dead arm.
+    let value = match prepared.starlight {
+        PreparedStarlight::Constant(value) => value,
+        PreparedStarlight::Disabled | PreparedStarlight::Dynamic => Radiance::new(0.0),
     };
     Ok(BoundOutcome::enclosure(RadianceBounds::constant(value)?))
 }

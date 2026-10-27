@@ -13,12 +13,14 @@
 
 mod astronomy;
 mod filters;
+mod healpix_partition;
 mod intervals;
 mod prepare;
 #[cfg(test)]
 #[path = "tests/reference_scan.rs"]
 mod reference_scan;
 mod threshold;
+mod transitions;
 mod types;
 
 // Internal certificates and resource controls are not a supported public API.

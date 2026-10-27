@@ -7,13 +7,14 @@ import math
 import nsb
 import pytest
 import siderust
+from siderust.direction import ICRS
 
 
 def query(components=None):
     return nsb.PointQuery(
         siderust.Observer(lon_deg=-70.4045, lat_deg=-24.6272, height_m=2635),
         datetime(2023, 9, 15, 5, tzinfo=timezone.utc),
-        siderust.Direction(ra_deg=10, dec_deg=-20),
+        ICRS(ra_deg=10, dec_deg=-20),
         components=components
         if components is not None
         else nsb.ComponentMask.ZODIACAL | nsb.ComponentMask.AIRGLOW,
@@ -61,7 +62,7 @@ def test_nonzero_moon_has_no_invented_spectrum():
     q = nsb.PointQuery(
         siderust.Observer(lon_deg=-70.4045, lat_deg=-24.6272, height_m=2635),
         datetime(2023, 9, 29, 3, tzinfo=timezone.utc),
-        siderust.Direction(ra_deg=10, dec_deg=-20),
+        ICRS(ra_deg=10, dec_deg=-20),
         components=nsb.ComponentMask.MOON,
     )
     with pytest.raises(nsb.UnsupportedError, match="moonlight"):
@@ -177,7 +178,7 @@ def test_mixed_unsupported_and_nonzero_moon_fail_without_partial_results():
     q = nsb.PointQuery(
         siderust.Observer(-70.4045, -24.6272, 2635),
         datetime(2023, 9, 29, 3, tzinfo=timezone.utc),
-        siderust.Direction(10, -20),
+        ICRS(ra_deg=10, dec_deg=-20),
         components=nsb.ComponentMask.ZODIACAL | nsb.ComponentMask.MOON,
     )
     with pytest.raises(nsb.UnsupportedError, match="moonlight"):

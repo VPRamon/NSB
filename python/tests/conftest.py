@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 import nsb
 import pytest
 import siderust
+from siderust.direction import ICRS
 
 
 @pytest.fixture
@@ -15,7 +16,7 @@ def observer():
 
 @pytest.fixture
 def direction():
-    return siderust.Direction(266.41683, -29.00781)
+    return ICRS(ra_deg=266.41683, dec_deg=-29.00781)
 
 
 @pytest.fixture

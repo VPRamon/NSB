@@ -8,7 +8,7 @@ use crate::cli::OutputFormat;
 use crate::parsing::location::ObservatoryOutput;
 use anyhow::Result;
 use nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
-use nsb::{ComponentMask, NsbComponentDescriptor, NsbModelConfig, NsbResult, Target};
+use nsb::{ComponentMask, NsbComponentDescriptor, NsbModelConfig, NsbResult, TargetDirection};
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use tempoch::{Period, Time, UTC};
@@ -28,7 +28,7 @@ pub fn write_point(
     format: OutputFormat,
     time: Time<UTC>,
     observer: Geodetic<ECEF>,
-    target: Target,
+    target: TargetDirection,
     config: &NsbModelConfig,
     result: &NsbResult,
 ) -> Result<()> {

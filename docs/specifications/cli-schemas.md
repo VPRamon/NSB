@@ -21,6 +21,12 @@ calibration status, provenance, validated domain, and band convention.
 `version` includes NSB/model/Siderust versions and every runtime asset
 checksum.
 
+The `target` object includes `frame` (`icrs` or `horizontal`). ICRS targets
+emit `ra_deg` / `dec_deg`; geometric horizontal targets emit `alt_deg` /
+`az_deg` (altitude above the local astronomical horizon; azimuth from North
+clockwise through East). Atmospheric refraction is not applied. Existing ICRS
+consumers keep the same angular fields; `frame` is an additive key.
+
 The `model` audit block records Airglow selection separately from Airglow
 geometry and records the configured zodiacal model separately from propagation
 metadata. Component provenance records the source and propagation actually

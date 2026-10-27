@@ -53,7 +53,7 @@ Typical imports from the crate root:
 
 | Task | Primary types |
 | --- | --- |
-| Point evaluation | `NsbEvaluator`, `PointQuery`, `ComponentMask`, `Observer`, `Target`, `DEG` |
+| Point evaluation | `NsbEvaluator`, `PointQuery`, `ComponentMask`, `Observer`, `Target`, `TargetDirection`, `HorizontalTarget`, `DEG` |
 | Threshold / window search | `ThresholdQuery`, `ThresholdQueryResult`, `SiteWindowContext` |
 | Model configuration | `NsbModelConfig`, `AirglowModel`, `AirglowSelection`, `MoonlightModel`, `StarlightProduct`, `ZodiacalModel`, `ZodiacalExtinction`, `SiteProfileTag`, `SiteProfile`, `GenericClearSky`, `CalibrationStatus` |
 | Site profiles | `SiteProfile::<GenericClearSky>::generic_clear_sky()`, `SiteProfile::<P>::planning(...)` with caller-defined `P: SiteProfileTag`; `AtmosphericConditions` under `nsb::site` |
@@ -70,7 +70,8 @@ fall into one of four intended classes.
 Intended for normal integrations and to become stable at the public API freeze.
 
 Includes evaluator types (`NsbEvaluator`, queries, results, `ComponentMask`,
-`Observer`, `Target`), opaque `NsbModelConfig` with getters/builders,
+`Observer`, `Target`, `TargetDirection`, `HorizontalTarget`), opaque
+`NsbModelConfig` with getters/builders,
 model-selection enums (`AirglowModel`, `AirglowSelection`, `MoonlightModel`,
 `ZodiacalModel`, `ZodiacalExtinction`, `StarlightProduct`), `SiteProfileTag`,
 `SiteProfile`, `GenericClearSky`, `CalibrationStatus`, crate version constants
@@ -240,6 +241,7 @@ Re-export policy:
 | `qtty` | Re-exported as `nsb::units::qtty`; common qtty quantity modules are also available directly under `nsb::units` |
 | `siderust::qtty::DEG` | Re-exported as `nsb::DEG` for documented constructors |
 | `Geodetic<ECEF>`, `SphericalDirection<EquatorialMeanJ2000>` | Type aliases `Observer`, `Target` |
+| `SphericalDirection<Horizontal>` | Type alias `HorizontalTarget`; with `Target` as variants of `TargetDirection` |
 | `Time<UTC>`, `Period<UTC>`, radiance and spectral quantity units | May appear in public signatures |
 | Other Siderust frames/catalog helpers | Import from Siderust when needed |
 
@@ -342,8 +344,14 @@ For the frozen public baseline, CI enforces:
 1. **Snapshot integrity** — `public-api.txt` must exist, be non-empty, and
    match the API generated from HEAD.
 2. **SemVer gate** — when a valid frozen base revision is supplied,
-   `cargo public-api diff $BASE..HEAD` runs with
-   `--deny=removed --deny=changed`.
+   `cargo public-api diff $BASE..HEAD` runs with `--deny=removed --deny=changed`.
+   The horizontal-target migration's four exact before/after query signatures are recorded in
+   `crates/nsb/api/target-direction-migration.json`. Only when the historical
+   snapshot still contains those old signatures does the structural diff allow
+   changes; an additional line-preservation check rejects every unrelated
+   removed or changed historical item. Updating the current snapshot cannot
+   bypass that check. Ordinary additions require no exception maintenance.
+   Comparisons whose base already includes the migration use both deny flags.
 3. **Forbidden-API guard** — deliberately excluded public implementation
    details remain absent.
 
@@ -373,3 +381,15 @@ queries and planning evaluations outside the domain return the model's explicit
 Restrict a scan or track to that domain, or choose `ParanalPalaceV1` explicitly
 for historical continuum coverage. Selection metadata still distinguishes
 Automatic from explicit Oxygen even when radiances are identical.
+
+### Horizontal query migration
+
+Existing `PointQuery::new(observer, time, target)` and
+`ThresholdQuery::new(observer, target, window, threshold)` calls with an
+equatorial `Target` remain source compatible through `Into<TargetDirection>`.
+The public `target` fields change type: direct assignments need
+`query.target = target.into()`, and equatorial field readers use
+`query.target.as_equatorial()`. These are intentional source-breaking changes
+for field users despite the structs being non-exhaustive. The exact exception
+records that migration; it does not authorize future changes to these fields or
+constructors. No new public signature changes are introduced by the fixes.

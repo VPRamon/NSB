@@ -9,6 +9,7 @@ import subprocess
 
 import nsb
 import pytest
+from siderust.direction import ICRS
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "crates/nsb/tests/data/interfaces"
@@ -34,7 +35,7 @@ def python_result(document, case):
     query = nsb.PointQuery(
         siderust.Observer(observer["lon"], observer["lat"], observer["height"]),
         datetime.fromisoformat(document["time"].replace("Z", "+00:00")),
-        siderust.Direction(target["ra"], target["dec"]), components=mask)
+        ICRS(ra_deg=target["ra"], dec_deg=target["dec"]), components=mask)
     result = evaluator.evaluate(query)
     return {"id": case["id"], "total": result.integrated_photons_cm2_ns_sr,
             "components": {c.name: c.integrated_photons_cm2_ns_sr for c in result.components},

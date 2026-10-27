@@ -6,6 +6,7 @@ from importlib import metadata
 import nsb
 import pytest
 import siderust
+from siderust.direction import Horizontal, ICRS
 
 
 def test_distribution_declares_compatible_siderust_runtime_dependency():
@@ -18,8 +19,8 @@ def test_distribution_declares_compatible_siderust_runtime_dependency():
 
     assert len(siderust_requirements) == 1
     requirement = siderust_requirements[0].replace(" ", "")
-    assert ">=0.5.1" in requirement
-    assert "<0.6" in requirement
+    assert ">=0.6.0" in requirement
+    assert "<0.7" in requirement
     assert metadata.version("siderust") == siderust.__version__
 
 
@@ -27,9 +28,11 @@ def test_point_query_uses_canonical_siderust_types(observer, direction, point_ti
     query = nsb.PointQuery(observer, point_time, direction)
 
     assert type(query.observer) is siderust.Observer
-    assert type(query.target) is siderust.Direction
+    assert type(query.target) is ICRS
+    assert query.target.__module__ == "siderust.direction"
     assert not hasattr(nsb, "Observer")
     assert not hasattr(nsb, "Direction")
+    assert not hasattr(nsb, "ICRS")
 
 
 def test_threshold_query_uses_canonical_siderust_types(observer, direction):
@@ -42,7 +45,7 @@ def test_threshold_query_uses_canonical_siderust_types(observer, direction):
     )
 
     assert type(query.observer) is siderust.Observer
-    assert type(query.target) is siderust.Direction
+    assert type(query.target) is ICRS
     assert query.start.tzinfo is timezone.utc
     assert query.end.tzinfo is timezone.utc
 
@@ -54,12 +57,22 @@ def test_direction_round_trip_preserves_icrs_coordinates(observer, direction, po
     assert recovered.dec_deg == pytest.approx(direction.dec_deg, abs=1.0e-12)
 
 
+def test_horizontal_target_round_trip_preserves_alt_az(observer, point_time):
+    horizontal = Horizontal(alt_deg=60.0, az_deg=130.0)
+    recovered = nsb.PointQuery(observer, point_time, horizontal).target
+
+    assert type(recovered) is Horizontal
+    assert recovered.__module__ == "siderust.direction"
+    assert recovered.alt_deg == pytest.approx(60.0, abs=1.0e-12)
+    assert recovered.az_deg == pytest.approx(130.0, abs=1.0e-12)
+
+
 @pytest.mark.parametrize(
     ("observer_value", "direction_value"),
     [
-        (object(), siderust.Direction(10.0, 20.0)),
+        (object(), ICRS(ra_deg=10.0, dec_deg=20.0)),
         (siderust.Observer(0.0, 0.0), object()),
-        (siderust.Direction(10.0, 20.0), siderust.Direction(10.0, 20.0)),
+        (ICRS(ra_deg=10.0, dec_deg=20.0), ICRS(ra_deg=10.0, dec_deg=20.0)),
         (siderust.Observer(0.0, 0.0), siderust.Observer(0.0, 0.0)),
     ],
 )
@@ -87,7 +100,7 @@ def test_siderust_rejects_non_finite_direction_parts(value, field):
     parts[field] = value
 
     with pytest.raises(ValueError, match=rf"{field} must be finite"):
-        siderust.Direction(**parts)
+        ICRS(**parts)
 
 
 def test_aware_non_utc_datetime_is_normalized(observer, direction):

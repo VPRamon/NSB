@@ -5,12 +5,21 @@
 use super::bounds::prepared_bounds;
 use super::intervals::{inward_tt_mjd_period_to_utc, tt_mjd_to_utc_time, utc_period_to_tt_mjd};
 use super::types::{
-    PreparedThresholdQuery, SiteWindowContext, ThresholdQuery, ThresholdQueryResult,
+    PreparedStarlight, PreparedThresholdQuery, SiteWindowContext, ThresholdQuery,
+    ThresholdQueryResult,
 };
 use crate::error::Result;
-use crate::evaluator::{ComponentMask, NsbEvaluator};
+use crate::evaluator::{resolve_target_direction, ComponentMask, NsbEvaluator, Target};
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use siderust::time::ModifiedJulianDate;
+
+pub(crate) fn resolve_prepared_target(
+    prepared: &PreparedThresholdQuery,
+    mjd_tt: ModifiedJulianDate,
+) -> Result<Target> {
+    let time = tt_mjd_to_utc_time(mjd_tt);
+    resolve_target_direction(prepared.target, prepared.observer, time)
+}
 
 pub(crate) fn evaluate_integrated(
     evaluator: &NsbEvaluator,
@@ -18,19 +27,24 @@ pub(crate) fn evaluate_integrated(
     mjd_tt: ModifiedJulianDate,
 ) -> Result<BandPhotonRadiance> {
     let time = tt_mjd_to_utc_time(mjd_tt);
+    let target = resolve_prepared_target(prepared, mjd_tt)?;
     let mut total = BandPhotonRadiance::new(0.0);
 
     if prepared.components.contains(ComponentMask::ZODIACAL) {
         let out = evaluator.zodiacal().compute_with_longitude(
             time,
             prepared.observer,
-            prepared.target,
+            target,
             prepared.astronomy.solar(time),
         )?;
         total += out.integrated;
     }
-    if prepared.components.contains(ComponentMask::STARLIGHT) {
-        total += prepared.starlight_integrated;
+    match prepared.starlight {
+        PreparedStarlight::Disabled => {}
+        PreparedStarlight::Constant(value) => total += value,
+        PreparedStarlight::Dynamic => {
+            total += evaluator.evaluate_starlight(target)?.integrated;
+        }
     }
     if prepared.components.contains(ComponentMask::AIRGLOW) {
         let solar = prepared
@@ -43,12 +57,11 @@ pub(crate) fn evaluate_integrated(
             .as_ref()
             .expect("airglow model is prepared when airglow is selected");
         if let Some(phase) = super::filters::airglow_night_phase(prepared, mjd_tt) {
-            total +=
-                airglow.compute_integrated_with_night_phase(time, prepared.target, phase, solar)?;
+            total += airglow.compute_integrated_with_night_phase(time, target, phase, solar)?;
         } else {
             // Outside night contributes physical zero, but invalid inputs must
             // still fail rather than masquerading as inactivity (#151/#175).
-            airglow.validate_inputs_for_query(time, prepared.target, solar)?;
+            airglow.validate_inputs_for_query(time, target, solar)?;
         }
     }
     if prepared.components.contains(ComponentMask::MOON) {
@@ -58,12 +71,8 @@ pub(crate) fn evaluate_integrated(
             .is_none_or(|periods| super::filters::contains_time(periods, mjd_tt));
         if moon_visible {
             let sky = prepared.astronomy.moon(time);
-            let out = evaluator.evaluate_moonlight_with_sky(
-                prepared.observer,
-                time,
-                prepared.target,
-                &sky,
-            )?;
+            let out =
+                evaluator.evaluate_moonlight_with_sky(prepared.observer, time, target, &sky)?;
             total += out.integrated;
         }
     }
@@ -187,7 +196,7 @@ impl NsbEvaluator {
         }
         super::prepare::validate_site_context(self, context, query)?;
         let prepared = super::prepare::prepare_target_threshold(self, context, query)?;
-        let windows = super::filters::adaptive_threshold_windows(&prepared)?;
+        let windows = super::filters::adaptive_threshold_windows(self, &prepared)?;
         let (periods, costs) = super::discovery::search_windows(
             &windows,
             query.threshold,

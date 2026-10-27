@@ -401,7 +401,10 @@ fn independent_observability_intervals(
         query.sun_altitude_ceiling.expect("sun altitude ceiling"),
         SearchOpts::default(),
     );
-    let target_dir = direction::ICRS::new(query.target.ra(), query.target.dec());
+    let nsb::TargetDirection::Equatorial(target) = query.target else {
+        panic!("end-to-end oracle helper expects an equatorial target");
+    };
+    let target_dir = direction::ICRS::new(target.ra(), target.dec());
     let target_above = target_dir.above_threshold(
         &query.observer,
         tt_window,
