@@ -39,6 +39,7 @@ CURRENT_MARKDOWN = (
     "SECURITY.md",
 )
 CURRENT_NOTEBOOKS = (
+    "examples/lst1-night-sky-background.ipynb",
     "examples/observational-validation.ipynb",
     "examples/ctao-sky-background.ipynb",
     "examples/airglow-solar-activity.ipynb",
@@ -108,8 +109,10 @@ def notebook_issues(path: Path, nb: dict) -> list[str]:
                 problems.append(f"{relative}: setup imports third-party dependencies before installation")
             requirements = next(ast.literal_eval(node.value) for node in tree.body
                                 if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "REQUIREMENTS" for t in node.targets))
-            if not isinstance(requirements, list) or "nsb-py==0.2.0" not in requirements:
-                problems.append(f"{relative}: setup must select nsb-py==0.2.0")
+            if not isinstance(requirements, list) or "nsb-py==0.3.0" not in requirements:
+                problems.append(f"{relative}: setup must select nsb-py==0.3.0")
+            if not isinstance(requirements, list) or "siderust==0.6.0" not in requirements:
+                problems.append(f"{relative}: setup must select siderust==0.6.0")
         except (SyntaxError, ValueError, StopIteration):
             problems.append(f"{relative}: setup requires a literal REQUIREMENTS list")
     return problems

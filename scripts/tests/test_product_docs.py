@@ -48,7 +48,7 @@ class PublicDocumentationTests(unittest.TestCase):
         path = ROOT / "examples" / "_synthetic-test.ipynb"
         valid = {"nbformat": 4, "cells": [{
             "cell_type": "code", "metadata": {"tags": ["setup"]},
-            "source": ["REQUIREMENTS = ['nsb-py==0.2.0']\n"],
+            "source": ["REQUIREMENTS = ['nsb-py==0.3.0', 'siderust==0.6.0']\n"],
             "outputs": [], "execution_count": None,
         }]}
         self.assertEqual(docs.notebook_issues(path, valid), [])
@@ -61,8 +61,9 @@ class PublicDocumentationTests(unittest.TestCase):
         self.assertEqual(docs.notebook_issues(path, published), [])
         for field, value, message in (
             ("source", ["def broken("], "invalid Python"),
-            ("source", ["REQUIREMENTS = ['nsb-py']"], "select nsb-py==0.2.0"),
-            ("source", ["import numpy\nREQUIREMENTS = ['nsb-py==0.2.0']"], "third-party"),
+            ("source", ["REQUIREMENTS = ['nsb-py']"], "select nsb-py==0.3.0"),
+            ("source", ["import numpy\nREQUIREMENTS = ['nsb-py==0.3.0', 'siderust==0.6.0']"], "third-party"),
+            ("source", ["REQUIREMENTS = ['nsb-py==0.3.0', 'siderust==0.5.1']"], "select siderust==0.6.0"),
             ("metadata", {}, "first code cell"),
             ("source", None, "invalid source"),
         ):

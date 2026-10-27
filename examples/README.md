@@ -36,12 +36,13 @@ selection, errors and units.
 | Notebook | Purpose |
 |---|---|
 | [observational-validation.ipynb](observational-validation.ipynb) | Scientific assessment of nsb-py against Patat/FORS1 observations, nsb2 and a calibration-only baseline |
-| [ctao-sky-background.ipynb](ctao-sky-background.ipynb) | Practical nsb-py 0.2.0 guide: point radiance, components, Airglow and observation windows at both CTAO sites |
+| [ctao-sky-background.ipynb](ctao-sky-background.ipynb) | Practical nsb-py 0.3.0 guide: point radiance, components, Airglow and observation windows at both CTAO sites |
 | [lst1-night-sky-background.ipynb](lst1-night-sky-background.ipynb) | ORM/CTAO-North capabilities demo: equatorial vs native horizontal targets, components and ThresholdQuery planning in both frames |
 | [airglow-solar-activity.ipynb](airglow-solar-activity.ipynb) | Controlled F10.7 sweep of PALACE continuum Airglow at fixed Paranal geometry |
 
 All notebooks are standalone: no local checkout or private service is required.
 They can be opened in Jupyter or Google Colab with a compatible Python runtime.
+All setup cells pin **`nsb-py==0.3.0`** and **`siderust==0.6.0`** from PyPI.
 The distribution is **`nsb-py`**; Python code uses `import nsb`. Do not install the
 unrelated package named `nsb`.
 
@@ -55,7 +56,7 @@ The notebook includes saved tables and figures for inspection directly on GitHub
 Use **Restart and Run All** to regenerate the results in order.
 
 Select a fresh CPython **3.12 or 3.13** Jupyter/Google Colab kernel and **Run All**.
-The first code cell installs exactly **`nsb-py==0.2.0` from PyPI**, together with
+The first code cell installs exactly **`nsb-py==0.3.0` from PyPI**, together with
 the notebook's scientific Python dependencies, using the current kernel's Python.
 No NSB checkout, GitHub installation of NSB or Rust toolchain is needed; installation
 requires a compatible NSB wheel. Matching installed packages are reused. If setup
@@ -93,9 +94,9 @@ campaign does not produce an overall comparative conclusion.
 
 ### CTAO API example
 
-`ctao-sky-background.ipynb` supports **nsb-py 0.2.0 from PyPI** with CPython
+`ctao-sky-background.ipynb` supports **nsb-py 0.3.0 from PyPI** with CPython
 **3.12 or 3.13**. Use a fresh kernel and **Run All**: its first code cell installs
-`nsb-py==0.2.0`, NumPy, Matplotlib and Astropy using the kernel's Python.
+`nsb-py==0.3.0`, NumPy, Matplotlib and Astropy using the kernel's Python.
 It requires no local checkout, GitHub access or Rust build. If setup changes
 already imported packages, restart the kernel and Run All as instructed.
 Code that teaches the public API remains visible; results are generated inline.
@@ -108,7 +109,7 @@ radiance ceiling. Observer coordinates use the project's WGS84 array positions;
 atmospheric profiles remain planning assumptions. All examples use fixed,
 editable dates and solar inputs in the default 300–650 nm band.
 
-Automatic Airglow in v0.2.0 selects experimental PALACE Oxygen with standard
+Automatic Airglow in v0.3.0 selects experimental PALACE Oxygen with standard
 continuum geometry and zenith distance ≤60°. The default examples stay inside
 this domain. The site profiles and the illustrative threshold do not establish
 observational calibration or detector performance; consult `observational-validation.ipynb`
@@ -123,18 +124,18 @@ and UTC instant. It selects PALACE continuum only and integrates Airglow over
 model response, not observational validation.
 
 Select a fresh CPython **3.12 or 3.13** kernel and **Run All**. The first code
-cell installs `nsb-py==0.2.0` from PyPI and Matplotlib using the kernel's Python,
+cell installs `nsb-py==0.3.0` from PyPI and Matplotlib using the kernel's Python,
 without a checkout, GitHub access or Rust build. If setup changes already imported
 packages, restart the kernel and Run All as instructed. The notebook uses bundled
 NSB assets, requires no scientific data acquisition and exports no files.
 
 `lst1-night-sky-background.ipynb` demonstrates native `siderust.direction.Horizontal`
 alongside ICRS targets at the Roque de los Muchachos / CTAO-North planning
-coordinates. It requires a local editable NSB build with `siderust>=0.6.0`
-(companion siderust-py release); shipped outputs are left empty until that
-stack is available. It does not claim LST-1 observational validation.
+coordinates. Its first code cell installs the published `nsb-py==0.3.0` and
+`siderust==0.6.0` wheels together with the plotting dependencies. No local build
+is required. It does not claim LST-1 observational validation.
 
-The first three notebooks retain their saved outputs and execution counts so
+The notebooks retain their saved outputs and execution counts so
 readers can inspect the scientific results without running the code. The existing
 documentation gate, `python scripts/check-product-docs.py`, checks notebook
 structure, Python syntax, setup ordering, the NSB version selection and local
