@@ -12,12 +12,16 @@ visibility constraints.
 Python 3.10 or newer is required:
 
 ```bash
-python -m pip install nsb-py
+python -m pip install nsb-py==0.3.0
 ```
 
 The installed **distribution** is `nsb-py`; the **import** is `nsb`.
 Compatible `siderust` and `tempoch` Python runtime packages are installed as
-dependencies. Version 0.3.0 requires successful registry publication.
+dependencies (`siderust>=0.6.0,<0.7`, `tempoch>=0.5.0,<0.6`).
+Version 0.3.0 requires successful registry publication. Migrating from 0.2.0?
+Use `siderust.direction.ICRS` in place of `siderust.Direction`; fixed Alt/Az
+pointings use `siderust.direction.Horizontal`. See the
+[Python guide](https://github.com/VPRamon/NSB/blob/main/docs/python.md).
 
 ## Evaluate a point
 

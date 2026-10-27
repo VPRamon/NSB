@@ -59,6 +59,8 @@ Choose the interface that fits your workflow:
 
 For reproducible applications after v0.3.0 publication, install
 `cargo add nsb@0.3.0` or `python -m pip install nsb-py==0.3.0`.
+For the Rust query-target and Python direction migrations since v0.2.0, see
+the [release notes](CHANGELOG.md#030) and [Python guide](docs/python.md).
 
 The PyPI **distribution** is `nsb-py`, but its **import** is `nsb`.
 The crates.io **library** is `nsb`. The executable is also named `nsb`,
