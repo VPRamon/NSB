@@ -17,10 +17,10 @@ uses experimental PALACE Oxygen with a zenith-distance limit of 60°.
 ## Installation
 
 ```bash
-cargo add nsb@0.2.1
+cargo add nsb@0.3.0
 ```
 
-The minimum supported Rust version is 1.89. This checkout prepares `0.2.1`;
+The minimum supported Rust version is 1.89. This checkout prepares `0.3.0`;
 the installation commands target that version after publication. The dependency
 graph uses released Siderust 0.15.1, Tempoch 0.11.1 and Python bridges 0.5.
 Publication remains subject to maintainer approval. The corrected Siderust Python
@@ -41,7 +41,7 @@ and UTC `Time` types used at NSB's public Rust boundary.
 To build without upstream Serde support:
 
 ```toml
-nsb = { version = "0.2.1", default-features = false }
+nsb = { version = "0.3.0", default-features = false }
 ```
 
 NSB's own internal TOML/JSON data formats remain available independently
@@ -136,7 +136,7 @@ The original integrated-production map path is unchanged.
 - Validation matrix: <https://github.com/VPRamon/NSB/blob/main/docs/specifications/validation.md>
 - Python distribution: `nsb-py` on PyPI, imported as `nsb`
 - CLI: sibling workspace crate `nsb-cli` (binary name `nsb`; not separately
-  published in `0.2.1`)
+  published in `0.3.0`)
 
 The CLI owns command-line parsing, named-site lookup, and stable JSON/CSV
 rendering. Offline catalogue acquisition and scientific data-product generation

@@ -30,6 +30,27 @@ CHANGELOG.md, rejecting missing, duplicate or empty sections. The resulting
 GitHub Release is titled **NSB vX.Y.Z**, with those notes and six assets.
 An existing GitHub Release is left untouched.
 
+## Preparing v0.3.0
+
+The release preparation PR targets v0.3.0 because horizontal targets introduce
+intentional public Rust field and Python direction type changes since v0.2.0.
+See the [changelog](../../CHANGELOG.md) and [Python migration](../python.md).
+The reviewed target migration contract permits only its exact four API
+substitutions when comparing with an older base; comparisons against a migrated
+base retain strict SemVer checks. No workflow exception is needed for v0.3.0.
+
+Use `python scripts/check-release-metadata.py --tag v0.3.0` and the full CI
+checks before merging the preparation PR. Keep `nsb-py`'s Maturin version
+dynamic; `nsb-cli` and `nsb-data-tools` remain unpublished. Installation examples
+for the eventual publication are `cargo add nsb@0.3.0` and
+`python -m pip install nsb-py==0.3.0`.
+
+Only after the preparation PR is merged, required scientific approvals are in
+place, and full CI succeeds for the exact resulting main commit may maintainers
+create the release tag. Preparing this PR does not authorize publishing or
+creating that tag. Historical scientific artifacts are not evidence of a rerun
+on v0.3.0.
+
 ## Recovery and safe reruns
 
 A tag rerun cannot republish immutable registry artifacts: preflight

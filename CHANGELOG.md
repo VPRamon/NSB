@@ -5,10 +5,12 @@ tag-triggered publication workflow succeeds.
 
 ## [Unreleased]
 
-## [0.2.1]
+## [0.3.0]
 
-Scientific diagnostics and opt-in evaluation capabilities added after v0.2.0.
-Existing broadband prediction behavior and production physics remain unchanged.
+Horizontal targets, scientific diagnostics and opt-in evaluation capabilities
+added since v0.2.0. This minor release includes intentional Rust and Python API
+changes; production coefficients and default broadband model prescriptions are
+unchanged.
 
 ### Added
 
@@ -24,6 +26,40 @@ Existing broadband prediction behavior and production physics remain unchanged.
 - Deterministic observational validation receipts with manifest, model/scenario
   predictions, per-night results, condition groups and source checksums,
   reproducible independently of the notebook (#307).
+- Native horizontal (Alt/Az) targets across Rust, Python, CLI and planning:
+  `TargetDirection` / `HorizontalTarget`, canonical Python `ICRS` / `Horizontal`
+  directions, and CLI `--alt`/`--az` (#314).
+
+### Planning and numerical robustness
+
+- Resolve fixed horizontal pointings to equatorial coordinates at each instant;
+  evaluate dynamic Starlight under Earth rotation and time-dependent Zodiacal
+  regimes. Adaptive discovery partitions moving targets at Galactic HEALPix
+  transitions and authoritative physical regimes (#314).
+- Adaptive HEALPix discovery is not mathematically certified. Certified search
+  continues to reject unsupported dynamic Starlight certificates rather than
+  assuming constant Starlight for horizontal targets (#314).
+
+### Rust, Python and CLI interfaces; breaking changes
+
+- **Breaking (Python):** replace `siderust.Direction` with
+  `from siderust.direction import ICRS, Horizontal`. Construct equatorial targets
+  with `ICRS(ra_deg=..., dec_deg=...)` or fixed horizontal pointings with
+  `Horizontal(alt_deg=..., az_deg=...)`; both use the existing `target` argument
+  on `PointQuery` / `ThresholdQuery`. Requires `siderust>=0.6.0,<0.7` and the
+  published Rust `siderust-py` 0.6.x bridge (protocol 2) (#314).
+- **Breaking (Rust public fields):** `PointQuery::target` and
+  `ThresholdQuery::target` now have type `TargetDirection`, representing either
+  an equatorial `Target` or a `HorizontalTarget`. Constructors accept
+  `Into<TargetDirection>`, preserving calls that pass existing equatorial
+  targets. Struct literals, direct field assignments and code reading fields
+  as `Target` must migrate using explicit conversion or enum matching. The
+  reviewed four-signature migration is recorded in the API compatibility
+  contract; unrelated SemVer protections remain strict (#314).
+- Retain published Rust Siderust 0.15.1, Tempoch 0.11.1 and PyO3 0.30.1;
+  Python Tempoch remains `>=0.5.0,<0.6`. Python `nsb-py` dynamically inherits
+  version 0.3.0 from the core Cargo manifest. All three workspace packages are
+  synchronized; `nsb-cli` and `nsb-data-tools` remain unpublished.
 
 ### Scientific validation and reproducibility
 
@@ -54,13 +90,13 @@ Existing broadband prediction behavior and production physics remain unchanged.
 - Ensure tag-triggered publication validates successful main-branch CI for the
   exact release commit, allowing that CI to finish before checking status (#288).
 
-### Compatibility and scientific limitations
+### Scientific limitations
 
-- Additive public diagnostics and opt-in Rust spectral evaluation; existing
-  default broadband evaluation, physical coefficients and production assets
-  are unchanged. The Python package `nsb-py` derives this same version from
-  the Rust crate; `nsb-cli` and `nsb-data-tools` remain unpublished workspace
-  crates.
+- The default four-component model remains a planning model, without new
+  independent absolute astrophysical validation. Automatic PALACE Oxygen
+  remains **Experimental**; numerical agreement does not establish
+  observational accuracy. Spectral Starlight transport remains opt-in;
+  production coefficients and approved scientific assets are unchanged.
 - Historical Oxygen error changes were measured on data that informed model
   development, not an independent absolute admission sample. The full
   sky-to-detector accuracy experiment remains blocked by missing matched
@@ -69,20 +105,6 @@ Existing broadband prediction behavior and production physics remain unchanged.
 - The separately maintained `nsb-validation` PRs #27 and #28 preserve public
   measurement provenance and instrument-admission NO-GO decisions; those
   observational data fixtures are **not** newly bundled in this NSB release.
-### Added
-
-- Native horizontal (Alt/Az) observing targets alongside equatorial directions:
-  Rust `TargetDirection` / `HorizontalTarget`, Python
-  `siderust.direction.ICRS` / `siderust.direction.Horizontal` via siderust-py
-  0.6.0 bridge protocol 2 on `PointQuery` / `ThresholdQuery`, and CLI
-  `--alt`/`--az`. Horizontal Starlight is dynamic under Earth rotation; adaptive
-  planning partitions at Galactic HEALPix transitions; certified search refuses
-  a constant-Starlight certificate for horizontal targets. Intentional
-  public-API type evolution for query targets is recorded in
-  `crates/nsb/api/public-api.txt` (existing equatorial constructors remain
-  usable via `Into<TargetDirection>`).
-- **Breaking (Python):** require `siderust>=0.6.0,<0.7` / `siderust-py` 0.6.0.
-  Replace `siderust.Direction` with `siderust.direction.ICRS`.
 
 ## [0.2.0]
 

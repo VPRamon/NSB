@@ -27,7 +27,7 @@ NSB combines zodiacal light, integrated starlight, airglow and scattered
 moonlight. The default configuration is a **planning model**, not an
 observatory-calibrated prediction of absolute night-sky brightness.
 
-In v0.2.1, Automatic Airglow selects the experimental PALACE Oxygen model
+In v0.3.0, Automatic Airglow selects the experimental PALACE Oxygen model
 (`ParanalPalaceOxygenV1`), valid for the standard continuum geometry and
 **zenith distances up to 60°**. Outside that domain NSB returns an explicit
 error rather than substituting a different model. Select
@@ -44,7 +44,7 @@ the status and validated domain of each component.
 
 ## Install
 
-This source checkout targets **NSB 0.2.1**. Registry installation of that
+This source checkout targets **NSB 0.3.0**. Registry installation of that
 version requires the corresponding release to be published; before publication,
 use a source checkout to test the candidate. For reproducible applications, pin
 the exact released version and record the scientific asset and model identities.
@@ -57,8 +57,8 @@ Choose the interface that fits your workflow:
 | **Rust** | `cargo add nsb` | Rust 1.89+ |
 | **CLI** | Build from the repository (below) | Rust 1.89+ |
 
-For reproducible applications after v0.2.1 publication, install
-`cargo add nsb@0.2.1` or `python -m pip install nsb-py==0.2.1`.
+For reproducible applications after v0.3.0 publication, install
+`cargo add nsb@0.3.0` or `python -m pip install nsb-py==0.3.0`.
 
 The PyPI **distribution** is `nsb-py`, but its **import** is `nsb`.
 The crates.io **library** is `nsb`. The executable is also named `nsb`,
@@ -78,7 +78,7 @@ Python example. It also uses Siderust, Tempoch and Chrono at the API
 boundary; add the matching dependencies to your application:
 
 ```bash
-cargo add nsb@0.2.1 siderust@0.15.1 tempoch@0.11.1 chrono@0.4
+cargo add nsb@0.3.0 siderust@0.15.1 tempoch@0.11.1 chrono@0.4
 ```
 
 ## Quickstart
@@ -214,7 +214,7 @@ package version from that same manifest. The
 [tag-triggered release workflow](.github/workflows/publish.yml) builds and
 checks the Rust crate, Python wheels and source distribution before uploading
 anything.
-The CLI remains a source-installed workspace application in `0.2.1`.
+The CLI remains a source-installed workspace application in `0.3.0`.
 
 ## License and scientific data
 

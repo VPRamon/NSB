@@ -1,6 +1,6 @@
-# Scientific validation and limitations — NSB 0.2.1
+# Scientific validation and limitations — NSB 0.3.0
 
-**Status:** Current scientific interpretation of the v0.2.1 runtime.
+**Status:** Current scientific interpretation of the v0.3.0 runtime.
 **Audience:** Astronomers, observers, scientific reviewers and integrators.
 **Scope:** Model assumptions, numerical and observational evidence, uncertainty,
 applicability and permitted interpretations of model output.
@@ -43,7 +43,7 @@ observatory's coordinates.
 ## Observational comparisons and important non-results
 
 **Patat/FORS1 benchmark.** A previously evaluated NSB revision
-(`1b2556727205694c7765ef0d254c5d1b301582ec`, **not v0.2.1**) had
+(`1b2556727205694c7765ef0d254c5d1b301582ec`, **not v0.3.0**) had
 a registered observational cohort of 103 spectra on 22 nights. A held-out
 comparison included 94 spectra on 17 nights over 365–650 nm. Reported relative
 mean absolute errors were about **0.361** for the evaluated NSB model,
@@ -55,7 +55,7 @@ configuration.
 **Oxygen development.** The same inspected observational cohort informed
 Oxygen model development. Any improvement measured on those observations is
 development evidence, not a statistically independent out-of-sample admission
-of v0.2.1. The independent default-admission assessment (summarized in
+of v0.3.0. The independent default-admission assessment (summarized in
 [NSB #280](https://github.com/VPRamon/NSB/issues/280)) reported **NO-GO**
 for absolute oxygen-line admission (no admitted independent absolute cohort;
 geographic generalization unestablished). That assessment predates the runtime
@@ -83,7 +83,17 @@ reference; separate
 [cross-implementation metrics](nsb_components/starlight/validation/results/issue-207-external-cross-validation-v1.json)
 support a narrower claim. Some original reports are tied to older source bytes
 and schema versions: their checksums are provenance, not proof of a rerun against
-the v0.2.1 release.
+the v0.3.0 release.
+
+## Horizontal targets and planning
+
+Fixed Alt/Az targets resolve to equatorial directions at each evaluation instant.
+Starlight and Zodiacal regimes can therefore change during a planning window.
+Adaptive HEALPix partitioning supports discovery, not mathematically certified
+completeness. Certified search rejects unsupported dynamic Starlight
+certificates. These numerical and interface additions do not constitute new
+independent observational validation; historical reports retain their original
+versions, source hashes and scientific scope.
 
 ## Domains, fallbacks and uncertainty
 
