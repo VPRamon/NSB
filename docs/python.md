@@ -1,6 +1,6 @@
 # Python bindings
 
-Status: Python public interface for NSB 0.2.0.
+Status: Python public interface for NSB 0.3.0.
 Audience: Python users, integrators, and binding maintainers.
 Scope: Installation, canonical upstream types, evaluation/planning, units,
 errors, and local development.
@@ -46,6 +46,9 @@ NSB's `EquatorialMeanJ2000` target; horizontal targets resolve per evaluation
 instant. Getters reconstruct the matching canonical Python object and preserve
 the originally requested frame.
 
+**Migration from NSB 0.2.0:** replace `siderust.Direction` with `ICRS` from
+`siderust.direction` and install the supported Siderust 0.6.x runtime.
+
 Siderust owns coordinate validity for its classes. NSB additionally rejects
 out-of-range horizontal altitudes that escape Siderust canonicalization.
 
@@ -63,7 +66,7 @@ from datetime import datetime, timezone
 
 import nsb
 import siderust
-from siderust.direction import ICRS
+from siderust.direction import ICRS, Horizontal
 
 # CTAO South WGS84 coordinates from the bundled observatory catalog.
 ctao_south = siderust.Observer(
@@ -94,6 +97,19 @@ print(result.integrated_photons_cm2_ns_sr)
 for component in result.components:
     print(component.name, component.integrated_photons_cm2_ns_sr)
 ```
+
+For a fixed horizontal pointing, use the same observer and time:
+
+```python
+horizontal = Horizontal(alt_deg=60.0, az_deg=130.0)
+horizontal_query = nsb.PointQuery(ctao_south, query.time, horizontal)
+horizontal_result = evaluator.evaluate(horizontal_query)
+```
+
+The pointing stays fixed in Alt/Az; its equatorial direction and Starlight
+contribution change with time. `ThresholdQuery` accepts the same horizontal
+target. Adaptive discovery is not a mathematical certificate; certified search
+rejects unsupported dynamic Starlight certificates.
 
 `SiteProfile` is a Python application-layer selector enum (`GENERIC_CLEAR_SKY`,
 `CTA_NORTH`, `CTA_SOUTH`). Each variant constructs a typed Rust
@@ -133,7 +149,7 @@ for start, end in result.periods:
 
 Returned periods are `(start, end)` tuples of timezone-aware UTC `datetime.datetime` values. NSB does not expose a bespoke Python `UtcPeriod` type.
 
-Normal planning methods use step-free adaptive discovery in NSB 0.2.0.
+Normal planning methods use step-free adaptive discovery in NSB 0.3.0.
 Explicit adaptive method names are aliases
 for the same search. Inclusive bands use the shared two-threshold engine:
 

@@ -5,20 +5,106 @@ tag-triggered publication workflow succeeds.
 
 ## [Unreleased]
 
+## [0.3.0]
+
+Horizontal targets, scientific diagnostics and opt-in evaluation capabilities
+added since v0.2.0. This minor release includes intentional Rust and Python API
+changes; production coefficients and default broadband model prescriptions are
+unchanged.
+
 ### Added
 
-- Native horizontal (Alt/Az) observing targets alongside equatorial directions:
-  Rust `TargetDirection` / `HorizontalTarget`, Python
-  `siderust.direction.ICRS` / `siderust.direction.Horizontal` via siderust-py
-  0.6.0 bridge protocol 2 on `PointQuery` / `ThresholdQuery`, and CLI
-  `--alt`/`--az`. Horizontal Starlight is dynamic under Earth rotation; adaptive
-  planning partitions at Galactic HEALPix transitions; certified search refuses
-  a constant-Starlight certificate for horizontal targets. Intentional
-  public-API type evolution for query targets is recorded in
-  `crates/nsb/api/public-api.txt` (existing equatorial constructors remain
-  usable via `Into<TargetDirection>`).
-- **Breaking (Python):** require `siderust>=0.6.0,<0.7` / `siderust-py` 0.6.0.
-  Replace `siderust.Direction` with `siderust.direction.ICRS`.
+- Opt-in Rust `NsbEvaluator::evaluate_spectral_starlight` for complete native
+  Starlight bins in the experimental 360–570 nm domain, composing explicit
+  observer geometry and atmospheric identity, direct, single-scattering or
+  projected multiple-scattering modes. Keep top-of-atmosphere, transmitted and
+  scattered quantities separate; partial/unavailable totals and physical
+  uncertainties remain unavailable rather than zero (#312).
+- Typed Oxygen F10.7 domain diagnostics in Rust, Python and CLI JSON: applied
+  solar flux and the asset-derived 67–166 sfu training interval. Numerical
+  membership does not certify physical conditions or scientific maturity (#309).
+- Deterministic observational validation receipts with manifest, model/scenario
+  predictions, per-night results, condition groups and source checksums,
+  reproducible independently of the notebook (#307).
+- Native horizontal (Alt/Az) targets across Rust, Python, CLI and planning:
+  `TargetDirection` / `HorizontalTarget`, canonical Python `ICRS` / `Horizontal`
+  directions, and CLI `--alt`/`--az` (#314).
+
+### Planning and numerical robustness
+
+- Resolve fixed horizontal pointings to equatorial coordinates at each instant;
+  evaluate dynamic Starlight under Earth rotation and time-dependent Zodiacal
+  regimes. Adaptive discovery partitions moving targets at Galactic HEALPix
+  transitions and authoritative physical regimes (#314).
+- Adaptive HEALPix discovery is not mathematically certified. Certified search
+  continues to reject unsupported dynamic Starlight certificates rather than
+  assuming constant Starlight for horizontal targets (#314).
+
+### Rust, Python and CLI interfaces; breaking changes
+
+- **Breaking (Python):** replace `siderust.Direction` with
+  `from siderust.direction import ICRS, Horizontal`. Construct equatorial targets
+  with `ICRS(ra_deg=..., dec_deg=...)` or fixed horizontal pointings with
+  `Horizontal(alt_deg=..., az_deg=...)`; both use the existing `target` argument
+  on `PointQuery` / `ThresholdQuery`. Requires `siderust>=0.6.0,<0.7` and the
+  published Rust `siderust-py` 0.6.x bridge (protocol 2) (#314).
+- **Breaking (Rust public fields):** `PointQuery::target` and
+  `ThresholdQuery::target` now have type `TargetDirection`, representing either
+  an equatorial `Target` or a `HorizontalTarget`. Constructors accept
+  `Into<TargetDirection>`, preserving calls that pass existing equatorial
+  targets. Struct literals, direct field assignments and code reading fields
+  as `Target` must migrate using explicit conversion or enum matching. The
+  reviewed four-signature migration is recorded in the API compatibility
+  contract; unrelated SemVer protections remain strict (#314).
+- Retain published Rust Siderust 0.15.1, Tempoch 0.11.1 and PyO3 0.30.1;
+  Python Tempoch remains `>=0.5.0,<0.6`. Python `nsb-py` dynamically inherits
+  version 0.3.0 from the core Cargo manifest. All three workspace packages are
+  synchronized; `nsb-cli` and `nsb-data-tools` remain unpublished.
+
+### Scientific validation and reproducibility
+
+- Night-clustered signed-bias intervals, paired differences, night-weighted
+  errors and predeclared solar/airmass condition summaries for the historical
+  Patat/FORS1 development cohort; prevent pooled statistics from obscuring
+  between-night variation (#293).
+- Reproduce prospective-versus-retrospective F10.7 cadence diagnostics using
+  checksum-verified scientific inputs. Smaller historical errors from trailing
+  or previous-month solar proxies do not justify changing runtime defaults;
+  centred-window inputs depend on future observations (#308).
+- Add matched continuum and O I 557.7/630/636 nm window diagnostics, including
+  air/vacuum wavelength conventions and integrated line-flux operators; retain
+  the frozen cohort and distinguish developmental from independent evidence
+  (#310).
+- Verify matched NSB–nsb2 Starlight operators to floating-point accuracy in
+  synthetic controlled cases, while documenting differences in real catalog
+  populations and angular sampling. This does not demonstrate astrophysical
+  superiority or full-sky accuracy (#311).
+
+### Fixed and clarified
+
+- Keep Automatic Oxygen's planning release-policy fallback distinct from its
+  experimental scientific status and the independent absolute admission gate
+  (#302).
+- Restore standalone execution of the observational notebook using released
+  Python packages and a clean Jupyter setup (#284).
+- Ensure tag-triggered publication validates successful main-branch CI for the
+  exact release commit, allowing that CI to finish before checking status (#288).
+
+### Scientific limitations
+
+- The default four-component model remains a planning model, without new
+  independent absolute astrophysical validation. Automatic PALACE Oxygen
+  remains **Experimental**; numerical agreement does not establish
+  observational accuracy. Spectral Starlight transport remains opt-in;
+  production coefficients and approved scientific assets are unchanged.
+- Historical Oxygen error changes were measured on data that informed model
+  development, not an independent absolute admission sample. The full
+  sky-to-detector accuracy experiment remains blocked by missing matched
+  calibration and spectral coverage. CTAO site profiles remain planning
+  presets, not calibrated instrument predictions.
+- The separately maintained `nsb-validation` PRs #27 and #28 preserve public
+  measurement provenance and instrument-admission NO-GO decisions; those
+  observational data fixtures are **not** newly bundled in this NSB release.
 
 ## [0.2.0]
 

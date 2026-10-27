@@ -9,7 +9,7 @@ authors:
 repository-code: "https://github.com/VPRamon/NSB"
 url: "https://github.com/VPRamon/NSB"
 license: "AGPL-3.0-only"
-version: "0.2.0"
+version: "0.3.0"
 keywords:
   - astronomy
   - sky brightness

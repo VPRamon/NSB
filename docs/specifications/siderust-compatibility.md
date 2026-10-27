@@ -1,6 +1,6 @@
 # Siderust compatibility
 
-Status: Registry dependency baseline for NSB 0.2.0; Python bridge 0.6.0 (protocol 2).
+Status: Registry dependency baseline for NSB 0.3.0; Python bridge 0.6.0 (protocol 2).
 Audience: Maintainers and downstream packagers.
 Scope: Provider identities, interoperability, provenance and release requirements.
 Non-goals: Scientific admission or observational accuracy claims.
@@ -18,7 +18,8 @@ Non-goals: Scientific admission or observational accuracy claims.
 | PyO3 / pyo3-ffi | 0.30.1 | crates.io; one linking identity |
 | Python siderust / tempoch | 0.6.0 / 0.5.0 | PyPI; `siderust>=0.6.0,<0.7`, `tempoch>=0.5.0,<0.6` |
 
-The coordinated 0.5 bridges resolve the former Affn/Tempoch/PyO3 mismatch.
+The coordinated Siderust 0.6 / Tempoch 0.5 bridges preserve one
+Affn/Tempoch/PyO3 provider identity.
 Siderust 0.15.1 is the published documentation-fix patch over 0.15.0, which
 contains the required layered-atmosphere and normalized-phase APIs. All workspace
 Siderust requirements are `=0.15.1`: this exact provider pin keeps the exported
@@ -26,8 +27,11 @@ scientific provenance truthful even when a downstream Cargo build resolves
 without NSB's workspace lockfile. No direct Affn or Qtty dependency is added.
 Rust 1.89 and Python 3.10 remain the supported minima; wheels retain `abi3-py310`.
 Downstream Rust applications must update their domain providers to this graph;
-0.14/0.10 type identities cannot be mixed with NSB 0.2.0. This dependency identity
-transition is documented even though the NSB public API snapshot has no drift.
+0.14/0.10 type identities cannot be mixed with NSB 0.3.0.
+The v0.3.0 query-target migration changes four reviewed public signatures; see
+the [release notes](../../CHANGELOG.md#030) for constructor compatibility and
+direct-field migration. Provider identity and target-type compatibility are
+separate contracts.
 
 The root Git patch, Git-source exception and negative packaging helper are
 removed. Ordinary Cargo package verification, publish dry-run and compilation
