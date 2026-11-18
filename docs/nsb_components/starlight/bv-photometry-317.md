@@ -3,8 +3,8 @@
 The bundled Starlight product contains only the 300–650 nm radiance and its
 three uncertainties. In v1, zero B/V fields indicate absent diagnostics.
 Issue #317 tracks a source-derived, top-of-atmosphere extension. The current
-work stages a candidate and leaves its scientific and redistribution admission
-pending. [Issue #317](https://github.com/VPRamon/NSB/issues/317)
+work stages a candidate. Scientific and redistribution admission are TBD.
+[Issue #317](https://github.com/VPRamon/NSB/issues/317)
 
 ## Measurement and population
 
@@ -87,7 +87,21 @@ loader cannot admit the candidate.
 
 ## Scientific validation and production regeneration handoff
 
-TBC
+Use a clean checkout of the reviewed commit on the data host with Python
+3.10 or later. Keep the workspace, extracts, models and references outside
+the checkout. Record the commit, toolchain, commands and input and output
+SHA-256 digests.
+
+- **TBD** — Representative non-XP calibration and independent evaluation
+  of all four photometry routes.
+- **TBD** — Independent CK04 B/V validation and review of uncertainty
+  correlations and flux conventions.
+- **TBD** — Full regeneration of 3,386 Gaia partitions and comparison of all
+  four integrated fields and population counts against the approved product.
+- **TBD** — Independent full-sky B/V validation, including regional accuracy,
+  uncertainty coverage and spatial effects.
+- **TBD** — Scientific admission and redistribution approval for the exact
+  final checksums.
 
 ### Input inventory
 
@@ -336,7 +350,7 @@ regions and fields with contrasting colours.
   and redistribution approval for the exact new bytes. Use the immutable
   v2 map through `StarlightMap::from_compact_bytes` for candidate research.
 
-## Validation and open gates
+## Local validation evidence
 
 The [local smoke receipt](validation/results/bv-photometry-317-smoke.json)
 records sample and output identities, all six sky regions, held-out scores
@@ -368,9 +382,9 @@ and both partition comparisons.
   deterministic merge, true zero and checksum-verified compact loading.
   A representation-only control matched all four approved integrated fields
   across 196,608 pixels and rejected an altered uncertainty field.
-  A full 300–650 nm production differential awaits the original pins
-  and a valid B/V model.
-- **Full-sky science.** Use the preregistered [NSB regions and
+  **TBD** — The full 300–650 nm production differential requires the original
+  pins and a representative B/V model.
+- **Full-sky science (TBD).** Use the preregistered [NSB regions and
   thresholds](science-requirements.md#pre-registered-validation-gates)
   independently in B and V for compatible stellar-only,
   top-of-atmosphere reference operators. Include the centre, the plane,
@@ -385,10 +399,8 @@ and both partition comparisons.
   partitions were acquired from ESA, and the exact integrated photometric
   pin and XP design are available in the checkout. The pinned production
   UV and selection artifacts and the original combined bright-star
-  workspace remain external. A representative non-XP model, CK04 B/V
-  validation, full regeneration, independent full-sky validation, and a
-  checksum-specific redistribution decision are pending. The checked-in
-  v1 default remains the approved runtime asset. See the
+  workspace remain external. The checked-in v1 default remains the approved
+  runtime asset. See the
   [approval inventory](licensing/approval-inventory-v1.toml).
 
 ### Smoke input selection
