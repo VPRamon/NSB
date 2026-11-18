@@ -596,7 +596,7 @@ jobs:
             venv-python: ./.wheel-venv/bin/python
             additional-python: "3.14"
             additional-venv-python: ./.wheel-venv-314/bin/python
-          - os: macos-14
+          - os: macos-15
             # Exercise macOS interoperability with an installed CPython 3.11 wheel.
             python-version: "3.11"
             manylinux: "off"

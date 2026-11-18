@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 use super::*;
 use crate::dataset::{self, DatasetName, Executor, Operation, RunConfig, ValidationReport};
-use crate::starlight::bright_stars::*;
+use crate::starlight::bright_stars::{test_support::*, *};
 use crate::starlight::map::product::MergeReport;
 use crate::starlight::pack::{verify_bv_candidate, BV_FILES};
 use crate::starlight::xp::{calibrate::interval_tests::inputs, canonical};

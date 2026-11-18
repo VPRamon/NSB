@@ -90,6 +90,7 @@ pub use reconstruction::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1;
 pub use reconstruction::UV_COMPLETION_MODEL_ID_V1;
 
 #[cfg(test)]
-pub(super) use reconstruction::reconstruct_spectral_estimates_with_bv;
-#[cfg(test)]
-pub(crate) use reconstruction::tests::fixture as reconstruction_fixture;
+pub(super) mod test_support {
+    pub(in crate::starlight) use super::reconstruction::reconstruct_spectral_estimates_with_bv;
+    pub(crate) use super::reconstruction::tests::fixture as reconstruction_fixture;
+}
