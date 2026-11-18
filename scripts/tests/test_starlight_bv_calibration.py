@@ -76,6 +76,9 @@ class StarlightBvCalibration(unittest.TestCase):
         self.assertEqual(len(model["cells"]), 4)
         self.assertTrue(all(cell["residual_covariance_at_g15"][2] < 0 for cell in model["cells"]))
         self.assertEqual({entry["evaluated"] for entry in report["regions"]}, {3})
+        self.assertEqual(len(report["cells"]), 4)
+        self.assertTrue(all(cell["fitted"] and cell["evaluated"] == 3 for cell in report["cells"]))
+        self.assertEqual({cell["g_bin"] for cell in report["cells"]}, {0})
         cells = [set(report["splits"][split]["sky_regions"]) for split in ("training", "validation", "test")]
         self.assertEqual(sum(map(len, cells)), len(set.union(*cells)))
 

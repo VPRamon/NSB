@@ -237,19 +237,31 @@ def main():
     cells = fit(groups, policy)
     scored = defaultdict(list)
     attempted = defaultdict(int)
-    for key, values in groups.items():
+    cell_results = []
+    for key, values in sorted(groups.items()):
         route, sky = key[:2]
-        attempted[route, sky] += len(values["test"])
-        if key not in cells:
-            continue
-        model = cells[key]
-        mean, variance = model["mean_w_m2_nm_at_g15"], model["residual_covariance_at_g15"]
-        sigmas = [math.hypot(math.sqrt(variance[i]), mean[i] * model["shared_fraction"][i])
-                  for i in range(2)]
-        scored[route, sky].extend(
-            tuple((t * scale, p * scale, e * scale) for t, p, e in zip(truth, mean, sigmas))
-            for _, truth, scale in values["test"]
-        )
+        test = values["test"]
+        attempted[route, sky] += len(test)
+        model = cells.get(key)
+        predictions = []
+        if model is not None:
+            mean = model["mean_w_m2_nm_at_g15"]
+            variance = model["residual_covariance_at_g15"]
+            sigmas = [math.hypot(math.sqrt(variance[i]), mean[i] * model["shared_fraction"][i])
+                      for i in range(2)]
+            predictions = [
+                tuple((t * scale, p * scale, e * scale) for t, p, e in zip(truth, mean, sigmas))
+                for _, truth, scale in test
+            ]
+            scored[route, sky].extend(predictions)
+        cell_results.append({
+            "route": route, "galactic_nested_pixel": sky,
+            "g_bin": key[2], "bp_g_bin": key[3], "g_rp_bin": key[4],
+            "training_sources": len(values["training"]),
+            "validation_sources": len(values["validation"]),
+            "validation_sky_cells": len({pixel for pixel, _, _ in values["validation"]}),
+            "test_sources": len(test), "fitted": model is not None, **metrics(predictions),
+        })
 
     manifest = {
         split: {"partition_id": split, "source_count": len(id_splits[split]),
@@ -263,6 +275,7 @@ def main():
         "test_sources_without_bins": test_sources_without_bins,
         "masked_stress_test": args.stress_test_mask_complete,
         "splits": manifest, "fitted_cell_count": len(cells), "candidate_cell_count": len(groups),
+        "cells": cell_results,
         "regions": [{"route": route, "galactic_nested_pixel": sky, "test_sources": attempted[route, sky],
                      **metrics(scored[route, sky])} for route, sky in sorted(attempted)],
     }

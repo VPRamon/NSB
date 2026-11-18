@@ -88,7 +88,7 @@ loader cannot admit the candidate.
 ## Scientific validation and production regeneration handoff
 
 Enrique owns the following scientific gates. Use a clean checkout of the
-reviewed PR commit on the data host. Keep the workspace, source extracts, model,
+reviewed PR commit on the data host with Python 3.10 or later. Keep the workspace, source extracts, model,
 and validation reference outside the checkout. Record the commit, build and
 toolchain versions, commands, and all input and output SHA-256 digests.
 
@@ -160,8 +160,8 @@ correlated residual envelope and test scores never alter fitted moments.
 The predictive scatter retains noise in the labels. Review coverage and any
 covariance inflation against independent data, especially where XP is noisy.
 Review attempted versus scored rows, out-of-domain rows, bias, absolute
-relative-error tails, and 68%/95% coverage by route, magnitude, colour and
-region. The export guard requires training and validation support for every
+relative-error tails, and 68%/95% coverage in the report’s route/region
+summaries and its detailed magnitude/colour cells. The export guard requires training and validation support for every
 modelled cell and held-out support for all four routes. Preset science
 acceptance thresholds and adequate representative coverage of the admitted
 population still require review. In particular, justify the conditional
@@ -211,8 +211,22 @@ printf '[starlight.bv_photometry]\nartifact_path = "%s"\nsha256 = "%s"\n' \
 
 CFG="$HANDOFF/combined-bv.toml"
 "$NSB_DATA" dataset starlight update --config "$CFG" --executor local
-"$NSB_DATA" dataset starlight build --config "$CFG" --executor slurm
-# Set BUILD_RUN to the run.json path printed by the build submission.
+BUILD_JOBS="$("$NSB_DATA" dataset starlight build --config "$CFG" --executor slurm)"
+find_build_run() {
+  python3 - "$WORKSPACE" "$1" <<'PYCODE'
+import json
+from pathlib import Path
+import sys
+
+workspace, jobs = sys.argv[1:]
+manifests = Path(workspace, "runs", "starlight").glob("*/run.json")
+matches = [p for p in manifests if json.loads(p.read_bytes()).get("slurm_job_id") == jobs]
+if len(matches) != 1:
+    raise SystemExit(f"Expected one run manifest for Slurm job IDs {jobs}")
+print(matches[0])
+PYCODE
+}
+BUILD_RUN="$(find_build_run "$BUILD_JOBS")"
 "$NSB_DATA" run status --run "$BUILD_RUN"
 # After all 3,386 Gaia partitions complete:
 "$NSB_DATA" dataset starlight validate --config "$CFG" --executor local
@@ -232,8 +246,9 @@ accessible from all workers. Source acquisition validates cached receipts.
 Do not copy the previous run's worker metadata or integrated-only shards.
 For the unchanged configuration, retry missing or failed workers with
 `"$NSB_DATA" run resume --run "$BUILD_RUN"` after diagnosing the worker error
-and waiting for the previous job to terminate. Then use the new run path
-printed by resume. A changed input pin, software identity or scientific policy
+and waiting for the previous job to terminate. Resolve the returned Slurm
+job IDs with `find_build_run` before checking status again. When the run has
+no incomplete workers, resume reports that all partitions are complete. A changed input pin, software identity or scientific policy
 needs a fresh generation workspace. See the [partition and cache
 contract](map-generation.md).
 
