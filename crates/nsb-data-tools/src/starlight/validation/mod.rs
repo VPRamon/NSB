@@ -12,6 +12,7 @@
 //! external cross-validation artifact.
 
 pub mod acquire;
+pub(crate) mod bv;
 pub mod candidate_map;
 pub mod metrics;
 pub mod preregistration;

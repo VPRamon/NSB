@@ -128,6 +128,21 @@ impl StarlightPublishTransaction {
             return Ok(None);
         };
 
+        if starlight.bv_photometry.is_some() {
+            bail!("B/V candidate publication requires independent validation and checksum-specific approval");
+        }
+        let report_path = core::validation_path(&config);
+        if report_path.try_exists()? {
+            let report: model::ValidationReport = serde_json::from_slice(&fs::read(report_path)?)?;
+            if report
+                .artifacts
+                .iter()
+                .any(|artifact| crate::starlight::pack::BV_FILES.contains(&artifact.name.as_str()))
+            {
+                bail!("B/V candidate artifacts are ineligible for dataset publish");
+            }
+        }
+
         let publish = config
             .publish
             .as_ref()

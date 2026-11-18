@@ -797,7 +797,7 @@ fn worker_is_complete(workspace: &Path, partition: &str, operation: Operation) -
     completed_manifest_is_valid(&path)
 }
 
-fn validation_path(config: &RunConfig) -> PathBuf {
+pub(super) fn validation_path(config: &RunConfig) -> PathBuf {
     config.workspace.root.join(VALIDATION_REPORT)
 }
 

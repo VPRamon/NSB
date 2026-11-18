@@ -11,9 +11,10 @@ use crate::units::angular::Degrees;
 use crate::units::length::Nanometers;
 use crate::units::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s,
+    WattsPerSquareMeterSteradianNanometer,
 };
 use crate::units::solid_angle::Steradians;
-use crate::units::PixelIntegratedPhotonFlux;
+use crate::units::{s10_for_spectral_energy_radiance, PixelIntegratedPhotonFlux};
 use csv::{ReaderBuilder, StringRecord};
 use siderust::coordinates::cartesian::Direction as CartesianDirection;
 use siderust::coordinates::frames::Galactic;
@@ -43,7 +44,7 @@ pub struct StarlightPixel {
     pub systematic_uncertainty: Option<BandPhotonRadiance>,
     /// Total one-sigma uncertainty of the integrated photon radiance.
     pub total_uncertainty: Option<BandPhotonRadiance>,
-    /// Whether the map published measured B/V S10 diagnostics.
+    /// Whether the map provides B/V S10 diagnostics.
     pub s10_diagnostics_provided: bool,
 }
 
@@ -497,13 +498,16 @@ impl StarlightMap {
             .get("s10_diagnostics")
             .map(String::as_str)
             .unwrap_or("");
-        if diagnostics != "not_provided" {
-            return Err(NsbError::DataParse {
-                file: "starlight map csv",
-                message: "packed HEALPix maps must declare # s10_diagnostics=not_provided"
-                    .to_string(),
-            });
-        }
+        let bv = match diagnostics {
+            "not_provided" => false,
+            super::compact::S10_REFERENCE_PAIR => true,
+            _ => {
+                return Err(NsbError::DataParse {
+                    file: "starlight map csv",
+                    message: "packed HEALPix map has unsupported s10_diagnostics".to_string(),
+                })
+            }
+        };
 
         let grid = HealpixGrid::new(
             Nside::new(nside).map_err(|err| invalid_map(err.to_string()))?,
@@ -520,18 +524,19 @@ impl StarlightMap {
             file: "starlight map csv",
             message: format!("failed to read HEALPix CSV header: {err}"),
         })?;
-        validate_packed_healpix_header(headers)?;
+        validate_packed_healpix_header(headers, bv)?;
+        let expected_fields = headers.len();
 
         for (row_idx, record) in reader.records().enumerate() {
             let record = record.map_err(|err| NsbError::DataParse {
                 file: "starlight map csv",
                 message: format!("failed to read HEALPix CSV row {}: {err}", row_idx + 1),
             })?;
-            if record.len() != 5 {
+            if record.len() != expected_fields {
                 return Err(NsbError::DataParse {
                     file: "starlight map csv",
                     message: format!(
-                        "HEALPix CSV row {} has {} fields, expected 5",
+                        "HEALPix CSV row {} has {} fields, expected {expected_fields}",
                         row_idx + 1,
                         record.len()
                     ),
@@ -541,17 +546,24 @@ impl StarlightMap {
             grid.validate_index(HealpixIndex::new(index))
                 .map_err(|err| invalid_map(err.to_string()))?;
             let slot = usize::try_from(index).expect("pixel index fits usize");
-            let pixel = StarlightPixel::new(
+            let [b, v] = if bv {
+                [
+                    parse_record_f64(&record, 5, row_idx + 1, "b_w_m2_sr_nm")?,
+                    parse_record_f64(&record, 6, row_idx + 1, "v_w_m2_sr_nm")?,
+                ]
+            } else {
+                [0.0, 0.0]
+            };
+            let mut pixel = StarlightPixel::new(
                 BandPhotonRadiance::new(parse_record_f64(
                     &record,
                     1,
                     row_idx + 1,
                     "integrated_ph_cm2_ns_sr",
                 )?),
-                S10s::new(0.0),
-                S10s::new(0.0),
+                s10_for_spectral_energy_radiance(WattsPerSquareMeterSteradianNanometer::new(b)),
+                s10_for_spectral_energy_radiance(WattsPerSquareMeterSteradianNanometer::new(v)),
             )
-            .without_s10_diagnostics()
             .with_uncertainties(
                 BandPhotonRadiance::new(parse_record_f64(
                     &record,
@@ -572,6 +584,9 @@ impl StarlightMap {
                     "total_uncertainty_ph_cm2_ns_sr",
                 )?),
             );
+            if !bv {
+                pixel = pixel.without_s10_diagnostics();
+            }
             pixel.validate()?;
             if pixels[slot].replace(pixel).is_some() {
                 return Err(invalid_map(format!(
@@ -715,7 +730,7 @@ fn required_metadata<'a>(metadata: &'a BTreeMap<String, String>, key: &str) -> R
         .ok_or_else(|| invalid_map(format!("missing required HEALPix metadata key {key:?}")))
 }
 
-fn validate_packed_healpix_header(headers: &StringRecord) -> Result<()> {
+fn validate_packed_healpix_header(headers: &StringRecord, bv: bool) -> Result<()> {
     const PACKED: [&str; 5] = [
         "healpix_index",
         "integrated_ph_cm2_ns_sr",
@@ -723,10 +738,15 @@ fn validate_packed_healpix_header(headers: &StringRecord) -> Result<()> {
         "systematic_uncertainty_ph_cm2_ns_sr",
         "total_uncertainty_ph_cm2_ns_sr",
     ];
-    let matches = headers.len() == PACKED.len()
+    let tail = if bv {
+        &["b_w_m2_sr_nm", "v_w_m2_sr_nm"][..]
+    } else {
+        &[]
+    };
+    let matches = headers.len() == PACKED.len() + tail.len()
         && headers
             .iter()
-            .zip(PACKED)
+            .zip(PACKED.into_iter().chain(tail.iter().copied()))
             .all(|(actual, expected)| actual.trim() == expected);
     if matches {
         Ok(())

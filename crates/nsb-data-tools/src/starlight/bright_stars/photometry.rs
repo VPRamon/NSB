@@ -280,7 +280,7 @@ fn validate_response(response: &PhotometricBandResponse) -> Result<()> {
     Ok(())
 }
 
-fn interpolate_template(template: &SpectralTemplate, wavelength: f64) -> Result<f64> {
+pub(super) fn interpolate_template(template: &SpectralTemplate, wavelength: f64) -> Result<f64> {
     let upper = template
         .wavelengths_m
         .partition_point(|value| *value < wavelength);
