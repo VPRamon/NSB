@@ -50,8 +50,10 @@ S10 calibration.
 - **Integrated admission and selection.** The existing 300–650 nm worker
   still decides which sources enter. It uses the same UV correction,
   catalogue exclusions, colours for selection, and capped inverse-
-  completeness weights. B/V uses that weight once per admitted source and
-  no weight for the separate supplement. B/V treats selection sigma as a
+  completeness weights. An unusable continuous XP record can already be
+  excluded by the combined worker's calibration or quality gates. B/V
+  follows those admissions. It uses the selection weight once per admitted
+  source and no weight for the separate supplement. B/V treats selection sigma as a
   shared envelope. The current integrated faint-tail fraction contributes to
   uncertainty and accounting only. The candidate preserves that scope. A
   missing B/V route or reused integrated-only shard blocks the B/V candidate.

@@ -270,3 +270,23 @@ fn compact_v2_flows_through_public_starlight_evaluator() {
     let expected_colour = 2.5 * 2.0_f64.log10();
     assert!((result.b_mag.value() - result.v_mag.value() - expected_colour).abs() < 1e-12);
 }
+
+#[test]
+fn v1_production_manifest_cannot_admit_v2_even_with_matching_checksum() {
+    use nsb::components::starlight::ValidatedStarlightMap;
+    use siderust::checksum::to_hex;
+
+    let v2 = StarlightMap::compact_csv(&bv_csv(), starlight_test_provenance()).unwrap();
+    let existing = include_bytes!("../data/starlight_nside128.compact.release.bin");
+    let manifest = include_str!("../data/starlight_nside128.compact.manifest.toml");
+    let matching_manifest = manifest.replace(&to_hex(&sha256(existing)), &to_hex(&sha256(&v2)));
+    assert_ne!(manifest, matching_manifest);
+    let error =
+        ValidatedStarlightMap::from_bytes_and_manifest(&v2, &matching_manifest).unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("production admission does not attest to B/V"),
+        "{error}"
+    );
+}
