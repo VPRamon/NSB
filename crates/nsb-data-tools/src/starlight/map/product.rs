@@ -273,6 +273,7 @@ pub(crate) fn emit_maps(
     expected_product_band: StarlightProductBand,
     expected_uv_artifact_sha256: Option<&str>,
     selection_population: Option<SelectionPopulationPolicy>,
+    expected_bv_input_pins: Option<&super::super::bv::BvInputPins>,
 ) -> Result<Vec<Artifact>> {
     if (expected_product_band == StarlightProductBand::Combined300To650)
         != expected_uv_artifact_sha256.is_some()
@@ -349,6 +350,9 @@ pub(crate) fn emit_maps(
     }
 
     let merged = merge_shards(shards.clone())?;
+    if merged.bv_input_pins.as_ref() != expected_bv_input_pins {
+        bail!("merged B/V calibration or coverage does not match current configuration");
+    }
     validate_bright_star_replacement_invariant(&merged)?;
     if merged.nside != canonical_nside {
         bail!("merged Starlight shard resolution does not match configuration");
@@ -475,6 +479,19 @@ pub(crate) fn emit_maps(
 
     let report_path = output_root.join("merge_report.json");
     artifact_store::atomic_write(&report_path, &serde_json::to_vec_pretty(&report)?)?;
+    if expected_bv_input_pins.is_some() {
+        let candidate = super::super::validation::candidate_map::load(
+            &map_path,
+            canonical_nside,
+            Some(&report.canonical_map.sha256),
+        )?;
+        super::super::pack::stage_bv_candidate(
+            &workspace.join("bv-candidate"),
+            &candidate,
+            &merged,
+            &checksum_io::sha256_file(&report_path)?,
+        )?;
+    }
     let mut artifacts = vec![
         Artifact {
             name: map_name,
@@ -2124,6 +2141,16 @@ fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
     } else {
         bytes.push(0);
     }
+    if let Some(pins) = &shard.bv_input_pins {
+        bytes.extend_from_slice(b"nsb-starlight-bv-merge-v1\0");
+        append_string(&mut bytes, &serde_json::to_string(pins)?)?;
+        for (pixel, accumulator) in &shard.pixels {
+            if let Some(bv) = &accumulator.bv {
+                bytes.extend_from_slice(&pixel.to_be_bytes());
+                append_string(&mut bytes, &serde_json::to_string(bv)?)?;
+            }
+        }
+    }
     Ok(bytes)
 }
 
@@ -2374,6 +2401,7 @@ mod tests {
             StarlightProductBand::Measured336To650,
             None,
             None,
+            None,
         )
         .unwrap();
         let report: MergeReport = serde_json::from_slice(
@@ -2505,6 +2533,7 @@ mod tests {
             &["fixture".to_string()],
             nside,
             StarlightProductBand::Measured336To650,
+            None,
             None,
             None,
         )
@@ -2865,6 +2894,7 @@ mod tests {
             StarlightProductBand::Combined300To650,
             Some(&"a".repeat(64)),
             None,
+            None,
         )
         .unwrap();
         let report: MergeReport = serde_json::from_slice(
@@ -2957,6 +2987,7 @@ mod tests {
         .unwrap();
         bright
             .admit_bright_star_source(&BrightStarSourceRecord {
+                bv: None,
                 source_id: "HIP fixture".into(),
                 origin_catalogue: "synthetic".into(),
                 class: SupplementClass::SupplementOnly,
@@ -2992,6 +3023,7 @@ mod tests {
             StarlightProductBand::Combined300To650,
             Some(&"a".repeat(64)),
             None,
+            None,
         )
         .unwrap();
         let report: MergeReport = serde_json::from_slice(
@@ -3005,6 +3037,113 @@ mod tests {
         );
         assert_eq!(report.ultraviolet_applicability.values().sum::<u64>(), 1);
         validate_report(&temp.path().join("outputs/merge_report.json")).unwrap();
+
+        use crate::starlight::bv::{BvFlux, BvRoute};
+        use nsb::components::starlight::{StarlightMap, StarlightProvenance};
+
+        let map_path = temp.path().join("outputs/starlight_nside1.csv");
+        let baseline = fs::read(&map_path).unwrap();
+        let pins = crate::starlight::bv::BvInputPins {
+            calibration_sha256: "b".repeat(64),
+            photometric_sha256: None,
+            selection_sha256: None,
+            bright_star_sha256: bright
+                .bright_star_supplement_provenance
+                .as_ref()
+                .map(|p| p.artifact_sha256.clone()),
+            gaia_inventory_sha256: BTreeMap::new(),
+        };
+        for shard in [&mut gaia, &mut bright] {
+            shard.bv_input_pins = Some(pins.clone());
+            assert!(
+                shard.validate().is_err(),
+                "legacy source admissions carry no B/V"
+            );
+        }
+        let colour = |flux| BvFlux {
+            flux_w_m2_nm: flux,
+            statistical_covariance: [1e-26, 4e-26, -1e-26],
+            independent_systematic_sigma: [0.0; 2],
+            shared_systematic_sigma: [3e-13, 4e-13],
+        };
+        gaia.add_admitted_bv(
+            fixture_pos(0),
+            colour([1e-11, 2e-11]),
+            BvRoute::GaiaXp,
+            0.01,
+        )
+        .unwrap();
+        bright
+            .add_admitted_bv(
+                crate::starlight::healpix::IcrsSkyPosition::new(10.0, 20.0).unwrap(),
+                colour([4e-11, 1e-11]),
+                BvRoute::HipparcosCk04,
+                0.0,
+            )
+            .unwrap();
+        gaia.write(&temp.path().join("outputs/shards/gaia.json"))
+            .unwrap();
+        bright
+            .write(
+                &temp
+                    .path()
+                    .join("outputs/shards/bright-star-supplement.json"),
+            )
+            .unwrap();
+        let output = || {
+            emit_maps(
+                temp.path(),
+                &["bright-star-supplement".to_string(), "gaia".to_string()],
+                1,
+                StarlightProductBand::Combined300To650,
+                Some(&"a".repeat(64)),
+                None,
+                Some(&pins),
+            )
+        };
+        output().unwrap();
+        assert_eq!(fs::read(&map_path).unwrap(), baseline);
+        let compact_path = temp.path().join("bv-candidate/starlight.compact.bin");
+        let bytes = fs::read(&compact_path).unwrap();
+        let provenance = StarlightProvenance::new(
+            "fixture",
+            "fixture",
+            "fixture",
+            "fixture",
+            "fixture",
+            "fixture",
+            "fixture",
+            "fixture",
+            None::<String>,
+        );
+        let map = StarlightMap::from_compact_bytes(&bytes, provenance).unwrap();
+        assert!(map
+            .pixels()
+            .iter()
+            .all(|pixel| pixel.s10_diagnostics_provided));
+        assert!(map
+            .pixels()
+            .iter()
+            .any(|pixel| pixel.b_flux_s10.value() == 0.0));
+        let expected = [5e-11, 3e-11];
+        for (i, actual) in [
+            map.pixels()
+                .iter()
+                .map(|pixel| pixel.b_flux_s10.value())
+                .sum::<f64>(),
+            map.pixels()
+                .iter()
+                .map(|pixel| pixel.v_flux_s10.value())
+                .sum::<f64>(),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let recovered = actual * (std::f64::consts::PI / 3.0) * 1.28e-11;
+            assert!((recovered / expected[i] - 1.0).abs() < 1e-14);
+        }
+        output().unwrap();
+        assert_eq!(fs::read(compact_path).unwrap(), bytes);
     }
 
     #[test]
@@ -3036,6 +3175,7 @@ mod tests {
             128,
             StarlightProductBand::Combined300To650,
             Some(&"b".repeat(64)),
+            None,
             None,
         )
         .unwrap_err()

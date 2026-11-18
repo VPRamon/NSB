@@ -144,6 +144,7 @@ fn diagnose_export_measured_336_650_arm() -> anyhow::Result<()> {
         StarlightProductBand::Combined300To650,
         Some(UV_SHA),
         None,
+        None,
     )?;
     let merge: MergeReport =
         serde_json::from_slice(&fs::read(workspace.join("outputs/merge_report.json"))?)?;

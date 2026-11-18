@@ -252,6 +252,10 @@ struct StarlightDiagnoseArgs {
 
 #[derive(Debug, Subcommand)]
 enum StarlightDiagnoseCommand {
+    /// Export 445/551 nm references from continuous XP and matched Gaia photometry CSVs.
+    BvXp(StarlightDiagnoseBvXpArgs),
+    /// Compare all integrated fields in pinned v1 and v2 compact maps.
+    CompareBvIntegrated(CompareBvIntegratedArgs),
     /// Write a machine-readable Phase 0 baseline report from existing smoke shards.
     Baseline(StarlightDiagnoseBaselineArgs),
     /// Run Phases 1–6 diagnostic accounting and ablation on smoke partitions.
@@ -264,6 +268,28 @@ enum StarlightDiagnoseCommand {
     ExportMeasured336650(StarlightDiagnoseExportMeasuredArgs),
     /// Issue #182 Experiment C: flux-weighted exclusion accounting.
     FluxAttribution(StarlightDiagnoseFluxAttributionArgs),
+}
+
+#[derive(Debug, Args)]
+struct StarlightDiagnoseBvXpArgs {
+    #[arg(long)]
+    xp_continuous: PathBuf,
+    #[arg(long)]
+    gaia_source: PathBuf,
+    #[arg(long)]
+    output: PathBuf,
+}
+
+#[derive(Debug, Args)]
+struct CompareBvIntegratedArgs {
+    #[arg(long)]
+    baseline: PathBuf,
+    #[arg(long)]
+    baseline_sha256: String,
+    #[arg(long)]
+    candidate: PathBuf,
+    #[arg(long)]
+    candidate_sha256: String,
 }
 
 #[derive(Debug, Args)]
@@ -738,6 +764,23 @@ fn execute_starlight(args: StarlightActionArgs) -> Result<()> {
 
 fn execute_starlight_diagnose(args: StarlightDiagnoseArgs) -> Result<()> {
     match args.command {
+        StarlightDiagnoseCommand::BvXp(args) => {
+            crate::starlight::diagnostics::bv_reference::export(
+                &args.xp_continuous,
+                &args.gaia_source,
+                &args.output,
+            )
+        }
+        StarlightDiagnoseCommand::CompareBvIntegrated(args) => {
+            let count = crate::starlight::diagnostics::bv_reference::compare_integrated(
+                &args.baseline,
+                &args.baseline_sha256,
+                &args.candidate,
+                &args.candidate_sha256,
+            )?;
+            println!("All four integrated fields match bit-for-bit in {count} pixels");
+            Ok(())
+        }
         StarlightDiagnoseCommand::Baseline(args) => {
             let full_sky = [9_u32, 11, 13, 25, 27, 32, 33, 37];
             let report = crate::starlight::diagnostics::write_baseline_report(

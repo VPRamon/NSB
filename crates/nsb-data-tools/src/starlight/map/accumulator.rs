@@ -3,6 +3,7 @@
 //! Deterministic sparse accumulators for independently produced Starlight shards.
 
 use crate::platform::{artifact_store, checksum_io};
+use crate::starlight::bv::{BvAccumulator, BvFlux, BvInputPins, BvRoute};
 use crate::starlight::config::StarlightProductBand;
 use crate::starlight::healpix::{self, galactic_nested_pixel_from_icrs_position, IcrsSkyPosition};
 use crate::starlight::uv::{
@@ -111,7 +112,34 @@ impl StableSum {
         Ok(())
     }
 
-    fn validate(&self) -> Result<()> {
+    pub(crate) fn difference(&self, other: &Self) -> f64 {
+        use std::cmp::Ordering;
+        let order = self.limbs.iter().rev().cmp(other.limbs.iter().rev());
+        let (larger, smaller, sign) = match order {
+            Ordering::Equal => return 0.0,
+            Ordering::Less => (other, self, -1.0),
+            Ordering::Greater => (self, other, 1.0),
+        };
+        if smaller.limbs.is_empty() {
+            return sign * larger.value();
+        }
+        let mut difference = Self::default();
+        let mut borrow = false;
+        for i in 0..=larger.limbs.last_key_value().map_or(0, |(&index, _)| index) {
+            let a = larger.limbs.get(&i).copied().unwrap_or_default();
+            let b = smaller.limbs.get(&i).copied().unwrap_or_default();
+            let (delta, first_borrow) = a.overflowing_sub(b);
+            let (delta, second_borrow) = delta.overflowing_sub(u64::from(borrow));
+            borrow = first_borrow || second_borrow;
+            if delta != 0 {
+                difference.limbs.insert(i, delta);
+            }
+        }
+        debug_assert!(!borrow);
+        sign * difference.value()
+    }
+
+    pub(crate) fn validate(&self) -> Result<()> {
         if self
             .limbs
             .iter()
@@ -209,6 +237,8 @@ impl StableSum {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PixelAccumulator {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) bv: Option<Box<BvAccumulator>>,
     /// Selected product-band flux used by the canonical map.
     pub flux_ph_m2_s: StableSum,
     /// Selected product statistical variance.
@@ -236,6 +266,9 @@ pub struct PixelAccumulator {
 
 impl PixelAccumulator {
     fn merge(&mut self, other: &Self) -> Result<()> {
+        if let Some(bv) = &other.bv {
+            self.bv.get_or_insert_with(Box::default).merge(bv)?;
+        }
         self.flux_ph_m2_s.merge(&other.flux_ph_m2_s)?;
         self.statistical_variance
             .merge(&other.statistical_variance)?;
@@ -336,6 +369,8 @@ pub struct UvCorrectionShardMetadata {
 pub struct PartitionShard {
     pub schema_version: u32,
     pub partition_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) bv_input_pins: Option<BvInputPins>,
     pub nside: u32,
     pub product_band: StarlightProductBand,
     pub ultraviolet_correction: Option<UvCorrectionShardMetadata>,
@@ -403,6 +438,7 @@ impl PartitionShard {
         }
         Ok(Self {
             schema_version: SHARD_SCHEMA_VERSION,
+            bv_input_pins: None,
             partition_id,
             nside,
             product_band,
@@ -697,6 +733,22 @@ impl PartitionShard {
         Ok(())
     }
 
+    pub(crate) fn add_admitted_bv(
+        &mut self,
+        position: IcrsSkyPosition,
+        flux: BvFlux,
+        route: BvRoute,
+        selection_fraction: f64,
+    ) -> Result<()> {
+        let pixel = galactic_accumulation_pixel(position, self.nside)?;
+        self.pixels
+            .get_mut(&pixel)
+            .context("B/V source is missing the integrated admission pixel")?
+            .bv
+            .get_or_insert_with(Box::default)
+            .add(flux, route, selection_fraction)
+    }
+
     /// Record one source rejected by a stable scientific reason code.
     pub fn exclude(&mut self, position: IcrsSkyPosition, reason: &str) -> Result<()> {
         if reason.is_empty()
@@ -746,6 +798,14 @@ impl PartitionShard {
         {
             bail!("combined Starlight shard requires a declared UV reconstruction route");
         }
+        if let Some(pins) = &self.bv_input_pins {
+            pins.validate()?;
+            if let Some(supplement) = &self.bright_star_supplement_provenance {
+                if pins.bright_star_sha256.as_deref() != Some(supplement.artifact_sha256.as_str()) {
+                    bail!("B/V bright-star input pin differs from supplement provenance");
+                }
+            }
+        }
         healpix::gaia_nested_nside(self.nside)?;
         let grid = healpix::gaia_nested_grid(self.nside)?;
         let mut excluded = 0_u64;
@@ -753,6 +813,13 @@ impl PartitionShard {
             grid.validate_index(HealpixIndex::new(u64::from(*pixel)))
                 .with_context(|| format!("pixel {pixel} is outside nside={}", self.nside))?;
             accumulator.validate()?;
+            match &accumulator.bv {
+                Some(bv) if self.bv_input_pins.is_some() => {
+                    bv.validate(accumulator.admitted_sources)?;
+                }
+                None if self.bv_input_pins.is_none() || accumulator.admitted_sources == 0 => {}
+                _ => bail!("pixel {pixel} violates B/V source coverage"),
+            }
             if accumulator.observed_sources
                 != accumulator
                     .admitted_sources
@@ -858,7 +925,11 @@ pub fn merge_shards(shards: impl IntoIterator<Item = PartitionShard>) -> Result<
             ultraviolet_correction.clone(),
         )?
     };
+    merged.bv_input_pins = shards[0].bv_input_pins.clone();
     for shard in shards {
+        if shard.bv_input_pins != merged.bv_input_pins {
+            bail!("cannot merge shards with different B/V calibration identities or coverage");
+        }
         if shard.nside != nside {
             bail!("cannot merge Starlight shards with different nside values");
         }

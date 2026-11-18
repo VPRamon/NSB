@@ -6,6 +6,7 @@
 //! candidate map using the same Galactic nested semantics as production.
 
 pub mod baseline;
+pub(crate) mod bv_reference;
 pub mod flux_attribution;
 pub mod processor;
 
@@ -785,6 +786,7 @@ mod tests {
             StarlightProductBand::Combined300To650,
             Some(FIXTURE_UV_SHA),
             None,
+            None,
         )
         .unwrap();
         let merge: MergeReport = serde_json::from_slice(
@@ -1034,6 +1036,7 @@ mod tests {
             StarlightProductBand::Measured336To650,
             None,
             None,
+            None,
         )?;
         let merge: MergeReport =
             serde_json::from_slice(&std::fs::read(workspace.join("outputs/merge_report.json"))?)?;
@@ -1084,6 +1087,7 @@ mod tests {
             &["fixture-export".to_string()],
             1,
             StarlightProductBand::Measured336To650,
+            None,
             None,
             None,
         )?;

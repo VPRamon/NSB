@@ -126,6 +126,7 @@ impl DatasetPipeline for StarlightPipeline {
             starlight.photometric_inference.as_ref(),
             starlight.selection_function.as_ref(),
             starlight.bright_star_supplement.as_ref(),
+            starlight.bv_photometry.as_ref(),
         )?;
         super::worker::write_artifact_index(&config.workspace.root, &artifacts)?;
         Ok(Some(artifacts))
@@ -170,6 +171,15 @@ impl DatasetPipeline for StarlightPipeline {
                 })
             })
             .transpose()?;
+        let bv_input_pins = starlight.bv_photometry.as_ref().map(|pin| {
+            super::bv::BvInputPins::new(
+                pin,
+                starlight.photometric_inference.as_ref(),
+                starlight.selection_function.as_ref(),
+                starlight.bright_star_supplement.as_ref(),
+                &starlight.gaia_products,
+            )
+        });
         let mut expected = expected;
         if let Some(pin) = &starlight.bright_star_supplement {
             let artifact =
@@ -182,17 +192,12 @@ impl DatasetPipeline for StarlightPipeline {
                     "bright-star supplement spectral coverage is incompatible with configured Starlight product band"
                 );
             }
-            let ultraviolet = starlight
-                .ultraviolet_correction
-                .as_ref()
-                .map(|pin| super::uv::UvCorrection::load(&pin.artifact_path, &pin.sha256))
-                .transpose()?;
             let shard = super::worker::bright_star_supplement_shard(
                 &artifact,
                 &pin.sha256,
                 starlight.map.canonical_nside,
                 starlight.product_band,
-                ultraviolet.as_ref(),
+                bv_input_pins.as_ref(),
             )?;
             let shard_path = config
                 .workspace
@@ -212,6 +217,7 @@ impl DatasetPipeline for StarlightPipeline {
                 .as_ref()
                 .map(|ultraviolet| ultraviolet.sha256.as_str()),
             selection_population,
+            bv_input_pins.as_ref(),
         )?))
     }
 
@@ -236,7 +242,18 @@ impl DatasetPipeline for StarlightPipeline {
                 starlight.product_band == super::config::StarlightProductBand::MeasuredXpBinned,
             );
         }
-        super::map::product::scientific_gates(&config.workspace.root, starlight.map.canonical_nside)
+        let mut gates = super::map::product::scientific_gates(
+            &config.workspace.root,
+            starlight.map.canonical_nside,
+        )?;
+        if starlight.bv_photometry.is_some() {
+            gates.push(ValidationGate {
+                name: "starlight-bv-production-admission".into(),
+                passed: false,
+                detail: "Staged B/V candidate requires independent validation and checksum-specific redistribution review".into(),
+            });
+        }
+        Ok(gates)
     }
 
     fn validate_artifact(&self, name: &str, path: &Path) -> Result<()> {
@@ -296,6 +313,15 @@ impl DatasetPipeline for StarlightPipeline {
             return Ok(());
         };
         super::config::validate_canonical_nside(starlight.map.canonical_nside)?;
+        if starlight.bv_photometry.is_some()
+            && (starlight.product_band != super::config::StarlightProductBand::Combined300To650
+                || starlight.photometric_inference.is_none()
+                || starlight.selection_function.is_none()
+                || starlight.bright_star_supplement.is_none()
+                || starlight.ingestion_audit.is_some())
+        {
+            bail!("B/V candidate requires the full combined-band source policy and bright-star supplement");
+        }
         if let Some(audit) = &starlight.ingestion_audit {
             if audit.expected_rows == 0
                 || starlight.product_band != super::config::StarlightProductBand::Measured360To570
@@ -316,6 +342,7 @@ impl DatasetPipeline for StarlightPipeline {
                 "photometric inference",
                 starlight.photometric_inference.as_ref(),
             ),
+            ("B/V photometry", starlight.bv_photometry.as_ref()),
             ("selection function", starlight.selection_function.as_ref()),
             (
                 "bright-star supplement",
@@ -456,6 +483,7 @@ lease_timeout_seconds = 60
             spectral_bin_edges_nm: None,
             ultraviolet_correction: None,
             photometric_inference: None,
+            bv_photometry: None,
             selection_function: None,
             bright_star_supplement: None,
             ingestion_audit: None,

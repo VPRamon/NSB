@@ -9,7 +9,9 @@ use super::catalogue::{
     ingest_xhip, PinnedCatalogueInput, Tycho2Photometry,
 };
 use super::policy::{BrightStarPopulationPolicy, BrightStarPrecedencePolicy};
-use super::reconstruction::{load_spectral_reconstruction_model, reconstruct_spectral_estimates};
+use super::reconstruction::{
+    load_spectral_reconstruction_model, reconstruct_spectral_estimates_with_bv,
+};
 use crate::platform::checksum_io;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -30,6 +32,8 @@ pub struct BrightStarBuildRunConfig {
     /// Target product band for the emitted artifact. Defaults to measured-336-650.
     #[serde(default = "default_bright_star_product_band")]
     pub product_band: String,
+    #[serde(default)]
+    pub include_bv_photometry: bool,
     pub hipparcos2: PinnedCatalogueInput,
     pub tycho2: Vec<PinnedCatalogueInput>,
     pub xhip: PinnedCatalogueInput,
@@ -145,8 +149,13 @@ pub(crate) fn run_experimental_build_at_commit(
             )
         })
         .collect::<BTreeSet<_>>();
-    let spectra =
-        reconstruct_spectral_estimates(&hipparcos, &xhip, &spectral_model, &config.product_band)?;
+    let spectra = reconstruct_spectral_estimates_with_bv(
+        &hipparcos,
+        &xhip,
+        &spectral_model,
+        &config.product_band,
+        config.include_bv_photometry,
+    )?;
 
     let mut inputs = vec![
         config.hipparcos2.provenance.clone(),

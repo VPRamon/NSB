@@ -8,7 +8,9 @@ use crate::units::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as 
 use siderust::checksum::sha256;
 use siderust::healpix::{HealpixGrid, HealpixOrdering, Nside};
 
-pub(super) const MAGIC: &[u8; 8] = b"NSBSTL01";
+pub(super) const MAGIC_V1: &[u8; 8] = b"NSBSTL01";
+pub(super) const MAGIC_V2: &[u8; 8] = b"NSBSTL02";
+pub(super) const S10_REFERENCE_PAIR: &str = "monochromatic_445_551_nm_nsb_s10";
 
 fn invalid(message: impl Into<String>) -> NsbError {
     NsbError::InvalidMap {
@@ -18,7 +20,7 @@ fn invalid(message: impl Into<String>) -> NsbError {
 
 /// Verify framing and integrity before exposing the UTF-8 provenance header.
 pub(super) fn parts(bytes: &[u8]) -> Result<(&str, &[u8])> {
-    if bytes.len() < 44 || &bytes[..8] != MAGIC {
+    if bytes.len() < 44 || ![MAGIC_V1, MAGIC_V2].contains(&bytes[..8].try_into().unwrap()) {
         return Err(invalid(
             "invalid compact Starlight magic/version or truncated file",
         ));
@@ -38,8 +40,8 @@ pub(super) fn parts(bytes: &[u8]) -> Result<(&str, &[u8])> {
 }
 
 impl StarlightMap {
-    /// Encode a supported packed CSV as version-1 compact bytes, preserving all
-    /// four scientific f64 fields and the complete provenance header. This is a
+    /// Encode a supported packed CSV as compact bytes, preserving the four
+    /// integrated-band fields, any B/V diagnostics, and the provenance header. This is a
     /// representation conversion, not production admission or redistribution approval.
     pub fn compact_csv(raw: &str, provenance: StarlightProvenance) -> Result<Vec<u8>> {
         let map = Self::from_csv_str(raw, provenance)?;
@@ -50,8 +52,10 @@ impl StarlightMap {
             .collect();
         let length =
             u32::try_from(header.len()).map_err(|_| invalid("compact header too large"))?;
-        let mut bytes = Vec::with_capacity(44 + header.len() + map.pixels().len() * 32);
-        bytes.extend_from_slice(MAGIC);
+        let bv = map.pixels()[0].s10_diagnostics_provided;
+        let stride = if bv { 48 } else { 32 };
+        let mut bytes = Vec::with_capacity(44 + header.len() + map.pixels().len() * stride);
+        bytes.extend_from_slice(if bv { MAGIC_V2 } else { MAGIC_V1 });
         bytes.extend_from_slice(&length.to_le_bytes());
         bytes.extend_from_slice(header.as_bytes());
         for pixel in map.pixels() {
@@ -63,17 +67,22 @@ impl StarlightMap {
             ] {
                 bytes.extend_from_slice(&value.value().to_le_bytes());
             }
+            if bv {
+                bytes.extend_from_slice(&pixel.b_flux_s10.value().to_le_bytes());
+                bytes.extend_from_slice(&pixel.v_flux_s10.value().to_le_bytes());
+            }
         }
         let digest = sha256(&bytes);
         bytes.extend_from_slice(&digest);
         Ok(bytes)
     }
 
-    /// Decode a version-1 compact packed map after verifying its internal SHA-256.
+    /// Decode a version-1 or version-2 map after verifying its internal SHA-256.
     /// Production callers should use `ValidatedStarlightMap` for sidecar and
     /// scientific admission checks in addition to this structural validation.
     pub fn from_compact_bytes(bytes: &[u8], provenance: StarlightProvenance) -> Result<Self> {
         let (header, payload) = parts(bytes)?;
+        let bv = bytes.starts_with(MAGIC_V2);
         let metadata = parse_header_metadata(header);
         let get = |key: &str| {
             metadata
@@ -81,11 +90,16 @@ impl StarlightMap {
                 .map(String::as_str)
                 .ok_or_else(|| invalid(format!("compact Starlight missing {key}")))
         };
+        let diagnostics = if bv {
+            S10_REFERENCE_PAIR
+        } else {
+            "not_provided"
+        };
         if !get("coordinate_frame")?.eq_ignore_ascii_case("galactic")
-            || get("s10_diagnostics")? != "not_provided"
+            || get("s10_diagnostics")? != diagnostics
         {
             return Err(invalid(
-                "compact Starlight requires Galactic frame and absent S10 diagnostics",
+                "compact Starlight frame or S10 diagnostics disagree with format",
             ));
         }
         let nside = get("nside")?
@@ -103,26 +117,33 @@ impl StarlightMap {
         .map_err(|e| invalid(e.to_string()))?;
         let count = usize::try_from(grid.npix())
             .map_err(|_| invalid("compact map exceeds address space"))?;
-        if count.checked_mul(32) != Some(payload.len()) {
+        let stride = if bv { 48 } else { 32 };
+        if count.checked_mul(stride) != Some(payload.len()) {
             return Err(invalid("compact Starlight pixel count/length mismatch"));
         }
         let pixels = payload
-            .as_chunks::<32>()
-            .0
-            .iter()
+            .chunks_exact(stride)
             .map(|row| {
-                let mut fields = row
-                    .as_chunks::<8>()
-                    .0
-                    .iter()
-                    .map(|v| Radiance::new(f64::from_le_bytes(*v)));
-                StarlightPixel::new(fields.next().unwrap(), S10s::new(0.0), S10s::new(0.0))
-                    .without_s10_diagnostics()
-                    .with_uncertainties(
-                        fields.next().unwrap(),
-                        fields.next().unwrap(),
-                        fields.next().unwrap(),
+                let field = |index: usize| {
+                    let start = index * 8;
+                    f64::from_le_bytes(row[start..start + 8].try_into().unwrap())
+                };
+                let mut pixel = if bv {
+                    StarlightPixel::new(
+                        Radiance::new(field(0)),
+                        S10s::new(field(4)),
+                        S10s::new(field(5)),
                     )
+                } else {
+                    StarlightPixel::new(Radiance::new(field(0)), S10s::new(0.0), S10s::new(0.0))
+                        .without_s10_diagnostics()
+                };
+                pixel = pixel.with_uncertainties(
+                    Radiance::new(field(1)),
+                    Radiance::new(field(2)),
+                    Radiance::new(field(3)),
+                );
+                pixel
             })
             .collect();
         let provenance = StarlightProvenance::from_header_metadata(&metadata, provenance);

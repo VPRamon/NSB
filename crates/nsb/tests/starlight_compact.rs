@@ -163,3 +163,110 @@ fn compact_rejects_semantic_corruption_even_with_valid_internal_checksum() {
     resign(&mut invalid_utf8);
     assert!(StarlightMap::from_compact_bytes(&invalid_utf8, starlight_test_provenance()).is_err());
 }
+
+fn bv_csv() -> String {
+    let mut csv = String::new();
+    for line in CSV.lines() {
+        if line == "# s10_diagnostics=not_provided" {
+            csv.push_str("# s10_diagnostics=monochromatic_445_551_nm_nsb_s10");
+        } else {
+            csv.push_str(line);
+            if line.starts_with("healpix_index,") {
+                csv.push_str(",b_flux_s10,v_flux_s10");
+            } else if line.starts_with("0,") {
+                csv.push_str(",0,0");
+            } else if !line.starts_with('#') {
+                csv.push_str(",12.5,25");
+            }
+        }
+        csv.push('\n');
+    }
+    csv
+}
+
+#[test]
+fn compact_v2_preserves_legacy_fields_and_reports_available_zero() {
+    let provenance = starlight_test_provenance;
+    let v1 = StarlightMap::compact_csv(CSV, provenance()).unwrap();
+    let csv = bv_csv();
+    let v2 = StarlightMap::compact_csv(&csv, provenance()).unwrap();
+    assert_eq!(&v2[..8], b"NSBSTL02");
+    assert_eq!(v2, StarlightMap::compact_csv(&csv, provenance()).unwrap());
+    let v1_map = StarlightMap::from_compact_bytes(&v1, provenance()).unwrap();
+    let v2_map = StarlightMap::from_compact_bytes(&v2, provenance()).unwrap();
+    assert_eq!(
+        StarlightMap::from_csv_str(&csv, provenance()).unwrap(),
+        v2_map
+    );
+    for (i, (before, after)) in v1_map.pixels().iter().zip(v2_map.pixels()).enumerate() {
+        assert_eq!(
+            before.integrated.value().to_bits(),
+            after.integrated.value().to_bits()
+        );
+        assert_eq!(
+            before.statistical_uncertainty,
+            after.statistical_uncertainty
+        );
+        assert_eq!(before.systematic_uncertainty, after.systematic_uncertainty);
+        assert_eq!(before.total_uncertainty, after.total_uncertainty);
+        assert!(!before.s10_diagnostics_provided);
+        assert!(after.s10_diagnostics_provided);
+        assert_eq!(after.b_flux_s10.value(), if i == 0 { 0.0 } else { 12.5 });
+        assert_eq!(after.v_flux_s10.value(), if i == 0 { 0.0 } else { 25.0 });
+    }
+    for value in [f64::NAN, f64::INFINITY, -1.0] {
+        let mut corrupted = v2.clone();
+        let header_len = u32::from_le_bytes(v2[8..12].try_into().unwrap()) as usize;
+        let b_offset = 12 + header_len + 32;
+        corrupted[b_offset..b_offset + 8].copy_from_slice(&value.to_le_bytes());
+        let digest_offset = corrupted.len() - 32;
+        let digest = sha256(&corrupted[..digest_offset]);
+        corrupted[digest_offset..].copy_from_slice(&digest);
+        assert!(StarlightMap::from_compact_bytes(&corrupted, provenance()).is_err());
+    }
+    assert!(StarlightMap::compact_csv(&csv.replace(",12.5,25", ",12.5"), provenance()).is_err());
+}
+
+#[test]
+fn compact_v2_flows_through_public_starlight_evaluator() {
+    use nsb::{
+        ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightProduct, Target, DEG,
+    };
+
+    let provenance = starlight_test_provenance;
+    let time = tempoch::Time::<tempoch::UTC>::from_chrono(
+        chrono::DateTime::parse_from_rfc3339("2023-09-04T01:48:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc),
+    );
+    let query = PointQuery::new(
+        siderust::catalogs::observatories::EL_PARANAL.geodetic(),
+        time,
+        Target::new(266.41683 * DEG, -29.00781 * DEG),
+    )
+    .with_components(ComponentMask::STARLIGHT);
+    let evaluate = |csv| {
+        let compact = StarlightMap::compact_csv(csv, provenance()).unwrap();
+        let map = StarlightMap::from_compact_bytes(&compact, provenance()).unwrap();
+        NsbEvaluator::with_config(
+            NsbModelConfig::generic_clear_sky()
+                .with_starlight_product(StarlightProduct::with_experimental_map(map)),
+        )
+        .unwrap()
+        .evaluate(&query)
+        .unwrap()
+    };
+    let legacy = evaluate(CSV);
+    let result = evaluate(&bv_csv());
+    assert_eq!(legacy.integrated, result.integrated);
+    assert!(legacy.b_mag.value().is_nan());
+    assert!(!legacy.components[0].bv_diagnostics_available);
+    let star = &result.components[0];
+    assert!(star.bv_diagnostics_available);
+    assert!(star.b_flux_s10.value() > 0.0);
+    assert_eq!(star.v_flux_s10.value(), 2.0 * star.b_flux_s10.value());
+    let expected = 27.78 - 2.5 * star.b_flux_s10.value().log10();
+    assert_eq!(result.b_mag.value(), expected);
+    let expected_colour = 2.5 * 2.0_f64.log10();
+    assert!((result.b_mag.value() - result.v_mag.value() - expected_colour).abs() < 1e-12);
+}

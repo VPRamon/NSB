@@ -19,6 +19,8 @@ use std::collections::{BTreeMap, BTreeSet};
 #[serde(deny_unknown_fields)]
 pub struct SpectralEstimate {
     pub hip: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bv: Option<crate::starlight::bv::BvFlux>,
     /// Justified 300--336 nm contribution from the Hp-scaled CK04 template.
     pub flux_300_336_ph_m2_s: f64,
     pub flux_336_650_ph_m2_s: f64,
@@ -350,6 +352,7 @@ pub fn build_experimental_artifact_for_product_band(
             source_id: source_id.clone(),
             origin_catalogue: "Hipparcos-2 I/311".into(),
             class: decision.class,
+            bv: estimate.and_then(|entry| entry.bv),
             gaia_source_id: decision.gaia_source_id,
             ra_deg_j2016: propagated.ra_deg_j2016,
             dec_deg_j2016: propagated.dec_deg_j2016,
@@ -656,6 +659,7 @@ mod tests {
 fn shared_band_terms_add_linearly_but_independent_sources_use_quadrature() {
     let estimate = SpectralEstimate {
         hip: 1,
+        bv: None,
         flux_300_336_ph_m2_s: 2.0,
         flux_336_650_ph_m2_s: 8.0,
         statistical_uncertainty_300_336_ph_m2_s: 0.2,

@@ -10,6 +10,7 @@ use self::processing::{
     measured_xp_flux_and_uncertainty, population_branch_reason, scientific_exclusion_reason,
 };
 use super::bright_stars::{load_bright_star_artifact, BrightStarArtifact};
+use super::bv::{BvFlux, BvInference, BvInputPins, BvRoute};
 use super::config::{
     ArtifactPinConfig, GaiaProductConfig, StarlightProductBand, UvCorrectionConfig,
 };
@@ -19,7 +20,7 @@ use super::photometric::{PhotometricCorrection, PhotometricFeatures, RouteDecisi
 use super::selection::SelectionCorrection;
 use super::sources::acquisition;
 use super::uv::{EvaluationDecision, MeasuredBandInput, UvCorrection, UvEvaluationInput};
-use super::xp::GaiaXpContinuousCalibrator;
+use super::xp::{calibrate::XpBvSampler, GaiaXpContinuousCalibrator};
 use crate::dataset::Artifact;
 use crate::platform::artifact_store;
 use anyhow::{bail, Context, Result};
@@ -40,13 +41,37 @@ pub(crate) fn build_partitions(
     photometric_config: Option<&ArtifactPinConfig>,
     selection_config: Option<&ArtifactPinConfig>,
     bright_star_config: Option<&ArtifactPinConfig>,
+    bv_config: Option<&ArtifactPinConfig>,
 ) -> Result<Vec<Artifact>> {
     if partitions.is_empty() {
         return Ok(Vec::new());
     }
     let (shared_workspace, worker_invocation) = workspace_roots(configured_workspace);
     let fixture = GaiaXpContinuousCalibrator::resolve_design_fixture_path(None, None);
-    let calibrator = GaiaXpContinuousCalibrator::from_design_fixture(&fixture)?;
+    let design_bytes = std::fs::read(&fixture)
+        .with_context(|| format!("read XP design fixture {}", fixture.display()))?;
+    let calibrator = GaiaXpContinuousCalibrator::from_design_bytes(&design_bytes)?;
+    let bv = bv_config
+        .map(|pin| {
+            let inference = BvInference::load(&pin.artifact_path, &pin.sha256)?;
+            if crate::platform::checksum_io::sha256_bytes(&design_bytes)
+                != inference.xp_design_sha256
+            {
+                bail!("B/V XP design checksum mismatch");
+            }
+            Ok((
+                calibrator.bv_sampler()?,
+                inference,
+                BvInputPins::new(
+                    pin,
+                    photometric_config,
+                    selection_config,
+                    bright_star_config,
+                    products,
+                ),
+            ))
+        })
+        .transpose()?;
     let ultraviolet_correction = ultraviolet_config
         .map(|config| -> Result<UvCorrection> {
             let correction = UvCorrection::load(&config.artifact_path, &config.sha256)?;
@@ -102,6 +127,7 @@ pub(crate) fn build_partitions(
             let selection_correction = selection_correction.as_ref();
             let suppressed_gaia_source_ids = &suppressed_gaia_source_ids;
             let shared_workspace = shared_workspace.as_path();
+            let bv = bv.as_ref();
             handles.push(scope.spawn(move || -> Result<Vec<Artifact>> {
                 chunk
                     .iter()
@@ -119,6 +145,7 @@ pub(crate) fn build_partitions(
                             photometric_correction,
                             selection_correction,
                             suppressed_gaia_source_ids,
+                            bv,
                         )
                     })
                     .collect()
@@ -155,6 +182,7 @@ fn build_partition(
     photometric_correction: Option<&PhotometricCorrection>,
     selection_correction: Option<&SelectionCorrection>,
     suppressed_gaia_source_ids: &BTreeSet<u64>,
+    bv: Option<&(XpBvSampler, BvInference, BvInputPins)>,
 ) -> Result<Artifact> {
     let gaia_path = acquisition::verified_object_for_partition(
         shared_workspace,
@@ -204,6 +232,7 @@ fn build_partition(
             None
         },
     )?;
+    shard.bv_input_pins = bv.map(|(_, _, pins)| pins.clone());
     let mut processed = HashSet::new();
     let mut stream = super::xp::stream_bulk_ecsv_gz(&xp_path)?;
     while let Some(record) = stream.next_record()? {
@@ -211,7 +240,9 @@ fn build_partition(
             .source_id
             .parse::<u64>()
             .with_context(|| format!("invalid XP source_id {}", record.source_id))?;
-        processed.insert(source_id);
+        if !processed.insert(source_id) && bv.is_some() {
+            bail!("duplicate XP source_id {source_id} in B/V partition {partition_id}");
+        }
         let Some(gaia_source) = gaia_sources.get(&source_id) else {
             // XP row without a matching GaiaSource row has no authoritative ICRS
             // position; skip spatial exclusion rather than invent coordinates.
@@ -246,7 +277,7 @@ fn build_partition(
                 continue;
             }
         };
-        if let Err(reason) = admit_weighted_source(
+        match admit_weighted_source(
             &mut shard,
             gaia_source,
             flux,
@@ -256,11 +287,32 @@ fn build_partition(
             ultraviolet_correction,
             selection_correction,
         ) {
-            exclude_gaia_source(&mut shard, gaia_source, reason)?;
-        } else if suppressed_gaia_source_ids.contains(&source_id) {
-            shard
-                .bright_star_base_admitted_replacement_gaia_ids
-                .insert(source_id);
+            Err(reason) => exclude_gaia_source(&mut shard, gaia_source, reason)?,
+            Ok((weight, selection_fraction)) => {
+                if let Some((sampler, calibration, _)) = bv {
+                    let xp = sampler.sample(&record).with_context(|| {
+                        format!("B/V reconstruction of admitted Gaia source {source_id}")
+                    })?;
+                    let estimate = BvFlux {
+                        flux_w_m2_nm: xp.flux_w_m2_nm,
+                        statistical_covariance: [
+                            xp.covariance[0][0],
+                            xp.covariance[1][1],
+                            xp.covariance[0][1],
+                        ],
+                        independent_systematic_sigma: [0.0; 2],
+                        shared_systematic_sigma: std::array::from_fn(|i| {
+                            xp.flux_w_m2_nm[i].abs() * calibration.xp_shared_calibration_fraction[i]
+                        }),
+                    };
+                    shard.add_admitted_bv(
+                        gaia_source.icrs,
+                        estimate.weighted(weight),
+                        BvRoute::GaiaXp,
+                        selection_fraction,
+                    )?;
+                }
+            }
         }
     }
 
@@ -289,13 +341,14 @@ fn build_partition(
             exclude_gaia_source(&mut shard, gaia_source, "no_xp_spectrum")?;
             continue;
         };
-        let route = match photometric.route_and_evaluate(PhotometricFeatures {
+        let features = PhotometricFeatures {
             phot_g_mean_mag: gaia_source.phot_g_mean_mag,
             phot_bp_mean_mag: gaia_source.phot_bp_mean_mag,
             phot_rp_mean_mag: gaia_source.phot_rp_mean_mag,
             bp_rp: gaia_source.bp_rp,
             quality_flag: true,
-        }) {
+        };
+        let route = match photometric.route_and_evaluate(features) {
             Ok(route) => route,
             Err(_) => {
                 exclude_gaia_source(&mut shard, gaia_source, "photometric_evaluation_failed")?;
@@ -307,7 +360,7 @@ fn build_partition(
             exclude_gaia_source(&mut shard, gaia_source, population_branch_reason(branch))?;
             continue;
         };
-        if let Err(reason) = admit_weighted_source(
+        match admit_weighted_source(
             &mut shard,
             gaia_source,
             estimate.flux_336_650_ph_m2_s,
@@ -317,11 +370,22 @@ fn build_partition(
             ultraviolet_correction,
             selection_correction,
         ) {
-            exclude_gaia_source(&mut shard, gaia_source, reason)?;
-        } else if suppressed_gaia_source_ids.contains(source_id) {
-            shard
-                .bright_star_base_admitted_replacement_gaia_ids
-                .insert(*source_id);
+            Err(reason) => exclude_gaia_source(&mut shard, gaia_source, reason)?,
+            Ok((weight, selection_fraction)) => {
+                if let Some((_, calibration, _)) = bv {
+                    let (estimate, route) = calibration
+                        .predict(gaia_source.icrs, features)
+                        .with_context(|| {
+                            format!("B/V inference for admitted Gaia source {source_id}")
+                        })?;
+                    shard.add_admitted_bv(
+                        gaia_source.icrs,
+                        estimate.weighted(weight),
+                        route,
+                        selection_fraction,
+                    )?;
+                }
+            }
         }
     }
 
@@ -354,7 +418,7 @@ pub(crate) fn bright_star_supplement_shard(
     verified_artifact_sha256: &str,
     canonical_nside: u32,
     product_band: StarlightProductBand,
-    _ultraviolet_correction: Option<&UvCorrection>,
+    bv_input_pins: Option<&BvInputPins>,
 ) -> Result<PartitionShard> {
     artifact.validate()?;
     if artifact.nside != canonical_nside {
@@ -389,6 +453,7 @@ pub(crate) fn bright_star_supplement_shard(
             provenance,
         )?,
     };
+    shard.bv_input_pins = bv_input_pins.cloned();
     shard.bright_star_replacement_gaia_ids = artifact.suppressed_gaia_source_ids()?;
     for source in &artifact.sources {
         if matches!(
@@ -397,6 +462,17 @@ pub(crate) fn bright_star_supplement_shard(
                 | super::bright_stars::SupplementClass::MatchedAndReplacesPrimary
         ) {
             shard.admit_bright_star_source(source)?;
+            if bv_input_pins.is_some() {
+                let estimate = source.bv.with_context(|| {
+                    format!("admitted {} lacks B/V reconstruction", source.source_id)
+                })?;
+                shard.add_admitted_bv(
+                    healpix::IcrsSkyPosition::new(source.ra_deg_j2016, source.dec_deg_j2016)?,
+                    estimate,
+                    BvRoute::HipparcosCk04,
+                    0.0,
+                )?;
+            }
         }
     }
     shard.validate()?;
@@ -413,7 +489,7 @@ fn admit_weighted_source(
     product_band: StarlightProductBand,
     ultraviolet_correction: Option<&UvCorrection>,
     selection_correction: Option<&SelectionCorrection>,
-) -> Result<(), &'static str> {
+) -> Result<(f64, f64), &'static str> {
     let (weight, selection_systematic_fraction) =
         selection_weight(selection_correction, gaia_source)?;
     let weighted_flux = weight * flux;
@@ -427,6 +503,7 @@ fn admit_weighted_source(
                 weighted_statistical,
                 systematic,
             )
+            .map(|()| (weight, selection_systematic_fraction))
             .map_err(|_| "admission_failed");
     }
     let correction = ultraviolet_correction.ok_or("uv_correction_missing")?;
@@ -460,6 +537,7 @@ fn admit_weighted_source(
         .hypot(systematic);
     shard
         .admit_corrected(gaia_source.icrs, &combined)
+        .map(|()| (weight, selection_systematic_fraction))
         .map_err(|_| "admission_failed")
 }
 
@@ -554,8 +632,9 @@ mod tests {
         let gaia_only_source_id = "999";
 
         let gaia_bytes = gzip_bytes(
-            format!("source_id,ra,dec\n{source_id},45.0,20.0\n{gaia_only_source_id},50.0,10.0\n")
-                .as_bytes(),
+            format!(
+                "source_id,ra,dec,phot_g_mean_mag\n{source_id},45.0,20.0,15\n{gaia_only_source_id},50.0,10.0,15\n"
+            ).as_bytes(),
         )?;
         let correlations = vec![0.0; 55 * 54 / 2];
         let arrays = |name: &str| serde_json::to_string(&oracle[name]).unwrap();
@@ -631,6 +710,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )?;
         assert_eq!(artifacts.len(), 1);
         let shard: PartitionShard = serde_json::from_slice(&fs::read(&artifacts[0].path)?)?;
@@ -658,6 +738,7 @@ mod tests {
             StarlightProductBand::Measured336To650,
             None,
             None,
+            None,
         )?;
         assert_eq!(maps.len(), 2);
         crate::starlight::map::product::validate_map(
@@ -666,6 +747,91 @@ mod tests {
                 .join(format!("starlight_nside{canonical_nside}.csv")),
             canonical_nside,
         )?;
+        let design = GaiaXpContinuousCalibrator::resolve_design_fixture_path(None, None);
+        let split = |id: &str, pixel: &str| {
+            serde_json::json!({
+                "partition_id": id, "source_count": 1, "source_ids_sha256": "a".repeat(64),
+                "sky_regions": [pixel]
+            })
+        };
+        let bv_config = serde_json::json!({
+            "schema_version": 1,
+            "reference_nm": [445.0, 551.0],
+            "sky_nside": 1,
+            "g_edges": [10.0, 18.0], "bp_g_edges": [-1.0, 4.0], "g_rp_edges": [-1.0, 4.0],
+            "cells": [{
+                "key": { "route": "g_only", "sky_pixel":
+                             healpix::galactic_nested_pixel_from_icrs_position(50.0, 10.0, 1)?,
+                         "g_bin": 0,
+                         "bp_g_bin": null, "g_rp_bin": null },
+                "mean_w_m2_nm_at_g15": [1e-14, 2e-14],
+                "residual_covariance_at_g15": [3e-28, 2e-28, 1e-28],
+                "shared_fraction": [0.05, 0.05]
+            }],
+            "xp_shared_calibration_fraction": [0.01, 0.01],
+            "xp_design_sha256": checksum_io::sha256_file(&design)?,
+            "held_out_report_sha256": "b".repeat(64),
+            "partitions": {
+                "assignment_algorithm": "fixture", "seed": 0, "manifest_sha256": "a".repeat(64),
+                "training": split("train", "1"), "validation": split("validation", "2"),
+                "test": split("test", "3"), "source_disjoint": true, "sky_disjoint": true,
+                "disjointness_evidence_sha256": "c".repeat(64)
+            },
+            "software_commit": "a".repeat(40),
+            "training_command": "synthetic test only"
+        });
+        let bv_bytes = serde_json::to_vec(&bv_config)?;
+        let bv_path = workspace.join("synthetic-bv.json");
+        fs::write(&bv_path, &bv_bytes)?;
+        let bv_pin = ArtifactPinConfig {
+            artifact_path: bv_path,
+            sha256: checksum_io::sha256_bytes(&bv_bytes),
+        };
+        let photo_pin = ArtifactPinConfig {
+            artifact_path: PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/photometric_xp_anchored_v1/artifact.json"),
+            sha256: "02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2".into(),
+        };
+        let build = |bv| -> Result<PartitionShard> {
+            let artifacts = build_partitions(
+                workspace,
+                &products,
+                &[partition.to_string()],
+                1,
+                canonical_nside,
+                StarlightProductBand::Measured336To650,
+                None,
+                Some(&photo_pin),
+                None,
+                None,
+                bv,
+            )?;
+            Ok(serde_json::from_slice(&fs::read(&artifacts[0].path)?)?)
+        };
+        let integrated = build(None)?;
+        let mut bv_shard = build(Some(&bv_pin))?;
+        bv_shard.validate()?;
+        assert_eq!(
+            bv_shard
+                .bv_input_pins
+                .take()
+                .map(|pins| pins.calibration_sha256),
+            Some(bv_pin.sha256)
+        );
+        let mut counts = std::collections::BTreeMap::new();
+        for pixel in bv_shard.pixels.values_mut() {
+            if let Some(bv) = pixel.bv.take() {
+                counts.extend(bv.evidence().source_counts);
+            }
+        }
+        assert_eq!(
+            counts,
+            std::collections::BTreeMap::from([(BvRoute::GaiaXp, 1), (BvRoute::GOnly, 1)])
+        );
+        assert_eq!(
+            serde_json::to_vec(&bv_shard)?,
+            serde_json::to_vec(&integrated)?
+        );
         // Exercise the interval lifecycle with the same checksum-verified inputs.
         // No production data are involved: this is an isolated temporary fixture.
         let config = crate::starlight::config::StarlightConfig {
@@ -676,6 +842,7 @@ mod tests {
             spectral_bin_edges_nm: None,
             ultraviolet_correction: None,
             photometric_inference: None,
+            bv_photometry: None,
             selection_function: None,
             bright_star_supplement: None,
             ingestion_audit: None,
@@ -907,6 +1074,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )?;
         let shard: PartitionShard = serde_json::from_slice(&fs::read(&artifacts[0].path)?)?;
         assert_eq!(
@@ -1105,6 +1273,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )?;
         assert_eq!(artifacts.len(), 1);
         let shard: PartitionShard = serde_json::from_slice(&fs::read(&artifacts[0].path)?)?;
@@ -1149,6 +1318,7 @@ mod tests {
         let commit = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
         let sources = vec![
             BrightStarSourceRecord {
+                bv: None,
                 source_id: "hip-1".into(),
                 origin_catalogue: "hip2".into(),
                 class: SupplementClass::SupplementOnly,
@@ -1170,6 +1340,7 @@ mod tests {
                 classification_reason: "fixture".into(),
             },
             BrightStarSourceRecord {
+                bv: None,
                 source_id: "hip-2".into(),
                 origin_catalogue: "hip2".into(),
                 class: SupplementClass::MatchedAndReplacesPrimary,
@@ -1188,6 +1359,7 @@ mod tests {
                 classification_reason: "fixture".into(),
             },
             BrightStarSourceRecord {
+                bv: None,
                 source_id: "hip-3".into(),
                 origin_catalogue: "hip2".into(),
                 class: SupplementClass::MatchedAndRejectedAsDuplicate,

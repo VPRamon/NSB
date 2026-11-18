@@ -140,14 +140,25 @@ impl ValidatedStarlightMap {
             )));
         }
 
-        let compact = map_bytes.starts_with(super::compact::MAGIC);
+        let compact = [super::compact::MAGIC_V1, super::compact::MAGIC_V2]
+            .iter()
+            .any(|magic| map_bytes.starts_with(*magic));
         let raw = if compact {
             super::compact::parts(map_bytes)?.0
         } else {
             std::str::from_utf8(map_bytes)
                 .map_err(|err| invalid(format!("starlight map is not UTF-8: {err}")))?
         };
-        manifest.validate_headers(&parse_header_metadata(raw))?;
+        let headers = parse_header_metadata(raw);
+        if map_bytes.starts_with(super::compact::MAGIC_V2)
+            || headers.get("s10_diagnostics").map(String::as_str)
+                == Some(super::compact::S10_REFERENCE_PAIR)
+        {
+            return Err(invalid(
+                "version-1 production admission does not attest to B/V photometry",
+            ));
+        }
+        manifest.validate_headers(&headers)?;
         let provenance = manifest.provenance(actual_checksum);
         let map = if compact {
             StarlightMap::from_compact_bytes(map_bytes, provenance)?

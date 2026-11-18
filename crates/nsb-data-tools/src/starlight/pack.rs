@@ -1,19 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
-//! Deterministic packing of a checksum-pinned candidate-v1 map into a runtime HEALPix CSV.
+//! Deterministic packing of a checksum-pinned candidate into a runtime HEALPix product.
 //!
 //! The candidate bytes are never rewritten. Omitted sparse pixels become zero
-//! radiance and zero uncertainty. B/V S10 diagnostics are not synthesized.
+//! radiance and zero uncertainty. An opt-in B/V candidate uses merged source evidence.
 
-use crate::platform::checksum_io;
+use super::bv::BvPixelEvidence;
+use crate::platform::{artifact_store, checksum_io};
 use crate::starlight::validation::candidate_map::{self, CandidateMap};
 use anyhow::{bail, Context, Result};
+use nsb::components::starlight::{StarlightMap, StarlightProvenance};
+use nsb::units::{
+    radiometry::WattsPerSquareMeterSteradianNanometer, s10_for_spectral_energy_radiance,
+};
 use serde::{Deserialize, Serialize};
 use siderust::healpix::{HealpixGrid, HealpixOrdering, Nside};
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Packer identity recorded in the runtime sidecar.
 pub const PACKER_ID: &str = "starlight-runtime-pack-v1";
@@ -89,7 +94,7 @@ pub fn pack_candidate_map(inputs: &PackInputs) -> Result<PackOutcome> {
         );
     }
 
-    let packed = render_packed_csv(&candidate, &inputs.provenance_headers)?;
+    let packed = render_packed_csv(&candidate, &inputs.provenance_headers, None)?;
     if let Some(parent) = inputs.output_csv.parent() {
         if !parent.as_os_str().is_empty() {
             fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
@@ -148,6 +153,7 @@ pub fn pack_candidate_map(inputs: &PackInputs) -> Result<PackOutcome> {
 fn render_packed_csv(
     candidate: &CandidateMap,
     provenance_headers: &BTreeMap<String, String>,
+    bv: Option<&BTreeMap<u32, BvPixelEvidence>>,
 ) -> Result<String> {
     let nside = candidate.nside;
     let grid = ring_grid(nside)?;
@@ -156,7 +162,11 @@ fn render_packed_csv(
     let mut sum_in = 0.0;
     let mut sum_out = 0.0;
     let mut out = String::new();
-    out.push_str("# schema=nsb-healpix-starlight-v1\n");
+    out.push_str(if bv.is_some() {
+        "# schema=nsb-healpix-starlight-v2\n"
+    } else {
+        "# schema=nsb-healpix-starlight-v1\n"
+    });
     out.push_str("# packer_id=");
     out.push_str(PACKER_ID);
     out.push('\n');
@@ -170,7 +180,11 @@ fn render_packed_csv(
     out.push_str("# coordinate_frame=galactic\n");
     out.push_str(&format!("# nside={nside}\n"));
     out.push_str("# ordering=ring\n");
-    out.push_str("# s10_diagnostics=not_provided\n");
+    out.push_str(if bv.is_some() {
+        "# s10_diagnostics=monochromatic_445_551_nm_nsb_s10\n"
+    } else {
+        "# s10_diagnostics=not_provided\n"
+    });
     for (key, value) in provenance_headers {
         if matches!(
             key.as_str(),
@@ -188,20 +202,47 @@ fn render_packed_csv(
         }
         writeln!(out, "# {key}={value}").expect("write packed header");
     }
-    out.push_str(
-        "healpix_index,integrated_ph_cm2_ns_sr,statistical_uncertainty_ph_cm2_ns_sr,systematic_uncertainty_ph_cm2_ns_sr,total_uncertainty_ph_cm2_ns_sr\n",
-    );
+    out.push_str(packed_data_header());
+    if bv.is_some() {
+        out.push_str(",b_flux_s10,v_flux_s10");
+    }
+    out.push('\n');
 
+    let mut dense_bv = bv.map(|_| vec![[0.0; 2]; usize::try_from(npix).expect("npix fits usize")]);
+    let mut matched_bv = 0;
     let mut dense = vec![(0.0, 0.0, 0.0, 0.0); usize::try_from(npix).expect("npix fits usize")];
     for (nested_index, pixel) in &candidate.pixels {
         let ring = nest2ring(nside, u64::from(*nested_index))?;
         let slot = usize::try_from(ring).expect("ring index fits usize");
+        if let (Some(bv), Some(dense_bv)) = (bv, &mut dense_bv) {
+            match bv.get(nested_index) {
+                Some(pixel_bv) if pixel.admitted_sources > 0 => {
+                    matched_bv += 1;
+                    let fluxes = pixel_bv.flux_w_m2_nm;
+                    if fluxes.iter().any(|x| !x.is_finite() || *x < 0.0) {
+                        bail!("invalid summed B/V flux in occupied NESTED pixel {nested_index}");
+                    }
+                    dense_bv[slot] = fluxes.map(|flux| {
+                        s10_for_spectral_energy_radiance(
+                            WattsPerSquareMeterSteradianNanometer::new(flux / omega),
+                        )
+                        .value()
+                    });
+                }
+                None if pixel.admitted_sources == 0 => {}
+                _ => bail!("B/V coverage disagrees with NESTED pixel {nested_index}"),
+            }
+        }
         dense[slot] = (
             pixel.flux_ph_m2_s,
             pixel.statistical_uncertainty_ph_m2_s,
             pixel.systematic_uncertainty_ph_m2_s,
             pixel.total_uncertainty_ph_m2_s,
         );
+    }
+
+    if bv.is_some_and(|pixels| pixels.len() != matched_bv) {
+        bail!("B/V pixels outside the integrated candidate");
     }
 
     for (index, (flux, statistical, systematic, total)) in dense.into_iter().enumerate() {
@@ -214,11 +255,16 @@ fn render_packed_csv(
         let total_r = flux_to_runtime_radiance(total, omega)?;
         sum_in += flux;
         sum_out += radiance * omega / PH_M2_S_SR_TO_PH_CM2_NS_SR;
-        writeln!(
+        write!(
             out,
             "{index},{radiance:.16e},{statistical_r:.16e},{systematic_r:.16e},{total_r:.16e}"
         )
         .expect("write packed row");
+        if let Some(dense_bv) = &dense_bv {
+            let [b, v] = dense_bv[index];
+            write!(out, ",{b:.16e},{v:.16e}").expect("write packed B/V");
+        }
+        out.push('\n');
     }
 
     let scale = sum_in.abs().max(sum_out.abs()).max(1.0);
@@ -229,6 +275,93 @@ fn render_packed_csv(
         );
     }
     Ok(out)
+}
+
+/// Stage one unpublished compact candidate and its uncertainty/provenance evidence.
+pub(crate) fn stage_bv_candidate(
+    output: &Path,
+    candidate: &CandidateMap,
+    merged: &super::map::accumulator::PartitionShard,
+    merge_report_sha256: &str,
+) -> Result<()> {
+    let pins = merged
+        .bv_input_pins
+        .as_ref()
+        .context("missing B/V input pins")?;
+    let calibration = &pins.calibration_sha256;
+    let ultraviolet = merged
+        .ultraviolet_correction
+        .as_ref()
+        .context("missing UV provenance")?;
+    let pixels = merged
+        .pixels
+        .iter()
+        .filter_map(|(&pixel, sum)| sum.bv.as_ref().map(|bv| (pixel, bv.evidence())))
+        .collect::<BTreeMap<_, _>>();
+    let evidence = serde_json::to_vec(&serde_json::json!({
+        "schema": "nsb-starlight-bv-evidence-v1",
+        "status": "candidate",
+        "reference_nm": super::xp::calibrate::BV_REFERENCE_NM,
+        "coordinate_frame": "galactic",
+        "ordering": "nested",
+        "nside": candidate.nside,
+        "integrated_map_sha256": candidate.sha256,
+        "merge_report_sha256": merge_report_sha256,
+        "calibration_sha256": calibration,
+        "input_pins": pins,
+        "flux_density_unit": "W m-2 nm-1",
+        "pixels": pixels,
+    }))?;
+    let evidence_sha256 = checksum_io::sha256_bytes(&evidence);
+    let headers = BTreeMap::from([
+        (
+            "dataset_name".into(),
+            "NSB Starlight monochromatic B/V candidate".into(),
+        ),
+        (
+            "source_catalogue".into(),
+            "Gaia DR3 and Hipparcos-2/XHIP".into(),
+        ),
+        ("calibration_status".into(), "candidate".into()),
+        (
+            "band_definition".into(),
+            "integrated 300-650 nm photon radiance; monochromatic 445 and 551 nm S10".into(),
+        ),
+        ("bv_calibration_sha256".into(), calibration.into()),
+        ("bv_evidence_sha256".into(), evidence_sha256.clone()),
+        (
+            "uv_correction_sha256".into(),
+            ultraviolet.artifact_sha256.clone(),
+        ),
+    ]);
+    let provenance = StarlightProvenance::new(
+        "NSB Starlight monochromatic B/V candidate",
+        "2",
+        "see run manifest",
+        "Gaia DR3 and Hipparcos-2/XHIP",
+        "see checksum-pinned inputs",
+        "see integrated candidate",
+        "300-650 nm, 445/551 nm",
+        format!("HEALPix nside={} ordering=ring", candidate.nside),
+        None::<String>,
+    );
+    let csv = render_packed_csv(candidate, &headers, Some(&pixels))?;
+    let compact = StarlightMap::compact_csv(&csv, provenance)?;
+    let compact_sha256 = checksum_io::sha256_bytes(&compact);
+    fs::create_dir_all(output)?;
+    artifact_store::atomic_write(&output.join("uncertainties.json"), &evidence)?;
+    artifact_store::atomic_write(&output.join("starlight.compact.bin"), &compact)?;
+    artifact_store::atomic_write(
+        &output.join("manifest.json"),
+        &serde_json::to_vec_pretty(&serde_json::json!({
+            "schema": "nsb-starlight-bv-candidate-manifest-v1",
+            "calibration_status": "candidate",
+            "map_sha256": compact_sha256,
+            "uncertainties_sha256": evidence_sha256,
+            "integrated_map_sha256": candidate.sha256,
+            "merge_report_sha256": merge_report_sha256,
+        }))?,
+    )
 }
 
 fn flux_to_runtime_radiance(flux_ph_m2_s: f64, pixel_sr: f64) -> Result<f64> {
