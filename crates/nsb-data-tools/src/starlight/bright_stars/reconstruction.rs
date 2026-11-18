@@ -197,7 +197,7 @@ pub fn reconstruct_spectral_estimates(
     reconstruct_spectral_estimates_with_bv(hipparcos, xhip_by_hip, model, product_band, false)
 }
 
-pub(super) fn reconstruct_spectral_estimates_with_bv(
+pub(in crate::starlight) fn reconstruct_spectral_estimates_with_bv(
     hipparcos: &[Hipparcos2Record],
     xhip_by_hip: &BTreeMap<u32, XhipRecord>,
     model: &SpectralReconstructionModel,
@@ -345,7 +345,7 @@ fn reconstruct_bv(
 pub const UV_COMPLETION_MODEL_ID_V1: &str = "ck04-hp-scaled-uv-300-336-v1";
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
     use crate::starlight::bright_stars::HipparcosAstrometry;
 
@@ -358,8 +358,11 @@ mod tests {
         }
     }
 
-    #[test]
-    fn reconstruction_propagates_photometric_and_correlated_uncertainty() {
+    pub(crate) fn fixture() -> (
+        SpectralReconstructionModel,
+        Hipparcos2Record,
+        BTreeMap<u32, XhipRecord>,
+    ) {
         let model = SpectralReconstructionModel {
             model_id: SPECTRAL_RECONSTRUCTION_MODEL_ID_V1.into(),
             builder_software_commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
@@ -427,6 +430,12 @@ mod tests {
                 radial_velocity_uncertainty_km_s: Some(1.0),
             },
         )]);
+        (model, hip, xhip)
+    }
+
+    #[test]
+    fn reconstruction_propagates_photometric_and_correlated_uncertainty() {
+        let (model, hip, xhip) = fixture();
         let estimate = reconstruct_spectral_estimates(
             std::slice::from_ref(&hip),
             &xhip,

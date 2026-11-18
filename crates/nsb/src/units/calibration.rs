@@ -29,7 +29,9 @@ pub(crate) const S10_TO_W_M2_SR_NM: WattsPerSquareMeterSteradianNanometer =
     S10_TO_W_M2_SR_UM.to_const::<unit::WattPerSquareMeterSteradianNanometer>();
 
 /// Convert monochromatic spectral energy radiance to the historical NSB S10 scale.
-pub fn s10_for_spectral_energy_radiance(radiance: WattsPerSquareMeterSteradianNanometer) -> S10s {
+pub(crate) fn s10_for_spectral_energy_radiance(
+    radiance: WattsPerSquareMeterSteradianNanometer,
+) -> S10s {
     S10s::new(radiance.value() / S10_TO_W_M2_SR_NM.value())
 }
 

@@ -11,7 +11,7 @@ use super::xp::calibrate::BV_REFERENCE_NM;
 use crate::platform::checksum_io;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
@@ -123,8 +123,11 @@ impl ColourRoute {
     /// The ordered full-colour features are BP−G and G−RP.
     fn features(features: PhotometricFeatures) -> Option<(Self, f64, [Option<f64>; 2])> {
         let g = features.phot_g_mean_mag.filter(|x| x.is_finite())?;
-        let bp = features.phot_bp_mean_mag.filter(|x| x.is_finite());
-        let rp = features.phot_rp_mean_mag.filter(|x| x.is_finite());
+        let bp = features.phot_bp_mean_mag;
+        let rp = features.phot_rp_mean_mag;
+        if [bp, rp].into_iter().flatten().any(|x| !x.is_finite()) {
+            return None;
+        }
         let route = match (bp, rp) {
             (Some(_), Some(_)) => Self::Full,
             (Some(_), None) => Self::GAndBp,
@@ -156,12 +159,21 @@ struct Cell {
     residual_covariance_at_g15: [f64; 3],
     /// Shared held-out model error within this conditional cell.
     shared_fraction: [f64; 2],
+    training_sources: u64,
+    validation_sources: u64,
+    validation_sky_cells: usize,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Calibration {
     schema_version: u32,
+    calibration_status: String,
+    reference_provenance: String,
+    policy_sha256: String,
+    min_training: u64,
+    min_validation: u64,
+    min_validation_sky_cells: usize,
     reference_nm: [f64; 2],
     sky_nside: u32,
     g_edges: Vec<f64>,
@@ -199,6 +211,13 @@ impl BvInference {
             .validate()
             .context("B/V calibration partition evidence")?;
         if a.schema_version != 1
+            || a.calibration_status != "candidate"
+            || a.reference_provenance.trim().is_empty()
+            || !is_sha256(&a.policy_sha256)
+            || !matches!(a.sky_nside, 1 | 2 | 4 | 8)
+            || a.min_training < 2
+            || a.min_validation < 2
+            || a.min_validation_sky_cells < 2
             || a.reference_nm != BV_REFERENCE_NM
             || a.cells.is_empty()
             || a.training_command.trim().is_empty()
@@ -211,6 +230,14 @@ impl BvInference {
                 .any(|x| !x.is_finite() || *x <= 0.0)
         {
             bail!("invalid B/V calibration identity or partition evidence");
+        }
+        let validation_sky = calibration_splits(&a.partitions)?;
+        let fine_pixels_per_parent = (16 / a.sky_nside).pow(2);
+        let mut validation_by_parent = BTreeMap::new();
+        for pixel in validation_sky {
+            *validation_by_parent
+                .entry(pixel / fine_pixels_per_parent)
+                .or_insert(0_usize) += 1;
         }
         for edges in [&a.g_edges, &a.bp_g_edges, &a.g_rp_edges] {
             if edges.len() < 2
@@ -226,6 +253,17 @@ impl BvInference {
             let uses_bp = matches!(key.route, ColourRoute::Full | ColourRoute::GAndBp);
             let uses_rp = matches!(key.route, ColourRoute::Full | ColourRoute::GAndRp);
             if u64::from(key.sky_pixel) >= pixels
+                || cell.training_sources < a.min_training
+                || cell.training_sources > a.partitions.training.source_count
+                || cell.validation_sources < a.min_validation
+                || cell.validation_sources > a.partitions.validation.source_count
+                || cell.validation_sky_cells < a.min_validation_sky_cells
+                || cell.validation_sky_cells as u64 > cell.validation_sources
+                || cell.validation_sky_cells
+                    > validation_by_parent
+                        .get(&key.sky_pixel)
+                        .copied()
+                        .unwrap_or(0)
                 || key.g_bin >= a.g_edges.len() - 1
                 || key.bp_g_bin.is_some() != uses_bp
                 || key.g_rp_bin.is_some() != uses_rp
@@ -250,6 +288,15 @@ impl BvInference {
                 bail!("duplicate B/V calibration cell");
             }
         }
+        if cells
+            .keys()
+            .map(|key| key.route)
+            .collect::<BTreeSet<_>>()
+            .len()
+            != 4
+        {
+            bail!("B/V calibration does not support all four photometric routes");
+        }
         Ok(Self {
             xp_shared_calibration_fraction: a.xp_shared_calibration_fraction,
             xp_design_sha256: a.xp_design_sha256,
@@ -269,7 +316,7 @@ impl BvInference {
         features: PhotometricFeatures,
     ) -> Result<(BvFlux, BvRoute)> {
         let (route, g, [bp_g, g_rp]) =
-            ColourRoute::features(features).context("no usable G for B/V inference")?;
+            ColourRoute::features(features).context("invalid Gaia photometry for B/V inference")?;
         let sky_pixel = galactic_nested_pixel_from_icrs_position(
             position.ra_deg,
             position.dec_deg,
@@ -296,9 +343,56 @@ impl BvInference {
         }
         .weighted(10_f64.powf(-0.4 * (g - 15.0)));
         flux.validate()?;
+        if flux.flux_w_m2_nm.into_iter().any(|x| x <= 0.0) {
+            bail!("B/V photometric normalization is out of numeric range");
+        }
         // Fully correlated envelope across cells within the same model.
         Ok((flux, route.into()))
     }
+}
+
+const SPLIT_ALGORITHM: &str = "sha256-galactic-nested-nside16-mod10-v1";
+
+fn split_index(seed: u64, pixel: u32) -> usize {
+    let hex = checksum_io::sha256_bytes(format!("{seed}:{pixel}").as_bytes());
+    match u64::from_str_radix(&hex[..16], 16).expect("SHA-256 hex") % 10 {
+        0..=5 => 0,
+        6..=7 => 1,
+        _ => 2,
+    }
+}
+
+fn calibration_splits(evidence: &PartitionEvidence) -> Result<Vec<u32>> {
+    let partitions = [&evidence.training, &evidence.validation, &evidence.test];
+    if evidence.assignment_algorithm != SPLIT_ALGORITHM
+        || partitions
+            .iter()
+            .map(|p| &p.source_ids_sha256)
+            .collect::<BTreeSet<_>>()
+            .len()
+            != 3
+    {
+        bail!("invalid B/V training, validation or test split identity");
+    }
+    let mut validation = Vec::new();
+    for (split, partition) in partitions.into_iter().enumerate() {
+        if partition.source_count < partition.sky_regions.len() as u64 {
+            bail!("B/V split lists more sky cells than sources");
+        }
+        for region in &partition.sky_regions {
+            let pixel: u32 = region.parse().context("invalid B/V nside-16 sky cell")?;
+            if pixel >= 12 * 16 * 16
+                || region != &pixel.to_string()
+                || split_index(evidence.seed, pixel) != split
+            {
+                bail!("B/V sky cell {region} disagrees with its assigned split");
+            }
+            if split == 1 {
+                validation.push(pixel);
+            }
+        }
+    }
+    Ok(validation)
 }
 
 fn bin(edges: &[f64], value: f64) -> Result<usize> {
@@ -308,7 +402,7 @@ fn bin(edges: &[f64], value: f64) -> Result<usize> {
     Ok(edges.partition_point(|edge| *edge <= value) - 1)
 }
 
-fn is_sha256(value: &str) -> bool {
+pub(crate) fn is_sha256(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|b| b.is_ascii_hexdigit())
 }
 
@@ -370,13 +464,41 @@ pub(crate) struct BvAccumulator {
     counts: BTreeMap<BvRoute, u64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct BvPixelEvidence {
     pub flux_w_m2_nm: [f64; 2],
     pub statistical_covariance: [f64; 3],
     pub independent_systematic_covariance: [f64; 3],
     pub shared_systematic_sigma: BTreeMap<String, [f64; 2]>,
     pub source_counts: BTreeMap<BvRoute, u64>,
+}
+
+impl BvPixelEvidence {
+    pub(crate) fn validate(&self, admitted: u64) -> Result<()> {
+        check_covariance(self.statistical_covariance)?;
+        check_covariance(self.independent_systematic_covariance)?;
+        let count = self
+            .source_counts
+            .values()
+            .try_fold(0_u64, |sum, count| sum.checked_add(*count));
+        if count != Some(admitted)
+            || admitted == 0
+            || self.source_counts.values().any(|&n| n == 0)
+            || self
+                .shared_systematic_sigma
+                .keys()
+                .any(|group| group.trim().is_empty())
+            || self
+                .shared_systematic_sigma
+                .values()
+                .flatten()
+                .any(|x| !x.is_finite() || *x < 0.0)
+        {
+            bail!("B/V evidence has invalid source counts or systematic uncertainties");
+        }
+        Ok(())
+    }
 }
 
 impl BvAccumulator {
@@ -512,8 +634,59 @@ impl BvAccumulator {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+
+    pub(crate) fn calibration_fixture(
+        sky_pixels: &[u32],
+        design_sha256: &str,
+    ) -> serde_json::Value {
+        use serde_json::json;
+        let routes = [
+            ("full", Some(0), Some(0)),
+            ("g_and_bp", Some(0), None),
+            ("g_and_rp", None, Some(0)),
+            ("g_only", None, None),
+        ];
+        let cells: Vec<_> = sky_pixels.iter().flat_map(|&pixel|
+            routes.map(|(route, bp, rp)| json!({
+                "key": {"route": route, "sky_pixel": pixel, "g_bin": 0, "bp_g_bin": bp, "g_rp_bin": rp},
+                "mean_w_m2_nm_at_g15": if pixel % 2 == 0 { [1e-14, 2e-14] } else { [4e-14, 1e-14] },
+                "residual_covariance_at_g15": [3e-28, 2e-28, -1e-28],
+                "shared_fraction": [0.05, 0.05], "training_sources": 2,
+                "validation_sources": 2, "validation_sky_cells": 2
+            }))
+        ).collect();
+        let split = |index, id| {
+            let sky: Vec<_> = sky_pixels
+                .iter()
+                .flat_map(|&pixel| {
+                    (pixel * 256..(pixel + 1) * 256)
+                        .filter(move |&p| split_index(0, p) == index)
+                        .take(2)
+                        .map(|p| p.to_string())
+                })
+                .collect();
+            json!({"partition_id": id, "source_count": sky.len(), "sky_regions": sky,
+                "source_ids_sha256": checksum_io::sha256_bytes(format!("{index}").as_bytes())})
+        };
+        json!({
+            "schema_version": 1, "calibration_status": "candidate",
+            "reference_provenance": "synthetic labels for CI only",
+            "policy_sha256": "b".repeat(64), "min_training": 2,
+            "min_validation": 2, "min_validation_sky_cells": 2,
+            "reference_nm": [445.0, 551.0], "sky_nside": 1,
+            "g_edges": [10.0, 18.0], "bp_g_edges": [-1.0, 4.0], "g_rp_edges": [-1.0, 4.0],
+            "cells": cells, "xp_shared_calibration_fraction": [0.01, 0.01],
+            "xp_design_sha256": design_sha256, "held_out_report_sha256": "b".repeat(64),
+            "partitions": {
+                "assignment_algorithm": SPLIT_ALGORITHM, "seed": 0, "manifest_sha256": "a".repeat(64),
+                "training": split(0, "training"), "validation": split(1, "validation"), "test": split(2, "test"),
+                "source_disjoint": true, "sky_disjoint": true, "disjointness_evidence_sha256": "c".repeat(64)
+            },
+            "software_commit": "a".repeat(40), "training_command": "synthetic test only"
+        })
+    }
 
     #[test]
     fn g_only_inference_requires_a_spatially_calibrated_cell_and_retains_scatter() {
@@ -540,6 +713,9 @@ mod tests {
                     mean_w_m2_nm_at_g15: [4.0, 2.0],
                     residual_covariance_at_g15: [4.0, 1.0, -1.0],
                     shared_fraction: [0.25, 0.5],
+                    training_sources: 2,
+                    validation_sources: 2,
+                    validation_sky_cells: 2,
                 },
             );
         }
@@ -573,6 +749,99 @@ mod tests {
             let different_sky = IcrsSkyPosition::new(180.0, 0.0).unwrap();
             assert!(model.predict(different_sky, features).is_err());
         }
+    }
+
+    #[test]
+    fn rejects_invalid_calibration_identity_support_and_covariance() -> Result<()> {
+        use serde_json::json;
+
+        let temp = tempfile::tempdir()?;
+        let path = temp.path().join("model.json");
+        let model = calibration_fixture(&[0], &"d".repeat(64));
+        let load = |data: &serde_json::Value| {
+            let bytes = serde_json::to_vec(data).unwrap();
+            fs::write(&path, &bytes).unwrap();
+            BvInference::load(&path, &checksum_io::sha256_bytes(&bytes))
+        };
+        assert!(load(&model).is_ok());
+        assert!(BvInference::load(&path, &"0".repeat(64)).is_err());
+        assert!(BvInference::load(&temp.path().join("missing"), "").is_err());
+
+        for (key, value, error) in [
+            ("/calibration_status", json!("validated"), "identity"),
+            ("/bp_g_edges", json!([0, 0]), "bin edges"),
+            (
+                "/cells/0/validation_sky_cells",
+                json!(1),
+                "invalid B/V calibration cell",
+            ),
+            (
+                "/cells/0/validation_sources",
+                json!(3),
+                "invalid B/V calibration cell",
+            ),
+            (
+                "/cells/0/key/bp_g_bin",
+                json!(null),
+                "invalid B/V calibration cell",
+            ),
+            (
+                "/cells/0/key/sky_pixel",
+                json!(12),
+                "invalid B/V calibration cell",
+            ),
+            (
+                "/cells/0/residual_covariance_at_g15/2",
+                json!(1.0),
+                "covariance",
+            ),
+            (
+                "/partitions/assignment_algorithm",
+                json!("random"),
+                "split identity",
+            ),
+            (
+                "/partitions/test/sky_regions/0",
+                json!("3072"),
+                "assigned split",
+            ),
+            (
+                "/partitions/test/sky_regions/0",
+                json!("invalid-pixel"),
+                "invalid B/V nside-16",
+            ),
+            (
+                "/partitions/test/source_count",
+                json!(1),
+                "more sky cells than sources",
+            ),
+        ] {
+            let mut invalid = model.clone();
+            *invalid.pointer_mut(key).unwrap() = value;
+            let actual = format!("{:#}", load(&invalid).unwrap_err());
+            assert!(actual.contains(error), "{key}: {actual}");
+        }
+
+        let mut invalid = model.clone();
+        invalid["cells"].as_array_mut().unwrap().pop();
+        assert!(load(&invalid).unwrap_err().to_string().contains("all four"));
+        let cell = invalid["cells"][0].clone();
+        invalid["cells"].as_array_mut().unwrap().push(cell);
+        assert!(load(&invalid)
+            .unwrap_err()
+            .to_string()
+            .contains("duplicate"));
+        assert!(bin(&[10.0, 18.0], 18.0).is_err());
+        assert_eq!(bin(&[10.0, 18.0], 10.0)?, 0);
+        assert!(ColourRoute::features(PhotometricFeatures {
+            phot_g_mean_mag: Some(15.0),
+            phot_bp_mean_mag: Some(f64::NAN),
+            phot_rp_mean_mag: None,
+            bp_rp: None,
+            quality_flag: true,
+        })
+        .is_none());
+        Ok(())
     }
 
     #[test]

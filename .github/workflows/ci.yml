@@ -45,6 +45,9 @@ jobs:
       - name: Test public documentation checks
         run: python -m unittest discover -s scripts/tests -p 'test_product_docs.py'
 
+      - name: Test Starlight B/V calibration
+        run: python -m unittest discover -s scripts/tests -p 'test_starlight_bv_calibration.py'
+
       - name: Test release orchestration without publishing
         run: python -m unittest discover -s scripts/tests -p 'test_release_*.py'
 

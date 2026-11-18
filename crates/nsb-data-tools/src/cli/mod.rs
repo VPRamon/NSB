@@ -386,6 +386,8 @@ enum StarlightValidationCommand {
     Transform(StarlightValidationTransformArgs),
     /// Compare the candidate map against every acquired-and-transformed reference.
     Run(StarlightValidationRunArgs),
+    /// Compare a verified B/V candidate with a pinned, matched monochromatic reference.
+    Bv(StarlightValidationBvArgs),
 }
 
 #[derive(Debug, Args)]
@@ -415,6 +417,24 @@ struct StarlightValidationTransformArgs {
     /// Optional `id=/path` overrides for the acquired source bytes.
     #[arg(long = "source", value_parser = parse_source_override)]
     sources: Vec<(String, String)>,
+}
+
+#[derive(Debug, Args)]
+struct StarlightValidationBvArgs {
+    #[arg(long)]
+    workspace: PathBuf,
+    #[arg(long)]
+    manifest_sha256: String,
+    #[arg(long)]
+    reference: PathBuf,
+    #[arg(long)]
+    reference_sha256: String,
+    #[arg(long)]
+    regions: PathBuf,
+    #[arg(long)]
+    regions_sha256: String,
+    #[arg(long)]
+    output: PathBuf,
 }
 
 #[derive(Debug, Args)]
@@ -1001,6 +1021,20 @@ fn execute_starlight_validation(args: StarlightValidationArgs) -> Result<()> {
                     "{}: {:?} — {}",
                     record.reference_id, record.admissibility, record.detail
                 );
+            }
+            Ok(())
+        }
+        StarlightValidationCommand::Bv(args) => {
+            if !crate::starlight::validation::bv::run(
+                &args.workspace,
+                &args.manifest_sha256,
+                &args.reference,
+                &args.reference_sha256,
+                &args.regions,
+                &args.regions_sha256,
+                &args.output,
+            )? {
+                anyhow::bail!("B/V numerical gates failed; see {}", args.output.display());
             }
             Ok(())
         }

@@ -11,9 +11,10 @@ use crate::units::angular::Degrees;
 use crate::units::length::Nanometers;
 use crate::units::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s,
+    WattsPerSquareMeterSteradianNanometer,
 };
 use crate::units::solid_angle::Steradians;
-use crate::units::PixelIntegratedPhotonFlux;
+use crate::units::{s10_for_spectral_energy_radiance, PixelIntegratedPhotonFlux};
 use csv::{ReaderBuilder, StringRecord};
 use siderust::coordinates::cartesian::Direction as CartesianDirection;
 use siderust::coordinates::frames::Galactic;
@@ -547,8 +548,8 @@ impl StarlightMap {
             let slot = usize::try_from(index).expect("pixel index fits usize");
             let [b, v] = if bv {
                 [
-                    parse_record_f64(&record, 5, row_idx + 1, "b_flux_s10")?,
-                    parse_record_f64(&record, 6, row_idx + 1, "v_flux_s10")?,
+                    parse_record_f64(&record, 5, row_idx + 1, "b_w_m2_sr_nm")?,
+                    parse_record_f64(&record, 6, row_idx + 1, "v_w_m2_sr_nm")?,
                 ]
             } else {
                 [0.0, 0.0]
@@ -560,8 +561,8 @@ impl StarlightMap {
                     row_idx + 1,
                     "integrated_ph_cm2_ns_sr",
                 )?),
-                S10s::new(b),
-                S10s::new(v),
+                s10_for_spectral_energy_radiance(WattsPerSquareMeterSteradianNanometer::new(b)),
+                s10_for_spectral_energy_radiance(WattsPerSquareMeterSteradianNanometer::new(v)),
             )
             .with_uncertainties(
                 BandPhotonRadiance::new(parse_record_f64(
@@ -738,7 +739,7 @@ fn validate_packed_healpix_header(headers: &StringRecord, bv: bool) -> Result<()
         "total_uncertainty_ph_cm2_ns_sr",
     ];
     let tail = if bv {
-        &["b_flux_s10", "v_flux_s10"][..]
+        &["b_w_m2_sr_nm", "v_w_m2_sr_nm"][..]
     } else {
         &[]
     };

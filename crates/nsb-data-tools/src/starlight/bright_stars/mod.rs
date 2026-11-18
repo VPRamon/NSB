@@ -88,3 +88,8 @@ pub use reconstruction::SpectralReconstructionModel;
 pub use reconstruction::TemplateAssignment;
 pub use reconstruction::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1;
 pub use reconstruction::UV_COMPLETION_MODEL_ID_V1;
+
+#[cfg(test)]
+pub(super) use reconstruction::reconstruct_spectral_estimates_with_bv;
+#[cfg(test)]
+pub(crate) use reconstruction::tests::fixture as reconstruction_fixture;

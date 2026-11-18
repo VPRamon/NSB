@@ -61,7 +61,15 @@ impl DatasetPipeline for StarlightPipeline {
                 ];
             }
         }
-        production_output_names(canonical_nside)
+        let mut names = production_output_names(canonical_nside);
+        if config
+            .starlight
+            .as_ref()
+            .is_some_and(|s| s.bv_photometry.is_some())
+        {
+            names.extend(super::pack::BV_FILES.map(str::to_owned));
+        }
+        names
     }
 
     fn output_name<'a>(&self, source_name: &'a str) -> Result<&'a str> {
@@ -224,7 +232,7 @@ impl DatasetPipeline for StarlightPipeline {
     fn validation_gates(
         &self,
         config: &RunConfig,
-        _artifacts: &[Artifact],
+        artifacts: &[Artifact],
     ) -> Result<Vec<ValidationGate>> {
         let Some(starlight) = &config.starlight else {
             return Ok(Vec::new());
@@ -247,16 +255,30 @@ impl DatasetPipeline for StarlightPipeline {
             starlight.map.canonical_nside,
         )?;
         if starlight.bv_photometry.is_some() {
+            let outcome = artifacts
+                .iter()
+                .find(|a| a.name == super::pack::BV_FILES[2])
+                .ok_or_else(|| anyhow::anyhow!("missing compact B/V candidate manifest"))
+                .and_then(|manifest| {
+                    super::pack::verify_bv_candidate(&config.workspace.root, &manifest.sha256)
+                });
             gates.push(ValidationGate {
-                name: "starlight-bv-production-admission".into(),
-                passed: false,
-                detail: "Staged B/V candidate requires independent validation and checksum-specific redistribution review".into(),
+                name: "starlight-bv-candidate-integrity".into(),
+                passed: outcome.is_ok(),
+                detail: outcome.err().map_or_else(
+                    || "Verified compact v2 and evidence. Independent science and redistribution review pending.".into(),
+                    |error| format!("{error:#}"),
+                ),
             });
         }
         Ok(gates)
     }
 
     fn validate_artifact(&self, name: &str, path: &Path) -> Result<()> {
+        // The cross-artifact check above validates and re-encodes these files.
+        if super::pack::BV_FILES.contains(&name) {
+            return Ok(());
+        }
         if name == super::ingestion_audit::NAME {
             return super::ingestion_audit::validate(path);
         }

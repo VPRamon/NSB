@@ -607,6 +607,8 @@ mod uncertainty_fixtures;
 
 #[cfg(test)]
 mod tests {
+    mod bv_pipeline;
+
     use super::*;
     use crate::platform::checksum_io;
     use crate::starlight::config::OfficialChecksumAlgorithm;
@@ -748,38 +750,12 @@ mod tests {
             canonical_nside,
         )?;
         let design = GaiaXpContinuousCalibrator::resolve_design_fixture_path(None, None);
-        let split = |id: &str, pixel: &str| {
-            serde_json::json!({
-                "partition_id": id, "source_count": 1, "source_ids_sha256": "a".repeat(64),
-                "sky_regions": [pixel]
-            })
-        };
-        let bv_config = serde_json::json!({
-            "schema_version": 1,
-            "reference_nm": [445.0, 551.0],
-            "sky_nside": 1,
-            "g_edges": [10.0, 18.0], "bp_g_edges": [-1.0, 4.0], "g_rp_edges": [-1.0, 4.0],
-            "cells": [{
-                "key": { "route": "g_only", "sky_pixel":
-                             healpix::galactic_nested_pixel_from_icrs_position(50.0, 10.0, 1)?,
-                         "g_bin": 0,
-                         "bp_g_bin": null, "g_rp_bin": null },
-                "mean_w_m2_nm_at_g15": [1e-14, 2e-14],
-                "residual_covariance_at_g15": [3e-28, 2e-28, 1e-28],
-                "shared_fraction": [0.05, 0.05]
-            }],
-            "xp_shared_calibration_fraction": [0.01, 0.01],
-            "xp_design_sha256": checksum_io::sha256_file(&design)?,
-            "held_out_report_sha256": "b".repeat(64),
-            "partitions": {
-                "assignment_algorithm": "fixture", "seed": 0, "manifest_sha256": "a".repeat(64),
-                "training": split("train", "1"), "validation": split("validation", "2"),
-                "test": split("test", "3"), "source_disjoint": true, "sky_disjoint": true,
-                "disjointness_evidence_sha256": "c".repeat(64)
-            },
-            "software_commit": "a".repeat(40),
-            "training_command": "synthetic test only"
-        });
+        let bv_config = crate::starlight::bv::tests::calibration_fixture(
+            &[healpix::galactic_nested_pixel_from_icrs_position(
+                50.0, 10.0, 1,
+            )?],
+            &checksum_io::sha256_file(&design)?,
+        );
         let bv_bytes = serde_json::to_vec(&bv_config)?;
         let bv_path = workspace.join("synthetic-bv.json");
         fs::write(&bv_path, &bv_bytes)?;

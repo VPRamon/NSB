@@ -77,50 +77,252 @@ available zero B/V flux. The immutable map exposes the existing evaluator
 fields. For a supplied zero, the existing magnitude conversion uses its
 historical positive floor. Runtime v1 loading still reports B/V unavailable.
 
-1. Build source reference rows with
-   `nsb-data dataset starlight diagnose bv-xp --xp-continuous XP.csv
-   --gaia-source GaiaSource.csv --output references.csv`. Supply matched
-   Gaia DR3 DataLink or equivalent coefficient CSV rows and GaiaSource
-   photometric columns. Pin the CSV contents and the XP design SHA-256.
-2. Freeze sky/magnitude/colour bin edges and minimum training and validation
-   support before evaluating test data. Run
-   `python3 crates/nsb-data-tools/tools/calibrate_starlight_bv.py references.csv
-   policy.json held-out.json --candidate-calibration bv.json`.
-   The policy supplies `seed`, `sky_nside` (1, 2, 4 or 8), `g_edges`,
-   `bp_g_edges`, `g_rp_edges`, `min_training`, `min_validation`,
-   `min_validation_sky_cells`, `xp_design_sha256`,
-   `xp_shared_calibration_fraction`, and `software_commit`. The code
-   assigns whole Galactic NESTED nside-16 cells to train, validation and
-   test using SHA-256. Use a separate mask stress test when appropriate.
-   Its output is report-only. Archive the split, input, report and model
-   digests with the calibration. The two XP calibration fractions require
-   an external spectrophotometric justification.
-3. Start a new generation workspace from the combined Ladon configuration
-   and the approved run's supplement and policy pins. Rebuild the pinned
-   bright-star artifact with `include_bv_photometry = true`. Keep the
-   catalogue, passband, CK04, and existing integration identities fixed.
-   Set `[starlight.bv_photometry]` to the candidate artifact path and SHA-256.
-   Reuse verified Gaia objects and run fresh worker shards. Leave review-
-   controlled inputs outside Git. See [generation](map-generation.md) and
-   [reacquisition](licensing/REACQUISITION.md).
-4. Run the existing merge/validate command. After a complete deterministic
-   merge, `WORKSPACE/bv-candidate/` contains the compact map, a checksum
-   manifest, and NESTED uncertainty evidence. The latter includes flux,
-   the statistical and independent systematic covariance triplets,
-   shared group sigmas, and source-route counts. It points back to the
-   exact integrated map and merge report. The standard scientific gate
-   reports B/V production admission as pending. The v1 production
-   manifest cannot admit B/V bytes. The compact candidate can be loaded
-   through `StarlightMap::from_compact_bytes` for Rust research queries.
+The generation workflow writes one research bundle. The compact, uncertainties
+and manifest are linked by SHA-256 to the integrated canonical map and merge
+report. The NESTED uncertainty evidence records band fluxes, statistical and
+independent systematic covariance triplets, shared group sigmas and route
+counts. An integrated-only shard cannot satisfy a B/V run. Candidate integrity
+can pass ordinary dataset validation. Dataset publication and the v1 production
+loader cannot admit the candidate.
 
-Use the [approved artifact registration](release-candidate/runtime-assets-v1.toml)
-as the full-run integrated baseline. Run
-`nsb-data dataset starlight diagnose compare-bv-integrated --baseline v1.bin
---baseline-sha256 SHA1 --candidate v2.bin --candidate-sha256 SHA2`. It compares
-the four integrated fields bitwise at every RING index. Compare population
-counts and selection/calibration identities in the corresponding run evidence. Separate expected differences in
-provenance (including the regenerated bright-star artifact checksum) from
-scientific differences. Require a reviewed explanation for any numeric drift.
+## Scientific validation and production regeneration handoff
+
+Enrique owns the following scientific gates. Use a clean checkout of the
+reviewed PR commit on the data host. Keep the workspace, source extracts, model,
+and validation reference outside the checkout. Record the commit, build and
+toolchain versions, commands, and all input and output SHA-256 digests.
+
+### Input inventory
+
+| Input | Expected bytes and identity |
+| --- | --- |
+| Gaia source and XP inventories and objects | ESA Gaia DR3 bulk `GaiaSource_*.csv.gz` and `XpContinuousMeanSpectrum_*.csv.gz`, 3,386 matched partitions each. The checked-in [combined configuration](../../../crates/nsb-data-tools/config/starlight-production-300-650.ladon.toml) pins the SHA-256 of both upstream MD5 lists. Workers verify each listed download and the content-addressed cache receipt. Keep the catalogue headers, astrometry, population flags and source IDs intact. |
+| Gaia XP design | Checked-in [GaiaXPy design JSON](../../../crates/nsb-data-tools/tests/fixtures/gaiaxpy_continuous_design_v375wi_v142r.json), BP v375wi and RP v142r, SHA-256 `e8dc899916ed29d4a92ee6ff7ec3d88a85f9c26d9c7e375ef6a6b3dd76666539`. |
+| UV correction | Validated schema-v1 JSON for 300–336 nm. The combined configuration pins SHA-256 `5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367`. Obtain the original external bytes and accompanying calibration and reference receipts from the calibration workspace. |
+| Integrated photometric inference | Validated XP-anchored schema-v1 JSON with branch and coefficient evidence. The combined config pins SHA-256 `02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2`, available as an [identical checked-in calibration](../../../crates/nsb-data-tools/tests/fixtures/photometric_xp_anchored_v1/artifact.json). |
+| Selection function | Validated schema-v1 JSON with Cantat-Gaudin/Gaia DR3 completeness and faint-tail metadata, SHA-256 `1a3670b56eedaf9f9de0b32f081ccfa2baf741a449cd70c2be37d666101a9711`. Obtain the external bytes and their calibration evidence. |
+| Bright-star supplement | Use the checked-in [combined bright-star configuration](../../../crates/nsb-data-tools/config/starlight-bright-stars-combined-v1.ladon.toml) for exact SHA-256, release, format and retrieval identities. It pins external Hipparcos-2 and Tycho-2 fixed-width catalogue segments, XHIP fixed-width spectral types, the official Gaia identity crossmatch and the Gaia quality/positional CSV extracts, plus the CK04 template/assignment JSON, CK04 atlas archive, SVO Hp response and CALSPEC Vega inputs. ADQL recipes and mapping/uncertainty JSON are in Git. See the [bright-star input and reacquisition record](bright-stars/README.md) and [upstream terms](licensing/REACQUISITION.md). The approved supplement checksum is `dda54aa31544672d8c5dae3601b2c62a89f0a3499ebb2c937cef0f333d126017`; the rebuilt B/V-bearing supplement has its own checksum. |
+| Non-XP B/V calibration | External matched reference CSV, frozen policy JSON, independent holdout report and candidate calibration JSON generated below. The model carries policy and report digests, split identities and support counts. Archive checksums of all four files along with the parent extracts, software commit, query and selection/matching operators. |
+| Approved integrated baseline | Checked-in [compact v1](../../../crates/nsb/data/starlight_nside128.compact.release.bin) with SHA-256 `11479bd0b6838d06df884b76dd74575bbc42d424ec85defecf847257c0f64d7f`. Use its [manifest](../../../crates/nsb/data/starlight_nside128.compact.manifest.toml), [baseline validation](production-runs/combined-300-650-validation.json), and original workspace merge report for the integrated policy and population differential. |
+
+### 1. Freeze and calibrate the source model
+
+From the repository root, set `HANDOFF` to a new absolute directory on shared
+storage. Place the input extracts and preregistered policy in that directory.
+The binary must be available at the same path on the submission host and
+workers.
+
+```bash
+cd /absolute/path/to/NSB
+REPO="$PWD"
+HANDOFF=/absolute/shared/path/starlight-bv-317
+WORKSPACE="$HANDOFF/map"
+mkdir -p "$HANDOFF"
+CARGO_TARGET_DIR="$REPO/target" cargo build --locked -p nsb-data-tools --release
+NSB_DATA="$REPO/target/release/nsb-data"
+COMMIT="$(git rev-parse HEAD)"
+sha() { sha256sum "$1" | cut -d ' ' -f 1; }
+
+"$NSB_DATA" dataset starlight diagnose bv-xp \
+  --xp-continuous "$HANDOFF/xp-continuous.csv" \
+  --gaia-source "$HANDOFF/gaia-photometry.csv" \
+  --output "$HANDOFF/xp-labels.csv"
+python3 "$REPO/crates/nsb-data-tools/tools/calibrate_starlight_bv.py" \
+  "$HANDOFF/labels.csv" "$HANDOFF/policy.json" "$HANDOFF/held-out.json" \
+  --candidate-calibration "$HANDOFF/bv-calibration.json"
+```
+
+`bv-xp` joins plain Gaia DataLink or bulk-format continuous coefficient CSV
+(including BP/RP parameter counts, deviations, coefficients, errors and full
+correlation triangles) to one equally sized GaiaSource extract on unique
+`source_id`. The extract contains `ra,dec,phot_g_mean_mag,phot_bp_mean_mag,
+phot_rp_mean_mag` at Gaia DR3 astrometry. For training, `labels.csv` has
+`source_id,galactic_nest16,g,bp,rp,b_w_m2_nm,v_w_m2_nm`. BP/RP blanks mean
+genuinely unavailable photometry. Use `xp-labels.csv` for routes it actually
+represents. Append naturally incomplete matched sources with wavelength-matched
+external spectral labels if necessary, under the identical schema and flux
+unit. Preserve IDs, NESTED Galactic coordinates, signed label fluxes, and the
+optional XP covariance columns for audit. Document sample selection, coverage,
+absolute calibration, label noise, variability, and upstream identities.
+Each source appears once. When controls use artificial masking, run separately
+with `--stress-test-mask-complete` and omit `--candidate-calibration`.
+
+The policy has keys `seed` (u64), `sky_nside` (1, 2, 4 or 8), strictly
+increasing `g_edges`, `bp_g_edges` and `g_rp_edges`, `min_training`,
+`min_validation`, `min_validation_sky_cells`, `reference_provenance`
+(nonempty description and auditable label origin), `xp_design_sha256`,
+`xp_shared_calibration_fraction` (two positive fractions in B, V order
+supported by independent absolute standards), and `software_commit` (full
+Git SHA). Freeze the edges, sample sufficiency and acceptance criteria before
+unblinding the test. Whole Galactic NESTED nside-16 cells go to deterministic
+disjoint training, validation and test roles. Validation estimates the
+correlated residual envelope and test scores never alter fitted moments.
+The predictive scatter retains noise in the labels. Review coverage and any
+covariance inflation against independent data, especially where XP is noisy.
+Review attempted versus scored rows, out-of-domain rows, bias, absolute
+relative-error tails, and 68%/95% coverage by route, magnitude, colour and
+region. The export guard requires training and validation support for every
+modelled cell and held-out support for all four routes. Preset science
+acceptance thresholds and adequate representative coverage of the admitted
+population still require review. In particular, justify the conditional
+population prior for G-only and verify faint and crowded populations against
+the XP-selected distribution.
+
+### 2. Build and validate the bright-star supplement
+
+Copy the pinned bright-star configuration to `$HANDOFF/bright-stars.toml`.
+Set the top-level `include_bv_photometry = true` before the first TOML
+section. Resolve paths to the original verified input bytes and leave their
+digests, physical model, assignments and policies fixed. Invoke from the
+repository root so the checked-in query and model paths resolve.
+
+```bash
+"$NSB_DATA" dataset starlight bright-stars build \
+  --config "$HANDOFF/bright-stars.toml" \
+  --config-sha256 "$(sha "$HANDOFF/bright-stars.toml")" \
+  --expected-build-commit "$COMMIT" \
+  --output-directory "$HANDOFF/bright-stars"
+BRIGHT="$HANDOFF/bright-stars/starlight-bright-stars-v1.json"
+```
+
+Archive the generated build manifest, source classifications/diagnostics,
+and artifact digest. Compare the supplemental and replacement identities
+and integrated per-source fields with the original supplement. Review
+unsupported template assignments, ambiguous/rejected matches, and uncertainty
+groups. Validate Hipparcos/XHIP-selected CK04 at both wavelengths using
+independent calibrated stellar spectra in the same monochromatic convention,
+including colour and spectral-type trends and bright-star-dominated fields.
+The Hp-zero-point group is common to both bands and to all supplement stars.
+
+### 3. Regenerate and compare
+
+Copy the pinned combined Ladon config to `$HANDOFF/combined-bv.toml`. Set
+`[workspace].root` to the new absolute `$WORKSPACE`, resolve the three existing
+calibration paths, and retain their SHA-256 values. Remove the optional
+`[publish]` table. Set the two new pins using the literal absolute paths and
+digests printed below. Leave the combined band, `nside = 128`, Gaia inventories
+and source policy unchanged.
+
+```bash
+printf '[starlight.bright_star_supplement]\nartifact_path = "%s"\nsha256 = "%s"\n\n' \
+  "$BRIGHT" "$(sha "$BRIGHT")"
+printf '[starlight.bv_photometry]\nartifact_path = "%s"\nsha256 = "%s"\n' \
+  "$HANDOFF/bv-calibration.json" "$(sha "$HANDOFF/bv-calibration.json")"
+
+CFG="$HANDOFF/combined-bv.toml"
+"$NSB_DATA" dataset starlight update --config "$CFG" --executor local
+"$NSB_DATA" dataset starlight build --config "$CFG" --executor slurm
+# Set BUILD_RUN to the run.json path printed by the build submission.
+"$NSB_DATA" run status --run "$BUILD_RUN"
+# After all 3,386 Gaia partitions complete:
+"$NSB_DATA" dataset starlight validate --config "$CFG" --executor local
+
+BUNDLE="$WORKSPACE/bv-candidate"
+BASELINE="$REPO/crates/nsb/data/starlight_nside128.compact.release.bin"
+"$NSB_DATA" dataset starlight diagnose compare-bv-integrated \
+  --baseline "$BASELINE" \
+  --baseline-sha256 11479bd0b6838d06df884b76dd74575bbc42d424ec85defecf847257c0f64d7f \
+  --candidate "$BUNDLE/starlight.compact.bin" \
+  --candidate-sha256 "$(sha "$BUNDLE/starlight.compact.bin")"
+```
+
+Verified `cache/objects/sha256` bytes and `cache/receipts` can be linked for
+reuse when their inventory identities and recorded object paths remain
+accessible from all workers. Source acquisition validates cached receipts.
+Do not copy the previous run's worker metadata or integrated-only shards.
+For the unchanged configuration, retry missing or failed workers with
+`"$NSB_DATA" run resume --run "$BUILD_RUN"` after diagnosing the worker error
+and waiting for the previous job to terminate. Then use the new run path
+printed by resume. A changed input pin, software identity or scientific policy
+needs a fresh generation workspace. See the [partition and cache
+contract](map-generation.md).
+
+Dataset validation reconciles fresh shards, independently checks deterministic
+merge and population accounting, and writes the integrated CSV, merge report,
+technical validation report and compact v2 bundle. Keep all four legacy fields
+bitwise identical over 196,608 RING pixels. Compare admitted/excluded counts,
+selection policy and calibration/inventory identities against the original
+merge evidence as well as the approved v1 bytes. The supplement build and
+artifact digests are expected to change. Any numeric or population drift blocks
+this handoff gate pending investigation. Save the differential output with
+the actual checksums, software identity and counts.
+
+### 4. Score an independent full-sky reference
+
+Supply a checksum-pinned JSON reference with this contract. The `pixels`
+array is dense and indexed by Galactic NESTED pixel (196,608 cells at nside
+128). Each entry contains `flux: [B,V]` and `sigma: [B,V]` in W m⁻² nm⁻¹
+integrated over that cell, with positive finite fluxes and non-negative
+finite standard uncertainties. Convert spectral radiance to per-cell flux
+with the exact cell solid angle; remap/regrid a different reference with a
+documented flux-conserving operator. The top-level keys are:
+
+```text
+schema        nsb-starlight-bv-reference-v1
+source        reference name, release and scientific citation
+upstream_sha256  array of input SHA-256 digests
+operator      extraction, spectral, spatial and population-matching procedure
+nside         128
+ordering      nested
+frame         galactic
+domain        top-of-atmosphere-stellar-only
+reference_nm  [445, 551]
+unit          W m-2 nm-1
+pixels        array of {"flux":[B,V],"sigma":[B,V]} entries
+```
+
+```bash
+REGIONS="$REPO/docs/nsb_components/starlight/validation/regions-v1.json"
+REFERENCE="$HANDOFF/independent-bv-reference.json"
+"$NSB_DATA" dataset starlight validation bv \
+  --workspace "$WORKSPACE" --manifest-sha256 "$(sha "$BUNDLE/manifest.json")" \
+  --reference "$REFERENCE" --reference-sha256 "$(sha "$REFERENCE")" \
+  --regions "$REGIONS" --regions-sha256 "$(sha "$REGIONS")" \
+  --output "$HANDOFF/independent-bv-validation.json"
+```
+
+The command verifies the bundle and reports each band and region, including
+bias, error percentiles, outliers and interval coverage. It applies the
+existing NSB gates to each band (3% absolute all-sky bias, 5% median / 10%
+P95 regional absolute relative error, and 63–73% / 90–98% interval coverage).
+It combines per-pixel candidate and independent reference uncertainty in
+quadrature and retains shared groups in the evidence for spatial analyses.
+It exits unsuccessfully on a missed numerical gate after writing the report.
+Review spatially correlated errors and seam/resolution comparisons with
+the [NSB requirements](science-requirements.md#pre-registered-validation-gates).
+Record decisions, including any new spectral-reference or source-level
+tolerance, before inspecting test results.
+
+Use genuinely independent spectra or a justified monochromatic transformation
+with propagated uncertainty. Broad-band Johnson B/V, uncorrected ground-sky
+photometry, a Gaia-XP-derived full-sky reference sharing the production
+calibration, and a fixed spectrum over the sky cannot by themselves validate
+these absolute reference estimates. Verify flux operators, admitted sources,
+Gaia completeness limits, extinction/atmospheric domain and zero points.
+Review the centre, plane, poles, high latitudes, bright-star dominated
+regions and fields with contrasting colours.
+
+### 5. Review and recovery
+
+- An unsupported inference cell identifies the Gaia source and the route,
+  magnitude/colour bin and sky cell. Check the calibration report and
+  input photometry. Improve representative support and rerun with a new
+  checksum and workspace. Do not substitute masked labels or drop sources.
+- A checksum or schema failure requires re-verifying bytes from the pinned
+  upstream receipt. Keep each calibration attempt's report and model paths
+  distinct. A failed export can leave an older file at a reused path.
+- For a missing shard, inspect the submitted run and the worker manifest
+  before resuming. For inconsistent products, rerun the technical validation
+  with verified inputs and inspect the named gate and merge report. Preserve
+  the failed scientific report and resolve the discrepancy before a reviewed
+  rerun. Do not edit generated maps or manifests.
+- Archive the frozen policies, label and reference receipts, held-out and
+  CK04 reports, worker/build/validation manifests, exact integrated
+  differential, regional comparison and seam/resolution evidence, and bundle
+  and software digests. The existing [approval inventory](licensing/approval-inventory-v1.toml)
+  governs the old bytes. A future registry update needs separate scientific
+  and redistribution approval for the exact new bytes. Use the immutable
+  v2 map through `StarlightMap::from_compact_bytes` for candidate research.
 
 ## Validation and open gates
 

@@ -700,10 +700,10 @@ mod tests {
 }
 
 #[cfg(test)]
-mod interval_tests {
+pub(crate) mod interval_tests {
     use super::*;
 
-    fn inputs() -> (GaiaXpContinuousCalibrator, CanonicalXpContinuousRecord) {
+    pub(crate) fn inputs() -> (GaiaXpContinuousCalibrator, CanonicalXpContinuousRecord) {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
         let calibrator = GaiaXpContinuousCalibrator::from_design_fixture(
             &root.join("gaiaxpy_continuous_design_v375wi_v142r.json"),

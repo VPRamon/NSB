@@ -479,19 +479,21 @@ pub(crate) fn emit_maps(
 
     let report_path = output_root.join("merge_report.json");
     artifact_store::atomic_write(&report_path, &serde_json::to_vec_pretty(&report)?)?;
-    if expected_bv_input_pins.is_some() {
+    let bv_artifacts = if expected_bv_input_pins.is_some() {
         let candidate = super::super::validation::candidate_map::load(
             &map_path,
             canonical_nside,
             Some(&report.canonical_map.sha256),
         )?;
         super::super::pack::stage_bv_candidate(
-            &workspace.join("bv-candidate"),
+            workspace,
             &candidate,
             &merged,
             &checksum_io::sha256_file(&report_path)?,
-        )?;
-    }
+        )?
+    } else {
+        Vec::new()
+    };
     let mut artifacts = vec![
         Artifact {
             name: map_name,
@@ -506,6 +508,7 @@ pub(crate) fn emit_maps(
             path: report_path,
         },
     ];
+    artifacts.extend(bv_artifacts);
     artifacts.sort_by(|left, right| left.name.cmp(&right.name));
     artifact_store::atomic_write(
         &output_root.join("artifacts.json"),

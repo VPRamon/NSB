@@ -41,7 +41,12 @@ pub(crate) fn export(xp: &Path, gaia: &Path, output: &Path) -> Result<()> {
         .collect();
 
     let mut seen = BTreeSet::new();
-    let mut writer = csv::Writer::from_path(output)?;
+    let parent = output
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let mut temp = tempfile::NamedTempFile::new_in(parent)?;
+    let mut writer = csv::Writer::from_writer(temp.as_file_mut());
     writer.write_record([
         "source_id",
         "galactic_nest16",
@@ -82,6 +87,8 @@ pub(crate) fn export(xp: &Path, gaia: &Path, output: &Path) -> Result<()> {
         bail!("Gaia photometry and continuous XP CSVs must describe the same nonempty source set");
     }
     writer.flush()?;
+    drop(writer);
+    temp.persist(output)?;
     Ok(())
 }
 

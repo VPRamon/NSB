@@ -172,11 +172,11 @@ fn bv_csv() -> String {
         } else {
             csv.push_str(line);
             if line.starts_with("healpix_index,") {
-                csv.push_str(",b_flux_s10,v_flux_s10");
+                csv.push_str(",b_w_m2_sr_nm,v_w_m2_sr_nm");
             } else if line.starts_with("0,") {
                 csv.push_str(",0,0");
             } else if !line.starts_with('#') {
-                csv.push_str(",12.5,25");
+                csv.push_str(",1.6e-10,3.2e-10");
             }
         }
         csv.push('\n');
@@ -211,8 +211,14 @@ fn compact_v2_preserves_legacy_fields_and_reports_available_zero() {
         assert_eq!(before.total_uncertainty, after.total_uncertainty);
         assert!(!before.s10_diagnostics_provided);
         assert!(after.s10_diagnostics_provided);
-        assert_eq!(after.b_flux_s10.value(), if i == 0 { 0.0 } else { 12.5 });
-        assert_eq!(after.v_flux_s10.value(), if i == 0 { 0.0 } else { 25.0 });
+        assert_eq!(
+            after.b_flux_s10.value(),
+            if i == 0 { 0.0 } else { 1.6e-10 / 1.28e-11 }
+        );
+        assert_eq!(
+            after.v_flux_s10.value(),
+            if i == 0 { 0.0 } else { 3.2e-10 / 1.28e-11 }
+        );
     }
     for value in [f64::NAN, f64::INFINITY, -1.0] {
         let mut corrupted = v2.clone();
@@ -224,7 +230,10 @@ fn compact_v2_preserves_legacy_fields_and_reports_available_zero() {
         corrupted[digest_offset..].copy_from_slice(&digest);
         assert!(StarlightMap::from_compact_bytes(&corrupted, provenance()).is_err());
     }
-    assert!(StarlightMap::compact_csv(&csv.replace(",12.5,25", ",12.5"), provenance()).is_err());
+    assert!(
+        StarlightMap::compact_csv(&csv.replace(",1.6e-10,3.2e-10", ",1.6e-10"), provenance())
+            .is_err()
+    );
 }
 
 #[test]
