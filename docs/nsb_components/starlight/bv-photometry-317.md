@@ -87,10 +87,7 @@ loader cannot admit the candidate.
 
 ## Scientific validation and production regeneration handoff
 
-Enrique owns the following scientific gates. Use a clean checkout of the
-reviewed PR commit on the data host with Python 3.10 or later. Keep the workspace, source extracts, model,
-and validation reference outside the checkout. Record the commit, build and
-toolchain versions, commands, and all input and output SHA-256 digests.
+TBC
 
 ### Input inventory
 
