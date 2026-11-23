@@ -36,6 +36,7 @@ XP_TAP = "https://gaia.ari.uni-heidelberg.de/tap/sync"
 GAIA = ("source_id", "ra", "dec", "phot_g_mean_mag", "phot_bp_mean_mag", "phot_rp_mean_mag")
 PARENT = (*GAIA[:3], "l", "b", *GAIA[3:], "has_xp_continuous", "duplicated_source",
           "phot_bp_n_blended_transits", "phot_rp_n_blended_transits", "random_index")
+NULLABLE_PHOTOMETRY = (*GAIA[3:], "phot_bp_n_blended_transits", "phot_rp_n_blended_transits")
 XP = ("source_id", *(f"{band}_{field}" for band in ("bp", "rp") for field in (
     "n_parameters", "standard_deviation", "coefficients", "coefficient_errors",
     "coefficient_correlations",
@@ -89,6 +90,15 @@ def source_id(row):
     return value
 
 
+def gaia_parent_rows(path, *, compressed=False):
+    for row in csv_rows(path, PARENT, compressed=compressed):
+        # ESA bulk CSV uses literal null where TAP CSV uses empty fields.
+        for name in NULLABLE_PHOTOMETRY:
+            if row[name] == "null":
+                row[name] = ""
+        yield row
+
+
 def by_id(rows):
     matched = {}
     for row in rows:
@@ -130,22 +140,29 @@ def retrieve(path, url, **parameters):
             time.sleep(2**attempt)
 
 
+def gaia_flag(row, column):
+    value = row[column].strip().lower()
+    if value not in ("true", "false"):
+        raise ValueError(f"invalid Gaia {column} flag for source {row['source_id']}: {value!r}")
+    return value == "true"
+
+
 def selected(row):
-    return (bool(row["phot_g_mean_mag"]) and row["has_xp_continuous"] == "true"
-            and row["duplicated_source"] == "false")
+    return (bool(row["phot_g_mean_mag"]) and gaia_flag(row, "has_xp_continuous")
+            and not gaia_flag(row, "duplicated_source"))
 
 
 def census(rows):
     counts = Counter()
     for row in rows:
-        if row["duplicated_source"] == "true" or not row["phot_g_mean_mag"]:
+        if gaia_flag(row, "duplicated_source") or not row["phot_g_mean_mag"]:
             continue
         route = ROUTES[bool(row["phot_bp_mean_mag"]), bool(row["phot_rp_mean_mag"])]
         g = float(row["phot_g_mean_mag"])
         magnitude = "g<15" if g < 15 else "15<=g<17.65" if g < 17.65 else "g>=17.65"
         sky = "|b|<10" if abs(float(row["b"])) < 10 else "|b|>=10"
         blended = any(int(row[f"phot_{band}_n_blended_transits"] or 0) > 0 for band in ("bp", "rp"))
-        counts[row["has_xp_continuous"], route, magnitude, sky, blended] += 1
+        counts[gaia_flag(row, "has_xp_continuous"), route, magnitude, sky, blended] += 1
     return [{"has_xp_continuous": xp, "route": route, "magnitude": g, "sky": sky,
              "reported_blended_bp_or_rp_transits": blended, "sources": count}
             for (xp, route, g, sky, blended), count in sorted(counts.items())]
@@ -157,7 +174,7 @@ def public_input(root, limit):
     freeze(root / "parent.adql", query.encode())
     parent = root / "parent.csv"
     retrieve(parent, TAP, REQUEST="doQuery", LANG="ADQL", FORMAT="csv", MAXREC=limit, QUERY=query)
-    rows = list(csv_rows(parent, PARENT))
+    rows = list(gaia_parent_rows(parent))
     if len(rows) != limit or sorted(int(row["random_index"]) for row in rows) != list(range(limit)):
         raise ValueError("Gaia TAP comparison sample is truncated or has inconsistent random indices")
     gaia = by_id(row for row in rows if selected(row))
@@ -237,7 +254,7 @@ def cache_input(root, cache, partitions, limit):
     xp = {}
     parent_rows = []
     for partition in partitions:
-        rows = by_id(row for row in csv_rows(objects["gaia-source", partition], PARENT, compressed=True)
+        rows = by_id(row for row in gaia_parent_rows(objects["gaia-source", partition], compressed=True)
                      if int(row["random_index"]) < limit)
         parent_rows.extend(rows.values())
         wanted = {sid for sid, row in rows.items() if selected(row)}

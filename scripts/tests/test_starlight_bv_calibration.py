@@ -15,7 +15,8 @@ SCRIPT = Path(__file__).resolve().parents[2] / "crates/nsb-data-tools/tools/cali
 sys.path.insert(0, str(SCRIPT.parent))
 from calibrate_starlight_bv import bin_for, cells_for, load_policy  # noqa: E402
 from prepare_starlight_bv import (  # noqa: E402
-    DIAGNOSTIC, GAIA, LABELS, by_id, census, check_candidate, csv_rows, csv_write, freeze, read_review,
+    DIAGNOSTIC, GAIA, LABELS, PARENT, by_id, census, check_candidate, csv_rows, csv_write,
+    freeze, gaia_parent_rows, read_review, selected,
 )
 
 
@@ -136,12 +137,15 @@ class StarlightBvCalibration(unittest.TestCase):
         match = by_id(csv_rows(self.references, GAIA))
         self.assertEqual(match[10]["phot_bp_mean_mag"], "")
         self.assertEqual(match[20]["phot_rp_mean_mag"], "")
-        comparison = census(dict(row, duplicated_source="false", b="5",
-                                 has_xp_continuous="false", phot_bp_n_blended_transits="",
+        comparison = census(dict(row, duplicated_source="False", b="5",
+                                 has_xp_continuous="False", phot_bp_n_blended_transits="",
                                  phot_rp_n_blended_transits="1" if key == 10 else "")
                             for key, row in match.items())
         self.assertEqual({(row["route"], row["sources"]) for row in comparison},
                          {("g_and_rp", 1), ("g_only", 1)})
+        self.assertTrue(selected(dict(match[10], duplicated_source="False", has_xp_continuous="True")))
+        self.assertTrue(selected(dict(match[10], duplicated_source="false", has_xp_continuous="true")))
+        self.assertFalse(selected(dict(match[10], duplicated_source="True", has_xp_continuous="True")))
         csv_write(self.references, GAIA, rows)
         self.assertEqual(self.references.read_bytes(), raw)
         with self.assertRaisesRegex(ValueError, "duplicate Gaia source ID"):
@@ -159,6 +163,16 @@ class StarlightBvCalibration(unittest.TestCase):
             load_policy(self.policy, exporting=True)
         self.assertIn("candidate export requires",
                       self.command("--candidate-calibration", self.model, succeeds=False))
+
+    def test_bulk_null_photometry_is_not_a_measured_colour(self):
+        row = dict.fromkeys(PARENT, "null")
+        row.update(source_id="10", duplicated_source="False", has_xp_continuous="False",
+                   phot_g_mean_mag="19", ra="0", dec="0", l="5", b="5", random_index="9")
+        csv_write(self.references, PARENT, [row])
+        [normalized] = gaia_parent_rows(self.references)
+        self.assertEqual(normalized["phot_bp_mean_mag"], "")
+        self.assertEqual(normalized["phot_rp_mean_mag"], "")
+        self.assertEqual(census([normalized])[0]["route"], "g_only")
 
     def test_independent_review_checks_pins_and_held_out_support(self):
         self.write_sources()
