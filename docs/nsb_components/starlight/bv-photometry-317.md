@@ -112,13 +112,16 @@ The discrepancy enters through the pinned log-flux prediction. The
 [checked-in XP-scale test targets](../../../crates/nsb-data-tools/tests/fixtures/photometric_xp_validation_v1.json)
 for the full route follow the nominal analytic G/colour curve with
 1.4 × 10⁴ photons m⁻² s⁻¹ at G=15 and BP−RP=0.8. Those tests
-check the implementation against that curve. The artifact names an
-external fitting script and contains a synthetic sky-split identifier.
-The training spectra and selection are unavailable here, so the audit
-cannot attribute the residual to a specific historical fitting choice.
-The measured log residuals have a shifted center and a skewed tail.
-A generic log-smearing factor would leave the colour- and
-population-dependent discrepancy unexplained.
+check the implementation against that curve. The original
+[issue #116 calibration report](https://github.com/VPRamon/NSB/blob/72d0e8a446d731df2259d6493d9c1414ebff21a6/docs/nsb_components/starlight/diagnostics/issue-116-healpix-anomaly-report.md#known-limitations)
+confirms that the artifact was fitted to a synthetic XP-scale model
+and flags a future refit on measured XP integrals. Its smoke test
+verified removal of large spatial artefacts. The measured scale
+residual measures how the synthetic relation transports to real
+sources. The off-host fitting inputs are still unavailable for a
+coefficient-level reconstruction. The real XP log residuals have a
+shifted center and a skewed tail. A generic log-smearing factor would
+leave the colour- and population-dependent discrepancy unexplained.
 
 Both paths use the nominal unweighted 336–650 nm photon band. NSB
 trapezoid-integrates the monochromatic energy density times wavelength
