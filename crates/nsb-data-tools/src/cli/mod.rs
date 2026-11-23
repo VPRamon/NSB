@@ -281,6 +281,15 @@ struct StarlightDiagnoseBvXpArgs {
     /// Gaia-ID matched, externally calibrated 445/551 nm fluxes and covariance.
     #[arg(long)]
     spectral_reference: Option<PathBuf>,
+    /// Append actual XP photon flux and four normalization controls.
+    #[arg(
+        long,
+        requires = "shape_photometric_sha256",
+        conflicts_with = "spectral_reference"
+    )]
+    shape_photometric: Option<PathBuf>,
+    #[arg(long, requires = "shape_photometric")]
+    shape_photometric_sha256: Option<String>,
     #[arg(long)]
     gaia_source: PathBuf,
     #[arg(long)]
@@ -802,6 +811,9 @@ fn execute_starlight_diagnose(args: StarlightDiagnoseArgs) -> Result<()> {
                         .context("missing continuous XP input")?,
                     &args.gaia_source,
                     &args.output,
+                    args.shape_photometric
+                        .as_deref()
+                        .zip(args.shape_photometric_sha256.as_deref()),
                 )
             }
         }

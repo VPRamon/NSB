@@ -399,6 +399,15 @@ impl DatasetPipeline for StarlightPipeline {
                 bail!("bright-star supplement spectral coverage is incompatible with configured Starlight product band");
             }
         }
+        if let Some(pin) = &starlight.bv_photometry {
+            let inference = super::bv::BvInference::load(&pin.artifact_path, &pin.sha256)?;
+            inference.check_normalization_pin(starlight.photometric_inference.as_ref())?;
+            let design =
+                super::xp::GaiaXpContinuousCalibrator::resolve_design_fixture_path(None, None);
+            if crate::platform::checksum_io::sha256_file(&design)? != inference.xp_design_sha256 {
+                bail!("B/V XP design checksum mismatch");
+            }
+        }
         for product in &starlight.gaia_products {
             if product.id.trim().is_empty()
                 || product.filename_prefix.is_empty()

@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 SCRIPT = Path(__file__).resolve().parents[2] / "crates/nsb-data-tools/tools/calibrate_starlight_bv.py"
 sys.path.insert(0, str(SCRIPT.parent))
@@ -18,6 +19,8 @@ from prepare_starlight_bv import (  # noqa: E402
     DIAGNOSTIC, GAIA, LABELS, PARENT, by_id, census, check_candidate, csv_rows, csv_write,
     freeze, gaia_parent_rows, read_review, selected,
 )
+from fit_starlight_bv_shape import fit as fit_shape, interpolate  # noqa: E402
+import regenerate_starlight_bv_ladon as ladon  # noqa: E402
 
 
 class StarlightBvCalibration(unittest.TestCase):
@@ -217,6 +220,53 @@ class StarlightBvCalibration(unittest.TestCase):
         self.references.write_text("corrupted reference")
         with self.assertRaisesRegex(ValueError, "sha256 mismatch"):
             read_review(review, {})
+
+
+class ShapeAndLadon(unittest.TestCase):
+    def test_latent_shape_uses_colour_and_marginalizes_missing_bands(self):
+        blue = (2.0, 1.0, 4.0, 1.0, 2.0)
+        red = (0.3, 2.0, 0.09, 4.0, 0.6)
+        donors = [(0, 0.1, 0.2, blue, 15.0)] * 64 + [(1, 1.7, 1.6, red, 15.0)] * 64
+        tables, blind = fit_shape([donors] * 3)
+        blue_shape, _, _, _ = interpolate(tables, "full", 15, 0.1, 0.2, 0)
+        red_shape, _, _, _ = interpolate(tables, "full", 15, 1.7, 1.6, 256)
+        bp_shape, var, _, _ = interpolate(tables, "g_and_bp", 15, 0.1, None, 0)
+        g_only_blue, _, _, _ = interpolate(tables, "g_only", 15, None, None, 0)
+        g_only_red, _, _, _ = interpolate(tables, "g_only", 15, None, None, 256)
+        self.assertGreater(blue_shape[0], red_shape[0])
+        self.assertGreater(bp_shape[0], blind[0])
+        self.assertGreater(g_only_blue[0], g_only_red[0])
+        self.assertGreater(var[0], 0)
+        self.assertEqual(len(tables), 36)
+
+    def test_ladon_resume_waits_for_other_arrays_then_reconciles(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            initial = root/"initial.json"
+            initial.write_text("{}")
+            records = [(initial, {"partitions": ["p1","p2"], "slurm_job_id":"101,102"})]
+            states = iter(["101\n", "", "103\n", ""])
+            progress = iter([{"partitions_complete":1,"partitions_pending":1},
+                             {"partitions_complete":2,"partitions_pending":0}])
+            commands = []
+
+            def run(*args, **_):
+                commands.append(args)
+                if args[0] == "squeue":
+                    return next(states)
+                if args[1:3] == ("run","status"):
+                    return json.dumps(next(progress))
+                if args[1:3] == ("run","resume"):
+                    records.append((root/"resume.json", {"partitions":["p2"],"slurm_job_id":"103"}))
+                    return ""
+                self.fail(f"unexpected command {args}")
+
+            with patch.object(ladon,"builds",return_value=records), patch.object(ladon,"run",side_effect=run), \
+                    patch.object(ladon.time,"sleep") as sleep, patch.object(ladon,"finish") as finish:
+                ladon.execute("cli",root/"config.toml",root,root,2,False)
+            self.assertEqual(sleep.call_count,2)
+            self.assertEqual(sum(c[1:3]==("run","resume") for c in commands),1)
+            finish.assert_called_once()
 
 
 if __name__ == "__main__":

@@ -54,6 +54,7 @@ pub(crate) fn build_partitions(
     let bv = bv_config
         .map(|pin| {
             let inference = BvInference::load(&pin.artifact_path, &pin.sha256)?;
+            inference.check_normalization_pin(photometric_config)?;
             if crate::platform::checksum_io::sha256_bytes(&design_bytes)
                 != inference.xp_design_sha256
             {
@@ -373,16 +374,17 @@ fn build_partition(
             Err(reason) => exclude_gaia_source(&mut shard, gaia_source, reason)?,
             Ok((weight, selection_fraction)) => {
                 if let Some((_, calibration, _)) = bv {
-                    let (estimate, route) = calibration
-                        .predict(gaia_source.icrs, features)
+                    let (bv_estimate, route, support) = calibration
+                        .predict_admitted(gaia_source.icrs, features, &estimate)
                         .with_context(|| {
                             format!("B/V inference for admitted Gaia source {source_id}")
                         })?;
-                    shard.add_admitted_bv(
+                    shard.add_admitted_bv_with_support(
                         gaia_source.icrs,
-                        estimate.weighted(weight),
+                        bv_estimate.weighted(weight),
                         route,
                         selection_fraction,
+                        support,
                     )?;
                 }
             }

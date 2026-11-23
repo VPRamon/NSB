@@ -755,6 +755,8 @@ fn bv_xp_cli_exports_a_signed_covariance_reference_and_checks_the_join() -> Resu
             command: StarlightDiagnoseCommand::BvXp(StarlightDiagnoseBvXpArgs {
                 xp_continuous: Some(xp.clone()),
                 spectral_reference: None,
+                shape_photometric: None,
+                shape_photometric_sha256: None,
                 gaia_source: gaia.clone(),
                 output: output.clone(),
             }),
@@ -821,6 +823,8 @@ fn bv_spectral_reference_preserves_observed_missingness_and_checks_covariance() 
             command: StarlightDiagnoseCommand::BvXp(StarlightDiagnoseBvXpArgs {
                 xp_continuous: None,
                 spectral_reference: Some(spectra.clone()),
+                shape_photometric: None,
+                shape_photometric_sha256: None,
                 gaia_source: gaia.clone(),
                 output: output.clone(),
             }),

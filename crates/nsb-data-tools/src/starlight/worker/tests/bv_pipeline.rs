@@ -12,8 +12,38 @@ use std::collections::BTreeMap;
 
 #[test]
 fn combined_sources_to_evaluator_preserve_integrated_map() -> Result<()> {
+    combined_case(None)
+}
+
+#[test]
+#[ignore = "requires locally verified real Gaia subsets and a fitted B/V shape artifact"]
+fn real_gaia_shape_candidate_to_evaluator() -> Result<()> {
+    let pilot = PathBuf::from(std::env::var_os("NSB_BV_REAL_PILOT").context("NSB_BV_REAL_PILOT")?);
+    combined_case(Some(&pilot))
+}
+
+fn combined_case(pilot: Option<&Path>) -> Result<()> {
     const BAND: StarlightProductBand = StarlightProductBand::Combined300To650;
-    const PARTITION: &str = "000000-003111";
+    let partition = if pilot.is_some() {
+        "466830-466850"
+    } else {
+        "000000-003111"
+    };
+    let metadata: Option<serde_json::Value> = pilot
+        .map(|path| -> Result<_> {
+            Ok(serde_json::from_slice(&fs::read(
+                path.join("sample.json"),
+            )?)?)
+        })
+        .transpose()?;
+    let replacement = metadata
+        .as_ref()
+        .map(|m| m["replacement"].as_u64().unwrap())
+        .unwrap_or(105);
+    let [ra, dec] = metadata
+        .as_ref()
+        .map(|m| [m["ra"].as_f64().unwrap(), m["dec"].as_f64().unwrap()])
+        .unwrap_or([266.41683, -29.00781]);
     let root = tempfile::tempdir()?;
     let workspace = root.path();
     let pin = |name: &str, bytes: &[u8]| -> Result<ArtifactPinConfig> {
@@ -42,22 +72,27 @@ fn combined_sources_to_evaluator_preserve_integrated_map() -> Result<()> {
 105,0,0,2,,,,1,false
 106,318,48,15,16,14,2,1,true
 ";
-    let install_xp = |csv| -> Result<()> {
-        install_object_and_receipt(
-            workspace,
-            &products[1],
-            PARTITION,
-            &gzip_bytes(csv)?,
-            "XpContinuousMeanSpectrum_000000-003111.csv.gz",
-        )
+    let xp_object = match pilot {
+        Some(path) => fs::read(path.join("xp.csv.gz"))?,
+        None => gzip_bytes(&xp_csv)?,
     };
-    install_xp(&xp_csv)?;
+    let gaia_object = match pilot {
+        Some(path) => fs::read(path.join("gaia.csv.gz"))?,
+        None => gzip_bytes(catalogue)?,
+    };
+    install_object_and_receipt(
+        workspace,
+        &products[1],
+        partition,
+        &xp_object,
+        &format!("XpContinuousMeanSpectrum_{partition}.csv.gz"),
+    )?;
     install_object_and_receipt(
         workspace,
         &products[0],
-        PARTITION,
-        &gzip_bytes(catalogue)?,
-        "GaiaSource_000000-003111.csv.gz",
+        partition,
+        &gaia_object,
+        &format!("GaiaSource_{partition}.csv.gz"),
     )?;
 
     let mut synthetic_uv: Value = serde_json::from_slice(include_bytes!(
@@ -66,6 +101,10 @@ fn combined_sources_to_evaluator_preserve_integrated_map() -> Result<()> {
     // Exercise the unchanged combined-band admission gate with labelled
     // synthetic bytes confined to this temporary test workspace.
     synthetic_uv["calibration_status"] = "validated".into();
+    if pilot.is_some() {
+        synthetic_uv["predictors"][0]["name"] = "phot_g_mean_mag".into();
+        synthetic_uv["predictors"][0]["domain"]["maximum"] = 22.0.into();
+    }
     let uv_pin = pin("uv.json", &serde_json::to_vec(&synthetic_uv)?)?;
     let photometric = pin(
         "photometric.json",
@@ -76,7 +115,7 @@ fn combined_sources_to_evaluator_preserve_integrated_map() -> Result<()> {
         &serde_json::to_vec(&serde_json::json!({
             "schema_version": 1, "model_id": "synthetic-selection", "calibration_status": "validated",
             "reference_dataset": {"name": "fixture", "release": "fixture", "licence": "AGPL-3.0-only", "doi": "fixture", "files": [{"name": "fixture", "sha256": "d".repeat(64)}]},
-            "weight_cap": 5, "magnitude_bins": [10,20], "colour_bins": [-1,4],
+            "weight_cap": 5, "magnitude_bins": [10,22], "colour_bins": [-1,6],
             "healpix_nside": 1,
             "completeness_table": (0..12).map(|pixel| serde_json::json!({
                 "healpix": pixel, "magnitude_bin": 0, "colour_bin": 0, "completeness": 0.5
@@ -96,7 +135,7 @@ fn combined_sources_to_evaluator_preserve_integrated_map() -> Result<()> {
         true,
     )?;
     let gaia = GaiaMatchRow {
-        gaia_source_id: 105,
+        gaia_source_id: replacement,
         ra_deg_j2016: 0.0,
         dec_deg_j2016: 0.0,
         gaia_g_mag: Some(2.0),
@@ -115,12 +154,12 @@ fn combined_sources_to_evaluator_preserve_integrated_map() -> Result<()> {
             1,
             vec![HipGaiaIdentityMatch {
                 hip: 1,
-                gaia_source_id: 105,
+                gaia_source_id: replacement,
                 angular_distance_arcsec: 0.0,
                 number_of_neighbours: 1,
             }],
         )]),
-        &BTreeMap::from([(105, gaia)]),
+        &BTreeMap::from([(replacement, gaia)]),
         &[],
         &spectra,
         &BTreeSet::new(),
@@ -131,17 +170,19 @@ fn combined_sources_to_evaluator_preserve_integrated_map() -> Result<()> {
     let supplement = pin("bright.json", &bright.to_json_pretty()?)?;
     let bright = load_bright_star_artifact(&supplement.artifact_path, &supplement.sha256)?;
     let suppressed = bright.suppressed_gaia_source_ids()?;
-    assert_eq!(suppressed, BTreeSet::from([105]));
+    assert_eq!(suppressed, BTreeSet::from([replacement]));
 
-    let centre = healpix::galactic_nested_pixel_from_icrs_position(266.41683, -29.00781, 1)?;
+    let centre = healpix::galactic_nested_pixel_from_icrs_position(ra, dec, 1)?;
     let opposite = healpix::galactic_nested_pixel_from_icrs_position(318.0, 48.0, 1)?;
-    assert_ne!(centre % 2, opposite % 2, "fixture needs different colours");
+    if pilot.is_none() {
+        assert_ne!(centre % 2, opposite % 2, "fixture needs different colours");
+    }
     let design = checksum_io::sha256_file(
         &GaiaXpContinuousCalibrator::resolve_design_fixture_path(None, None),
     )?;
-    let inference = pin(
-        "inference.json",
-        &serde_json::to_vec(&crate::starlight::bv::tests::calibration_fixture(
+    let model_bytes = match pilot {
+        Some(path) => fs::read(path.join("bv-shape.json"))?,
+        None => serde_json::to_vec(&crate::starlight::bv::tests::calibration_fixture(
             &[
                 centre,
                 opposite,
@@ -149,7 +190,8 @@ fn combined_sources_to_evaluator_preserve_integrated_map() -> Result<()> {
             ],
             &design,
         ))?,
-    )?;
+    };
+    let inference = pin("inference.json", &model_bytes)?;
     let mut run = RunConfig::load(
         &PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("config/starlight-production-300-650.ladon.toml"),
@@ -178,12 +220,27 @@ fn combined_sources_to_evaluator_preserve_integrated_map() -> Result<()> {
         |config: &RunConfig| -> Result<()> { Ok(fs::write(&path, toml::to_string(config)?)?) };
     configure(&run)?;
     execute(Operation::Build)?;
-    execute(Operation::Validate)?;
     let validation = || -> Result<ValidationReport> {
         Ok(serde_json::from_slice(&fs::read(
             workspace.join("validation.json"),
         )?)?)
     };
+    let validate = || -> Result<()> {
+        if let Err(error) = execute(Operation::Validate) {
+            let report = validation()?;
+            let failed: Vec<_> = report.gates.iter().filter(|g| !g.passed).collect();
+            // A single real partition exercises the packaging and worker gates,
+            // while the normal full-sky plane coverage guard must still fail.
+            if pilot.is_none()
+                || failed.len() != 1
+                || failed[0].name != "pixel-coverage-galactic-plane"
+            {
+                anyhow::bail!("{error}: {:?}", report.gates);
+            }
+        }
+        Ok(())
+    };
+    validate()?;
     let legacy = validation()?;
     let mut enabled = run.clone();
     enabled.starlight.as_mut().unwrap().bv_photometry = Some(inference.clone());
@@ -204,9 +261,7 @@ fn combined_sources_to_evaluator_preserve_integrated_map() -> Result<()> {
         "integrated-only shards cannot be reused"
     );
     execute(Operation::Build)?;
-    if let Err(error) = execute(Operation::Validate) {
-        anyhow::bail!("{error}: {:?}", validation()?.gates);
-    }
+    validate()?;
     let valid = validation()?;
     assert!(valid
         .gates
@@ -229,7 +284,22 @@ fn combined_sources_to_evaluator_preserve_integrated_map() -> Result<()> {
     let manifest = artifacts.iter().find(|a| a.name == BV_FILES[2]).unwrap();
     let digest = &manifest.sha256;
     let (candidate, evidence) = verify_bv_candidate(workspace, digest)?;
-    assert_eq!(candidate.admitted_sources().values().sum::<u64>(), 6);
+    let admitted = candidate.admitted_sources().values().sum::<u64>();
+    let observable = |key: &str| {
+        metadata
+            .as_ref()
+            .map(|m| m["counts"][key].as_u64().unwrap())
+            .unwrap_or(1)
+    };
+    assert_eq!(
+        admitted,
+        observable("xp")
+            + observable("full")
+            + observable("g_and_bp")
+            + observable("g_and_rp")
+            + observable("g_only")
+            + 1
+    );
     let mut counts = BTreeMap::new();
     for pixel in evidence.pixels.values() {
         for (route, n) in &pixel.source_counts {
@@ -239,37 +309,48 @@ fn combined_sources_to_evaluator_preserve_integrated_map() -> Result<()> {
     assert_eq!(
         counts,
         BTreeMap::from([
-            (BvRoute::GaiaXp, 1),
-            (BvRoute::FullColour, 1),
-            (BvRoute::GAndBp, 1),
-            (BvRoute::GAndRp, 1),
-            (BvRoute::GOnly, 1),
+            (BvRoute::GaiaXp, observable("xp")),
+            (BvRoute::FullColour, observable("full")),
+            (BvRoute::GAndBp, observable("g_and_bp")),
+            (BvRoute::GAndRp, observable("g_and_rp")),
+            (BvRoute::GOnly, observable("g_only")),
             (BvRoute::HipparcosCk04, 1),
         ])
     );
     let report: MergeReport =
         serde_json::from_slice(&fs::read(workspace.join("outputs/merge_report.json"))?)?;
-    assert_eq!(report.excluded_sources, 2);
+    assert_eq!(report.excluded_sources, if pilot.is_some() { 1 } else { 2 });
     assert_eq!(report.source_record_accounting.replacement_records, 1);
-    let midway = calibrator.bv_sampler()?.sample(&record)?.flux_w_m2_nm;
-    let colour = |pixel| {
-        if pixel % 2 == 0 {
-            [1e-14, 2e-14]
-        } else {
-            [4e-14, 1e-14]
-        }
-    };
     let actual_centre = evidence.pixels[&centre].flux_w_m2_nm;
-    let actual_opposite = evidence.pixels[&opposite].flux_w_m2_nm;
-    for band in 0..2 {
-        let expected_centre = 2.0 * midway[band] + 2.0 * colour(centre)[band];
-        assert!((actual_centre[band] / expected_centre - 1.0).abs() < 1e-14);
-        assert!((actual_opposite[band] / (4.0 * colour(opposite)[band]) - 1.0).abs() < 1e-14);
+    if pilot.is_some() {
+        assert_eq!(
+            evidence
+                .pixels
+                .values()
+                .flat_map(|pixel| pixel.inference_support.values())
+                .sum::<u64>(),
+            admitted - observable("xp") - 1
+        );
+    } else {
+        let midway = calibrator.bv_sampler()?.sample(&record)?.flux_w_m2_nm;
+        let colour = |pixel| {
+            if pixel % 2 == 0 {
+                [1e-14, 2e-14]
+            } else {
+                [4e-14, 1e-14]
+            }
+        };
+        let actual_opposite = evidence.pixels[&opposite].flux_w_m2_nm;
+        for band in 0..2 {
+            let expected_centre = 2.0 * midway[band] + 2.0 * colour(centre)[band];
+            assert!((actual_centre[band] / expected_centre - 1.0).abs() < 1e-14);
+            assert!((actual_opposite[band] / (4.0 * colour(opposite)[band]) - 1.0).abs() < 1e-14);
+        }
+        assert_ne!(
+            actual_centre[0] / actual_centre[1],
+            actual_opposite[0] / actual_opposite[1]
+        );
     }
-    assert_ne!(
-        actual_centre[0] / actual_centre[1],
-        actual_opposite[0] / actual_opposite[1]
-    );
 
     let bytes = fs::read(&compact.path)?;
     let map = StarlightMap::from_compact_bytes(
@@ -292,7 +373,7 @@ fn combined_sources_to_evaluator_preserve_integrated_map() -> Result<()> {
             chrono::DateTime::parse_from_rfc3339("2023-09-04T01:48:00Z")?
                 .with_timezone(&chrono::Utc),
         ),
-        Target::new(266.41683 * DEG, -29.00781 * DEG),
+        Target::new(ra * DEG, dec * DEG),
     )
     .with_components(ComponentMask::STARLIGHT);
     let result = NsbEvaluator::with_config(
@@ -313,7 +394,7 @@ fn combined_sources_to_evaluator_preserve_integrated_map() -> Result<()> {
     crate::starlight::validation::bv::tests::check_comparison(workspace, digest, &evidence)?;
     let regenerated = crate::starlight::map::product::emit_maps(
         workspace,
-        &[PARTITION.into(), "bright-star-supplement".into()],
+        &[partition.into(), "bright-star-supplement".into()],
         1,
         BAND,
         config
@@ -336,6 +417,23 @@ fn combined_sources_to_evaluator_preserve_integrated_map() -> Result<()> {
         compact.sha256
     );
     assert_eq!(fs::read(&compact.path)?, bytes);
+    if let Some(path) = pilot {
+        let result = path.join("candidate");
+        fs::create_dir_all(&result)?;
+        for name in BV_FILES {
+            let file = workspace.join(name);
+            fs::copy(&file, result.join(file.file_name().unwrap()))?;
+        }
+        fs::copy(
+            workspace.join("validation.json"),
+            result.join("validation.json"),
+        )?;
+        fs::copy(&map_path, result.join("integrated.csv"))?;
+        fs::copy(
+            workspace.join("outputs/merge_report.json"),
+            result.join("merge_report.json"),
+        )?;
+    }
     assert!(verify_bv_candidate(workspace, &"0".repeat(64)).is_err());
     let mut manifest: serde_json::Value = serde_json::from_slice(&fs::read(&manifest.path)?)?;
     manifest["calibration_status"] = "validated".into();
@@ -350,11 +448,17 @@ fn combined_sources_to_evaluator_preserve_integrated_map() -> Result<()> {
     );
     let mut duplicate = xp_csv.clone();
     duplicate.extend_from_slice(&xp_csv[xp_csv.iter().position(|x| *x == b'\n').unwrap() + 1..]);
-    install_xp(&duplicate)?;
+    install_object_and_receipt(
+        workspace,
+        &products[1],
+        partition,
+        &gzip_bytes(&duplicate)?,
+        &format!("XpContinuousMeanSpectrum_{partition}.csv.gz"),
+    )?;
     assert!(build_partitions(
         workspace,
         &products,
-        &[PARTITION.into()],
+        &[partition.into()],
         1,
         1,
         BAND,

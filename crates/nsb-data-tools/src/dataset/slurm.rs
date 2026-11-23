@@ -62,12 +62,13 @@ fn submit_with(
         .context("execution.slurm is required for the Slurm executor")?;
     let executable = std::env::current_exe()?;
     let chunk_size = slurm.max_array_size.max(1);
+    let run_directory = manifest_path
+        .parent()
+        .context("Slurm run has no manifest directory")?;
+    let mut manifest = read_manifest(manifest_path)?;
     let mut job_ids = Vec::new();
     for (chunk_index, chunk) in plan.partitions.chunks(chunk_size).enumerate() {
-        let partition_file = config
-            .workspace
-            .root
-            .join(format!("slurm-partitions-{chunk_index:03}.json"));
+        let partition_file = run_directory.join(format!("slurm-partitions-{chunk_index:03}.json"));
         super::engine::atomic_write(
             &partition_file,
             &serde_json::to_vec_pretty(&PartitionArray {
@@ -97,14 +98,20 @@ fn submit_with(
             time_limit: slurm.time_limit.clone(),
             memory: slurm.memory.clone(),
         })?;
-        job_ids.push(submission.job_id);
+        // Persist each receipt before submitting the next array. Recovery can
+        // wait for accepted work even if a later submission fails.
+        let id = submission.job_id;
+        manifest.slurm_job_id = Some(match manifest.slurm_job_id.as_deref() {
+            Some(previous) => format!("{previous},{id}"),
+            None => id.clone(),
+        });
+        manifest.status = RunStatus::Submitted;
+        manifest.error = None;
+        write_manifest(manifest_path, &manifest)?;
+        job_ids.push(id);
     }
 
-    let mut manifest = read_manifest(manifest_path)?;
-    manifest.status = RunStatus::Submitted;
-    manifest.slurm_job_id = Some(job_ids.join(","));
-    write_manifest(manifest_path, &manifest)?;
-    println!("{}", manifest.slurm_job_id.as_deref().unwrap_or_default());
+    println!("{}", job_ids.join(","));
     Ok(())
 }
 
@@ -143,6 +150,7 @@ mod tests {
     #[derive(Default)]
     struct RecordingScheduler {
         requests: Mutex<Vec<ArrayRequest>>,
+        fail_after: Option<usize>,
     }
 
     impl Scheduler for RecordingScheduler {
@@ -151,6 +159,9 @@ mod tests {
             request: &ArrayRequest,
         ) -> Result<super::super::execution::scheduler::JobSubmission> {
             let mut requests = self.requests.lock().unwrap();
+            if self.fail_after == Some(requests.len()) {
+                bail!("mock sbatch rejected array");
+            }
             requests.push(request.clone());
             Ok(super::super::execution::scheduler::JobSubmission {
                 job_id: (4000 + requests.len()).to_string(),
@@ -243,9 +254,9 @@ mod tests {
             assert_eq!(request.account.as_deref(), Some("astronomy"));
             assert_eq!(request.time_limit.as_deref(), Some("00:30:00"));
             assert_eq!(request.memory.as_deref(), Some("4G"));
-            let path = config
-                .workspace
-                .root
+            let path = manifest_path
+                .parent()
+                .unwrap()
                 .join(format!("slurm-partitions-{index:03}.json"));
             let array: PartitionArray =
                 serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
@@ -263,6 +274,38 @@ mod tests {
         let manifest = read_manifest(&manifest_path).unwrap();
         assert!(matches!(manifest.status, RunStatus::Submitted));
         assert_eq!(manifest.slurm_job_id.as_deref(), Some("4001,4002,4003"));
+    }
+
+    #[test]
+    fn slurm_keeps_the_accepted_array_receipt_if_a_later_submission_fails() {
+        let (temp, config, plan, manifest_path) = fixture();
+        let scheduler = RecordingScheduler {
+            fail_after: Some(1),
+            ..Default::default()
+        };
+        let config_path = temp.path().join("run.toml");
+        assert!(submit_with(&scheduler, &config_path, &config, &plan, &manifest_path).is_err());
+        let run = read_manifest(&manifest_path).unwrap();
+        assert_eq!(run.slurm_job_id.as_deref(), Some("4001"));
+        let original = temp.path().join("slurm-partitions-000.json");
+        let bytes = std::fs::read(&original).unwrap();
+        let retry_dir = temp.path().join("retry");
+        std::fs::create_dir(&retry_dir).unwrap();
+        let retry = retry_dir.join("run.json");
+        write_manifest(&retry, &run).unwrap();
+        let retry_plan = BuildPlan {
+            partitions: vec!["p5".into()],
+            ..plan
+        };
+        submit_with(
+            &RecordingScheduler::default(),
+            &config_path,
+            &config,
+            &retry_plan,
+            &retry,
+        )
+        .unwrap();
+        assert_eq!(std::fs::read(original).unwrap(), bytes);
     }
 
     #[test]

@@ -740,13 +740,24 @@ impl PartitionShard {
         route: BvRoute,
         selection_fraction: f64,
     ) -> Result<()> {
+        self.add_admitted_bv_with_support(position, flux, route, selection_fraction, None)
+    }
+
+    pub(crate) fn add_admitted_bv_with_support(
+        &mut self,
+        position: IcrsSkyPosition,
+        flux: BvFlux,
+        route: BvRoute,
+        selection_fraction: f64,
+        support: Option<crate::starlight::bv::BvSupport>,
+    ) -> Result<()> {
         let pixel = galactic_accumulation_pixel(position, self.nside)?;
         self.pixels
             .get_mut(&pixel)
             .context("B/V source is missing the integrated admission pixel")?
             .bv
             .get_or_insert_with(Box::default)
-            .add(flux, route, selection_fraction)
+            .add(flux, route, selection_fraction, support)
     }
 
     /// Record one source rejected by a stable scientific reason code.

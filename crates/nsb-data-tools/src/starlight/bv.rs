@@ -5,7 +5,9 @@
 use super::config::{ArtifactPinConfig, GaiaProductConfig};
 use super::healpix::{gaia_nested_npix, galactic_nested_pixel_from_icrs_position, IcrsSkyPosition};
 use super::map::accumulator::StableSum;
-use super::photometric::PhotometricFeatures;
+use super::photometric::{PhotometricFeatures, PhotometricFluxEstimate};
+
+mod shape;
 use super::uv::PartitionEvidence;
 use super::xp::calibrate::BV_REFERENCE_NM;
 use crate::platform::checksum_io;
@@ -192,6 +194,17 @@ struct Calibration {
 pub(crate) struct BvInference {
     pub xp_shared_calibration_fraction: [f64; 2],
     pub xp_design_sha256: String,
+    model: InferenceModel,
+}
+
+#[derive(Debug)]
+enum InferenceModel {
+    ConditionalCells(ConditionalCells),
+    Shape(Box<shape::ShapeCalibration>),
+}
+
+#[derive(Debug)]
+struct ConditionalCells {
     sky_nside: u32,
     g_edges: Vec<f64>,
     bp_g_edges: Vec<f64>,
@@ -204,6 +217,19 @@ impl BvInference {
         let bytes = fs::read(path).with_context(|| format!("read {}", path.display()))?;
         if checksum_io::sha256_bytes(&bytes) != expected_sha256 {
             bail!("B/V calibration checksum mismatch");
+        }
+        #[derive(Deserialize)]
+        struct Schema {
+            schema_version: u32,
+        }
+        if serde_json::from_slice::<Schema>(&bytes)?.schema_version == 2 {
+            let shape: shape::ShapeCalibration = serde_json::from_slice(&bytes)?;
+            shape.validate()?;
+            return Ok(Self {
+                xp_shared_calibration_fraction: shape.xp_shared_calibration_fraction,
+                xp_design_sha256: shape.xp_design_sha256.clone(),
+                model: InferenceModel::Shape(Box::new(shape)),
+            });
         }
         let a: Calibration = serde_json::from_slice(&bytes)?;
         let pixels = gaia_nested_npix(a.sky_nside)?;
@@ -300,12 +326,40 @@ impl BvInference {
         Ok(Self {
             xp_shared_calibration_fraction: a.xp_shared_calibration_fraction,
             xp_design_sha256: a.xp_design_sha256,
-            sky_nside: a.sky_nside,
-            g_edges: a.g_edges,
-            bp_g_edges: a.bp_g_edges,
-            g_rp_edges: a.g_rp_edges,
-            cells,
+            model: InferenceModel::ConditionalCells(ConditionalCells {
+                sky_nside: a.sky_nside,
+                g_edges: a.g_edges,
+                bp_g_edges: a.bp_g_edges,
+                g_rp_edges: a.g_rp_edges,
+                cells,
+            }),
         })
+    }
+
+    pub(crate) fn check_normalization_pin(&self, pin: Option<&ArtifactPinConfig>) -> Result<()> {
+        if let InferenceModel::Shape(shape) = &self.model {
+            if pin.map(|p| p.sha256.as_str()) != Some(&shape.photometric_sha256) {
+                bail!("B/V shape calibration normalization checksum mismatch");
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn predict_admitted(
+        &self,
+        position: IcrsSkyPosition,
+        features: PhotometricFeatures,
+        normalization: &PhotometricFluxEstimate,
+    ) -> Result<(BvFlux, BvRoute, Option<BvSupport>)> {
+        if let InferenceModel::Shape(shape) = &self.model {
+            let (route, g, colours) = ColourRoute::features(features)
+                .context("invalid Gaia photometry for B/V shape inference")?;
+            let (flux, support) = shape.predict(position, route, g, colours, normalization)?;
+            Ok((flux, route.into(), Some(support)))
+        } else {
+            let (flux, route) = self.predict(position, features)?;
+            Ok((flux, route, None))
+        }
     }
 
     /// Predict a conditional population mean for the observed photometry.
@@ -317,19 +371,22 @@ impl BvInference {
     ) -> Result<(BvFlux, BvRoute)> {
         let (route, g, [bp_g, g_rp]) =
             ColourRoute::features(features).context("invalid Gaia photometry for B/V inference")?;
+        let InferenceModel::ConditionalCells(model) = &self.model else {
+            bail!("photon normalization is required for the B/V shape estimator");
+        };
         let sky_pixel = galactic_nested_pixel_from_icrs_position(
             position.ra_deg,
             position.dec_deg,
-            self.sky_nside,
+            model.sky_nside,
         )?;
         let key = CellKey {
             route,
             sky_pixel,
-            g_bin: bin(&self.g_edges, g)?,
-            bp_g_bin: bp_g.map(|x| bin(&self.bp_g_edges, x)).transpose()?,
-            g_rp_bin: g_rp.map(|x| bin(&self.g_rp_edges, x)).transpose()?,
+            g_bin: bin(&model.g_edges, g)?,
+            bp_g_bin: bp_g.map(|x| bin(&model.bp_g_edges, x)).transpose()?,
+            g_rp_bin: g_rp.map(|x| bin(&model.g_rp_edges, x)).transpose()?,
         };
-        let cell = self
+        let cell = model
             .cells
             .get(&key)
             .with_context(|| format!("no calibrated B/V cell for {key:?}"))?;
@@ -454,6 +511,16 @@ impl From<ColourRoute> for BvRoute {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum BvSupport {
+    XpColourSupport,
+    MissingColourPrior,
+    SparseXpPrior,
+    MagnitudeExtrapolation,
+    ColourExtrapolation,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct BvAccumulator {
@@ -462,6 +529,8 @@ pub(crate) struct BvAccumulator {
     independent_systematic_covariance: [StableSum; 3],
     shared_systematic: BTreeMap<String, [StableSum; 2]>,
     counts: BTreeMap<BvRoute, u64>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    support: BTreeMap<BvSupport, u64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -472,6 +541,8 @@ pub(crate) struct BvPixelEvidence {
     pub independent_systematic_covariance: [f64; 3],
     pub shared_systematic_sigma: BTreeMap<String, [f64; 2]>,
     pub source_counts: BTreeMap<BvRoute, u64>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub inference_support: BTreeMap<BvSupport, u64>,
 }
 
 impl BvPixelEvidence {
@@ -484,6 +555,7 @@ impl BvPixelEvidence {
             .try_fold(0_u64, |sum, count| sum.checked_add(*count));
         if count != Some(admitted)
             || admitted == 0
+            || !valid_support(&self.inference_support, &self.source_counts)
             || self.source_counts.values().any(|&n| n == 0)
             || self
                 .shared_systematic_sigma
@@ -501,12 +573,24 @@ impl BvPixelEvidence {
     }
 }
 
+fn valid_support(support: &BTreeMap<BvSupport, u64>, routes: &BTreeMap<BvRoute, u64>) -> bool {
+    let inferred = routes
+        .iter()
+        .filter(|(route, _)| !matches!(route, BvRoute::GaiaXp | BvRoute::HipparcosCk04))
+        .map(|(_, count)| *count)
+        .try_fold(0_u64, u64::checked_add);
+    support.is_empty()
+        || (support.values().all(|&n| n > 0)
+            && support.values().copied().try_fold(0_u64, u64::checked_add) == inferred)
+}
+
 impl BvAccumulator {
     pub(crate) fn add(
         &mut self,
         estimate: BvFlux,
         route: BvRoute,
         selection_fraction: f64,
+        support: Option<BvSupport>,
     ) -> Result<()> {
         estimate.validate()?;
         let group = match route {
@@ -541,6 +625,12 @@ impl BvAccumulator {
         }
         let count = self.counts.entry(route).or_default();
         *count = count.checked_add(1).context("B/V source count overflow")?;
+        if let Some(support) = support {
+            let count = self.support.entry(support).or_default();
+            *count = count
+                .checked_add(1)
+                .context("B/V inference support overflow")?;
+        }
         Ok(())
     }
 
@@ -579,6 +669,12 @@ impl BvAccumulator {
                 sum.merge(other)?;
             }
         }
+        for (support, other) in &other.support {
+            let count = self.support.entry(*support).or_default();
+            *count = count
+                .checked_add(*other)
+                .context("B/V inference support overflow")?;
+        }
         for (route, other) in &other.counts {
             let count = self.counts.entry(*route).or_default();
             *count = count
@@ -593,7 +689,11 @@ impl BvAccumulator {
             .counts
             .values()
             .try_fold(0_u64, |acc, count| acc.checked_add(*count));
-        if count != Some(admitted) || admitted == 0 || self.counts.values().any(|&n| n == 0) {
+        if count != Some(admitted)
+            || admitted == 0
+            || !valid_support(&self.support, &self.counts)
+            || self.counts.values().any(|&n| n == 0)
+        {
             bail!("B/V source coverage disagrees with integrated admission");
         }
         for sum in self.flux.iter().chain(&self.statistical_covariance) {
@@ -629,6 +729,7 @@ impl BvAccumulator {
                 .map(|(group, sums)| (group.clone(), sums.each_ref().map(StableSum::value)))
                 .collect(),
             source_counts: self.counts.clone(),
+            inference_support: self.support.clone(),
         }
     }
 }
@@ -722,11 +823,13 @@ pub(crate) mod tests {
         let model = BvInference {
             xp_design_sha256: "b".repeat(64),
             xp_shared_calibration_fraction: [0.01; 2],
-            sky_nside: 1,
-            g_edges: vec![9.0, 18.0],
-            bp_g_edges: vec![-1.0, 2.0],
-            g_rp_edges: vec![-1.0, 2.0],
-            cells,
+            model: InferenceModel::ConditionalCells(ConditionalCells {
+                sky_nside: 1,
+                g_edges: vec![9.0, 18.0],
+                bp_g_edges: vec![-1.0, 2.0],
+                g_rp_edges: vec![-1.0, 2.0],
+                cells,
+            }),
         };
         for (bp, rp, route) in [
             (Some(15.0), Some(14.0), BvRoute::FullColour),
@@ -853,10 +956,11 @@ pub(crate) mod tests {
             shared_systematic_sigma: [1.5, 2.0],
         };
         let mut a = BvAccumulator::default();
-        a.add(make(1e30, 1.0), BvRoute::GaiaXp, 0.25).unwrap();
+        a.add(make(1e30, 1.0), BvRoute::GaiaXp, 0.25, None).unwrap();
         let mut b = BvAccumulator::default();
-        b.add(make(-1e30, 2.0), BvRoute::GaiaXp, 0.25).unwrap();
-        b.add(make(1.0, 4.0), BvRoute::GaiaXp, 0.25).unwrap();
+        b.add(make(-1e30, 2.0), BvRoute::GaiaXp, 0.25, None)
+            .unwrap();
+        b.add(make(1.0, 4.0), BvRoute::GaiaXp, 0.25, None).unwrap();
         let mut c = b.clone();
         c.merge(&a).unwrap();
         a.merge(&b).unwrap();

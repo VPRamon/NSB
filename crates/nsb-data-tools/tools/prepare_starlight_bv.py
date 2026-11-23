@@ -209,7 +209,7 @@ def public_input(root, limit):
     return gaia, xp, census(rows), {str(p.relative_to(root)): digest(p) for p in files}
 
 
-def cache_input(root, cache, partitions, limit):
+def cache_input(root, cache, partitions, limit, *, stellar_only=False):
     """Use the approved pinned raw inventories to verify cached object identities."""
     config = tomllib.loads(CONFIG.read_text())
     objects = {}
@@ -257,7 +257,10 @@ def cache_input(root, cache, partitions, limit):
         rows = by_id(row for row in gaia_parent_rows(objects["gaia-source", partition], compressed=True)
                      if int(row["random_index"]) < limit)
         parent_rows.extend(rows.values())
-        wanted = {sid for sid, row in rows.items() if selected(row)}
+        wanted = {sid for sid, row in rows.items() if selected(row) and (
+            not stellar_only or not any(gaia_flag(row, flag)
+                                        for flag in ("in_qso_candidates", "in_galaxy_candidates"))
+        )}
         records = by_id(row for row in csv_rows(objects["xp-continuous", partition], XP, compressed=True)
                         if source_id(row) in wanted)
         if records.keys() != wanted or xp.keys() & wanted:

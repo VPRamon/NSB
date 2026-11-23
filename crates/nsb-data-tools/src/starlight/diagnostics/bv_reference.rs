@@ -4,6 +4,8 @@
 
 use crate::starlight::bv::BvFlux;
 use crate::starlight::healpix::galactic_nested_pixel_from_icrs_position;
+use crate::starlight::photometric::{PhotometricCorrection, PhotometricFeatures};
+use crate::starlight::worker::processing::measured_xp_flux_and_uncertainty;
 use crate::starlight::xp::{canonical::parse_bulk_ecsv_record, GaiaXpContinuousCalibrator};
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
@@ -22,7 +24,19 @@ struct GaiaPhotometry {
 
 /// Export signed coefficient-space references keyed by Gaia source identity.
 /// The CSV extraction and design are pinned by the caller's experiment receipt.
-pub(crate) fn export(xp: &Path, gaia: &Path, output: &Path) -> Result<()> {
+pub(crate) fn export(
+    xp: &Path,
+    gaia: &Path,
+    output: &Path,
+    shape_photometric: Option<(&Path, &str)>,
+) -> Result<()> {
+    let photometric = shape_photometric
+        .map(|(path, sha)| {
+            let correction = PhotometricCorrection::load(path, sha)?;
+            correction.require_production_status()?;
+            Ok::<_, anyhow::Error>(correction)
+        })
+        .transpose()?;
     let design = GaiaXpContinuousCalibrator::resolve_design_fixture_path(None, None);
     let calibrator = GaiaXpContinuousCalibrator::from_design_fixture(&design)?;
     let sampler = calibrator.bv_sampler()?;
@@ -45,10 +59,15 @@ pub(crate) fn export(xp: &Path, gaia: &Path, output: &Path) -> Result<()> {
                 stat_b_var: estimate.covariance[0][0],
                 stat_v_var: estimate.covariance[1][1],
                 stat_cross: estimate.covariance[0][1],
+                photon: photometric.as_ref().and_then(|_| {
+                    let product = calibrator.calibrate(&row).ok()?;
+                    measured_xp_flux_and_uncertainty(&product).ok()
+                }),
             })
         }),
         gaia,
         output,
+        photometric.as_ref(),
     )
 }
 
@@ -60,18 +79,21 @@ struct ReferenceFlux {
     stat_b_var: f64,
     stat_v_var: f64,
     stat_cross: f64,
+    #[serde(skip)]
+    photon: Option<(f64, f64)>,
 }
 
 /// Preserve Gaia astrometry and observed missingness when joining external labels.
 pub(crate) fn export_independent(reference: &Path, gaia: &Path, output: &Path) -> Result<()> {
     let mut reader = csv::Reader::from_path(reference)?;
-    write_labels(reader.deserialize().map(|row| Ok(row?)), gaia, output)
+    write_labels(reader.deserialize().map(|row| Ok(row?)), gaia, output, None)
 }
 
 fn write_labels(
     rows: impl Iterator<Item = Result<ReferenceFlux>>,
     gaia: &Path,
     output: &Path,
+    photometric: Option<&PhotometricCorrection>,
 ) -> Result<()> {
     let mut photometry = BTreeMap::new();
     for row in csv::Reader::from_path(gaia)?.deserialize::<GaiaPhotometry>() {
@@ -87,7 +109,7 @@ fn write_labels(
         .unwrap_or(Path::new("."));
     let mut temp = tempfile::NamedTempFile::new_in(parent)?;
     let mut writer = csv::Writer::from_writer(temp.as_file_mut());
-    writer.write_record([
+    let mut header = vec![
         "source_id",
         "galactic_nest16",
         "g",
@@ -98,7 +120,21 @@ fn write_labels(
         "stat_b_var",
         "stat_v_var",
         "stat_cross",
-    ])?;
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect::<Vec<_>>();
+    if photometric.is_some() {
+        header.extend(["xp_photon_flux".into(), "xp_photon_sigma".into()]);
+        for name in ["full", "g_and_bp", "g_and_rp", "g_only"] {
+            header.extend([
+                format!("{name}_photon"),
+                format!("{name}_stat"),
+                format!("{name}_sys"),
+            ]);
+        }
+    }
+    writer.write_record(header)?;
     for row in rows {
         let ReferenceFlux {
             source_id: id,
@@ -107,6 +143,7 @@ fn write_labels(
             stat_b_var,
             stat_v_var,
             stat_cross,
+            photon,
         } = row?;
         if id == 0 || !seen.insert(id) {
             bail!("duplicate or invalid spectral source identity {id}");
@@ -123,18 +160,62 @@ fn write_labels(
         }
         .validate()
         .with_context(|| format!("invalid spectral reference for Gaia source {id}"))?;
-        writer.serialize((
-            id,
-            pixel,
-            phot.phot_g_mean_mag,
-            phot.phot_bp_mean_mag,
-            phot.phot_rp_mean_mag,
-            b_w_m2_nm,
-            v_w_m2_nm,
-            stat_b_var,
-            stat_v_var,
-            stat_cross,
-        ))?;
+        let string = |x: Option<f64>| x.map(|x| x.to_string()).unwrap_or_default();
+        let mut fields = vec![
+            id.to_string(),
+            pixel.to_string(),
+            string(phot.phot_g_mean_mag),
+            string(phot.phot_bp_mean_mag),
+            string(phot.phot_rp_mean_mag),
+            b_w_m2_nm.to_string(),
+            v_w_m2_nm.to_string(),
+            stat_b_var.to_string(),
+            stat_v_var.to_string(),
+            stat_cross.to_string(),
+        ];
+        if let Some(correction) = photometric {
+            fields.extend([string(photon.map(|x| x.0)), string(photon.map(|x| x.1))]);
+            for (bp, rp) in [(true, true), (true, false), (false, true), (false, false)] {
+                let bp = phot.phot_bp_mean_mag.filter(|_| bp);
+                let rp = phot.phot_rp_mean_mag.filter(|_| rp);
+                let flux = correction
+                    .route_and_evaluate(PhotometricFeatures {
+                        phot_g_mean_mag: phot.phot_g_mean_mag,
+                        phot_bp_mean_mag: bp,
+                        phot_rp_mean_mag: rp,
+                        bp_rp: bp.zip(rp).map(|(b, r)| b - r),
+                        quality_flag: true,
+                    })?
+                    .flux;
+                fields.extend([
+                    string(flux.as_ref().map(|x| x.flux_336_650_ph_m2_s)),
+                    string(
+                        flux.as_ref()
+                            .map(|x| x.statistical_uncertainty_336_650_ph_m2_s),
+                    ),
+                    string(
+                        flux.as_ref()
+                            .map(|x| x.systematic_uncertainty_336_650_ph_m2_s),
+                    ),
+                ]);
+            }
+        } else {
+            // Preserve the existing reference CSV's serde float representation.
+            writer.serialize((
+                id,
+                pixel,
+                phot.phot_g_mean_mag,
+                phot.phot_bp_mean_mag,
+                phot.phot_rp_mean_mag,
+                b_w_m2_nm,
+                v_w_m2_nm,
+                stat_b_var,
+                stat_v_var,
+                stat_cross,
+            ))?;
+            continue;
+        }
+        writer.write_record(fields)?;
     }
     if seen.is_empty() || seen.len() != photometry.len() {
         bail!("Gaia photometry and spectral CSVs must describe the same nonempty source set");
