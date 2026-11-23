@@ -799,10 +799,12 @@ fn bv_xp_cli_exports_a_signed_covariance_reference_and_checks_the_join() -> Resu
     assert_eq!(reader.headers()?.get(10), Some("xp_photon_flux"));
     let measured = calibrator.calibrate_record(&record)?;
     let shape_row = reader.records().next().unwrap()?;
-    assert_eq!(shape_row[10].parse::<f64>()?, measured.flux_336_650_ph_m2_s);
-    assert_eq!(
-        shape_row[11].parse::<f64>()?,
-        measured.statistical_uncertainty_336_650_ph_m2_s
+    // The Gaia CSV fixture rounds the coefficients on serialization.
+    assert!((shape_row[10].parse::<f64>()? / measured.flux_336_650_ph_m2_s - 1.0).abs() < 1e-10);
+    assert!(
+        (shape_row[11].parse::<f64>()? / measured.statistical_uncertainty_336_650_ph_m2_s - 1.0)
+            .abs()
+            < 1e-10
     );
     for index in (12..24).step_by(3) {
         assert!(shape_row[index].parse::<f64>()? > 0.0);
