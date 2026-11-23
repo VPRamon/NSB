@@ -12,6 +12,11 @@ import tempfile
 import unittest
 
 SCRIPT = Path(__file__).resolve().parents[2] / "crates/nsb-data-tools/tools/calibrate_starlight_bv.py"
+sys.path.insert(0, str(SCRIPT.parent))
+from calibrate_starlight_bv import bin_for, cells_for, load_policy  # noqa: E402
+from prepare_starlight_bv import (  # noqa: E402
+    DIAGNOSTIC, GAIA, LABELS, by_id, census, check_candidate, csv_rows, csv_write, freeze, read_review,
+)
 
 
 class StarlightBvCalibration(unittest.TestCase):
@@ -111,6 +116,93 @@ class StarlightBvCalibration(unittest.TestCase):
         ]:
             self.references.write_bytes(raw + row)
             self.assertIn(error, self.command(succeeds=False))
+
+    def test_half_open_magnitude_and_colour_boundaries(self):
+        policy = {**DIAGNOSTIC, "g_edges": [10, 15, 20],
+                  "bp_g_edges": [-1, 0.5, 2], "g_rp_edges": [-1, 0.5, 2]}
+        row = dict(zip(LABELS, (1, 256, 15, 15.5, 14.5, -1e-18, 1e-18)))
+        [(key, target, scale)] = list(cells_for(row, policy, False))
+        self.assertEqual(key, ("full", 1, 1, 1, 1))
+        self.assertEqual(target, [-1e-18, 1e-18])
+        self.assertEqual(scale, 1)
+        self.assertEqual(bin_for(policy["g_edges"], 10), 0)
+        self.assertEqual(list(cells_for(dict(row, g=20), policy, False)), [])
+
+    def test_workflow_uses_blank_photometry_and_freezes_input_bytes(self):
+        rows = [dict(zip(GAIA, values)) for values in
+                [(10, 30, 40, 15, "", 14), (20, 50, 60, 19, "", "")]]
+        csv_write(self.references, GAIA, rows)
+        raw = self.references.read_bytes()
+        match = by_id(csv_rows(self.references, GAIA))
+        self.assertEqual(match[10]["phot_bp_mean_mag"], "")
+        self.assertEqual(match[20]["phot_rp_mean_mag"], "")
+        comparison = census(dict(row, duplicated_source="false", b="5",
+                                 has_xp_continuous="false", phot_bp_n_blended_transits="",
+                                 phot_rp_n_blended_transits="1" if key == 10 else "")
+                            for key, row in match.items())
+        self.assertEqual({(row["route"], row["sources"]) for row in comparison},
+                         {("g_and_rp", 1), ("g_only", 1)})
+        csv_write(self.references, GAIA, rows)
+        self.assertEqual(self.references.read_bytes(), raw)
+        with self.assertRaisesRegex(ValueError, "duplicate Gaia source ID"):
+            by_id([rows[0], rows[0]])
+        freeze(self.references, raw)
+        with self.assertRaisesRegex(ValueError, "differs from frozen"):
+            freeze(self.references, b"edited")
+
+    def test_diagnostic_policy_has_no_candidate_provenance(self):
+        self.policy.write_text(json.dumps({**DIAGNOSTIC, "software_commit": "a" * 40,
+                                           "xp_design_sha256": "b" * 64,
+                                           "reference_provenance": "diagnostic fixture"}))
+        load_policy(self.policy, exporting=False)
+        with self.assertRaisesRegex(ValueError, "candidate export requires"):
+            load_policy(self.policy, exporting=True)
+        self.assertIn("candidate export requires",
+                      self.command("--candidate-calibration", self.model, succeeds=False))
+
+    def test_independent_review_checks_pins_and_held_out_support(self):
+        self.write_sources()
+        self.command()
+        policy = json.loads(self.policy.read_text())
+        report = json.loads(self.report.read_text())
+        self.model.write_text(json.dumps({"required_cells": report["cells"]}))
+        review = self.policy.with_name("review.json")
+        reference_pin = {"path": self.references.name,
+                         "sha256": hashlib.sha256(self.references.read_bytes()).hexdigest()}
+        target_pin = {"path": self.model.name, "sha256": hashlib.sha256(self.model.read_bytes()).hexdigest()}
+        payload = {name: reference_pin for name in (
+            "gaia_source", "spectral_reference", "xp_absolute_calibration_evidence",
+            "reference_evidence",
+        )}
+        payload.update(
+            target_population_evidence=target_pin,
+            reviewer="synthetic fixture",
+            selection_and_crossmatch="synthetic fixture",
+            wavelength_operator="synthetic fixture",
+            uncertainty_model="synthetic fixture",
+            measurement={"vacuum_nm": [445, 551], "unit": "W m-2 nm-1"},
+            reference_independent_of_gaia_xp_and_photometry=True,
+            policy={key: value for key, value in policy.items()
+                    if key not in ("software_commit", "xp_design_sha256", "reference_provenance")},
+            acceptance={"min_test_per_cell": 2, "max_abs_bias": 0.1,
+                        "max_p95_absolute_relative_error": 1,
+                        "min_coverage_68": 0.5, "min_coverage_95": 0.95},
+        )
+        review.write_text(json.dumps(payload))
+        files, thresholds = read_review(review, {})
+        check_candidate(report, thresholds, files["target_population_evidence"])
+        with self.assertRaisesRegex(ValueError, "insufficient reference support"):
+            check_candidate(report, dict(thresholds, min_test_per_cell=4), self.model)
+        report["cells"][0]["bands_b_v"][0]["relative_bias_sum"] = 0.2
+        with self.assertRaisesRegex(ValueError, "held-out acceptance failed"):
+            check_candidate(report, thresholds, self.model)
+        payload["reference_independent_of_gaia_xp_and_photometry"] = False
+        review.write_text(json.dumps(payload))
+        with self.assertRaisesRegex(ValueError, "requires independent"):
+            read_review(review, {})
+        self.references.write_text("corrupted reference")
+        with self.assertRaisesRegex(ValueError, "sha256 mismatch"):
+            read_review(review, {})
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 //! Source-level B/V references for offline calibration and parity checks.
 
+use crate::starlight::bv::BvFlux;
 use crate::starlight::healpix::galactic_nested_pixel_from_icrs_position;
 use crate::starlight::xp::{canonical::parse_bulk_ecsv_record, GaiaXpContinuousCalibrator};
 use anyhow::{bail, Context, Result};
@@ -25,13 +26,6 @@ pub(crate) fn export(xp: &Path, gaia: &Path, output: &Path) -> Result<()> {
     let design = GaiaXpContinuousCalibrator::resolve_design_fixture_path(None, None);
     let calibrator = GaiaXpContinuousCalibrator::from_design_fixture(&design)?;
     let sampler = calibrator.bv_sampler()?;
-    let mut photometry = BTreeMap::new();
-    for row in csv::Reader::from_path(gaia)?.deserialize::<GaiaPhotometry>() {
-        let row = row?;
-        if photometry.insert(row.source_id, row).is_some() {
-            bail!("duplicate source identity in Gaia photometry input");
-        }
-    }
     let mut reader = csv::Reader::from_path(xp)?;
     let columns: HashMap<String, usize> = reader
         .headers()?
@@ -40,6 +34,52 @@ pub(crate) fn export(xp: &Path, gaia: &Path, output: &Path) -> Result<()> {
         .map(|(i, name)| (name.to_owned(), i))
         .collect();
 
+    write_labels(
+        reader.records().map(|record| {
+            let row = parse_bulk_ecsv_record(&record?, &columns, Some(xp))?;
+            let estimate = sampler.sample(&row)?;
+            Ok(ReferenceFlux {
+                source_id: row.source_id.parse()?,
+                b_w_m2_nm: estimate.flux_w_m2_nm[0],
+                v_w_m2_nm: estimate.flux_w_m2_nm[1],
+                stat_b_var: estimate.covariance[0][0],
+                stat_v_var: estimate.covariance[1][1],
+                stat_cross: estimate.covariance[0][1],
+            })
+        }),
+        gaia,
+        output,
+    )
+}
+
+#[derive(Debug, Deserialize)]
+struct ReferenceFlux {
+    source_id: u64,
+    b_w_m2_nm: f64,
+    v_w_m2_nm: f64,
+    stat_b_var: f64,
+    stat_v_var: f64,
+    stat_cross: f64,
+}
+
+/// Preserve Gaia astrometry and observed missingness when joining external labels.
+pub(crate) fn export_independent(reference: &Path, gaia: &Path, output: &Path) -> Result<()> {
+    let mut reader = csv::Reader::from_path(reference)?;
+    write_labels(reader.deserialize().map(|row| Ok(row?)), gaia, output)
+}
+
+fn write_labels(
+    rows: impl Iterator<Item = Result<ReferenceFlux>>,
+    gaia: &Path,
+    output: &Path,
+) -> Result<()> {
+    let mut photometry = BTreeMap::new();
+    for row in csv::Reader::from_path(gaia)?.deserialize::<GaiaPhotometry>() {
+        let row = row?;
+        if photometry.insert(row.source_id, row).is_some() {
+            bail!("duplicate source identity in Gaia photometry input");
+        }
+    }
     let mut seen = BTreeSet::new();
     let parent = output
         .parent()
@@ -59,32 +99,45 @@ pub(crate) fn export(xp: &Path, gaia: &Path, output: &Path) -> Result<()> {
         "stat_v_var",
         "stat_cross",
     ])?;
-    for row in reader.records() {
-        let row = parse_bulk_ecsv_record(&row?, &columns, Some(xp))?;
-        let id: u64 = row.source_id.parse()?;
-        if !seen.insert(id) {
-            bail!("duplicate XP source identity {id}");
+    for row in rows {
+        let ReferenceFlux {
+            source_id: id,
+            b_w_m2_nm,
+            v_w_m2_nm,
+            stat_b_var,
+            stat_v_var,
+            stat_cross,
+        } = row?;
+        if id == 0 || !seen.insert(id) {
+            bail!("duplicate or invalid spectral source identity {id}");
         }
         let phot = photometry
             .get(&id)
             .with_context(|| format!("missing Gaia source {id}"))?;
         let pixel = galactic_nested_pixel_from_icrs_position(phot.ra, phot.dec, 16)?;
-        let estimate = sampler.sample(&row)?;
+        BvFlux {
+            flux_w_m2_nm: [b_w_m2_nm, v_w_m2_nm],
+            statistical_covariance: [stat_b_var, stat_v_var, stat_cross],
+            independent_systematic_sigma: [0.0; 2],
+            shared_systematic_sigma: [0.0; 2],
+        }
+        .validate()
+        .with_context(|| format!("invalid spectral reference for Gaia source {id}"))?;
         writer.serialize((
             id,
             pixel,
             phot.phot_g_mean_mag,
             phot.phot_bp_mean_mag,
             phot.phot_rp_mean_mag,
-            estimate.flux_w_m2_nm[0],
-            estimate.flux_w_m2_nm[1],
-            estimate.covariance[0][0],
-            estimate.covariance[1][1],
-            estimate.covariance[0][1],
+            b_w_m2_nm,
+            v_w_m2_nm,
+            stat_b_var,
+            stat_v_var,
+            stat_cross,
         ))?;
     }
     if seen.is_empty() || seen.len() != photometry.len() {
-        bail!("Gaia photometry and continuous XP CSVs must describe the same nonempty source set");
+        bail!("Gaia photometry and spectral CSVs must describe the same nonempty source set");
     }
     writer.flush()?;
     drop(writer);

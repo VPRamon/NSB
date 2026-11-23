@@ -3,7 +3,7 @@
 //! Dataset-oriented command-line interface.
 
 use crate::dataset::{self, DatasetName, Executor, Operation};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Args, Parser, Subcommand};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -272,8 +272,15 @@ enum StarlightDiagnoseCommand {
 
 #[derive(Debug, Args)]
 struct StarlightDiagnoseBvXpArgs {
+    #[arg(
+        long,
+        required_unless_present = "spectral_reference",
+        conflicts_with = "spectral_reference"
+    )]
+    xp_continuous: Option<PathBuf>,
+    /// Gaia-ID matched, externally calibrated 445/551 nm fluxes and covariance.
     #[arg(long)]
-    xp_continuous: PathBuf,
+    spectral_reference: Option<PathBuf>,
     #[arg(long)]
     gaia_source: PathBuf,
     #[arg(long)]
@@ -785,11 +792,18 @@ fn execute_starlight(args: StarlightActionArgs) -> Result<()> {
 fn execute_starlight_diagnose(args: StarlightDiagnoseArgs) -> Result<()> {
     match args.command {
         StarlightDiagnoseCommand::BvXp(args) => {
-            crate::starlight::diagnostics::bv_reference::export(
-                &args.xp_continuous,
-                &args.gaia_source,
-                &args.output,
-            )
+            use crate::starlight::diagnostics::bv_reference;
+            if let Some(reference) = args.spectral_reference {
+                bv_reference::export_independent(&reference, &args.gaia_source, &args.output)
+            } else {
+                bv_reference::export(
+                    args.xp_continuous
+                        .as_deref()
+                        .context("missing continuous XP input")?,
+                    &args.gaia_source,
+                    &args.output,
+                )
+            }
         }
         StarlightDiagnoseCommand::CompareBvIntegrated(args) => {
             let count = crate::starlight::diagnostics::bv_reference::compare_integrated(

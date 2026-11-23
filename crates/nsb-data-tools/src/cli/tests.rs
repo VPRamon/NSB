@@ -753,7 +753,8 @@ fn bv_xp_cli_exports_a_signed_covariance_reference_and_checks_the_join() -> Resu
     let export = || {
         execute_starlight_diagnose(StarlightDiagnoseArgs {
             command: StarlightDiagnoseCommand::BvXp(StarlightDiagnoseBvXpArgs {
-                xp_continuous: xp.clone(),
+                xp_continuous: Some(xp.clone()),
+                spectral_reference: None,
                 gaia_source: gaia.clone(),
                 output: output.clone(),
             }),
@@ -793,6 +794,53 @@ fn bv_xp_cli_exports_a_signed_covariance_reference_and_checks_the_join() -> Resu
         .to_string()
         .contains("same nonempty source set"));
     assert_eq!(std::fs::read(output)?, data);
+    Ok(())
+}
+
+#[test]
+fn bv_spectral_reference_preserves_observed_missingness_and_checks_covariance() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let spectra = dir.path().join("spectra.csv");
+    let gaia = dir.path().join("source.csv");
+    let output = dir.path().join("labels.csv");
+    let source = 4267180339403392768_u64;
+    // Gaia DR3 position (ESA TAP), Galactic NESTED index 1107 (Heidelberg TAP).
+    // The blank BP and fluxes below are synthetic to exercise the external join.
+    std::fs::write(
+        &gaia,
+        format!(
+            "source_id,ra,dec,phot_g_mean_mag,phot_bp_mean_mag,phot_rp_mean_mag\n\
+             {source},286.7169128963743,0.27619460064099405,15.244129,,14.419943\n"
+        ),
+    )?;
+    let header = "source_id,b_w_m2_nm,v_w_m2_nm,stat_b_var,stat_v_var,stat_cross";
+    let valid = format!("{source},-1e-18,2e-18,4e-38,9e-38,-5e-38");
+    std::fs::write(&spectra, format!("{header}\n{valid}\n"))?;
+    let export = || {
+        execute_starlight_diagnose(StarlightDiagnoseArgs {
+            command: StarlightDiagnoseCommand::BvXp(StarlightDiagnoseBvXpArgs {
+                xp_continuous: None,
+                spectral_reference: Some(spectra.clone()),
+                gaia_source: gaia.clone(),
+                output: output.clone(),
+            }),
+        })
+    };
+    export()?;
+    let row = csv::Reader::from_path(&output)?.records().next().unwrap()?;
+    assert_eq!(&row[0], &source.to_string());
+    assert_eq!(&row[1], "1107");
+    assert_eq!(&row[3], "");
+    assert_eq!(&row[4], "14.419943");
+    assert_eq!(row[5].parse::<f64>()?, -1e-18);
+    assert_eq!(row[9].parse::<f64>()?, -5e-38);
+    std::fs::write(&spectra, format!("{header}\n{valid}\n{valid}\n"))?;
+    assert!(export().unwrap_err().to_string().contains("duplicate"));
+    std::fs::write(
+        &spectra,
+        format!("{header}\n{source},1e-18,2e-18,4e-38,9e-38,7e-38\n"),
+    )?;
+    assert!(format!("{:#}", export().unwrap_err()).contains("invalid B/V covariance"));
     Ok(())
 }
 
