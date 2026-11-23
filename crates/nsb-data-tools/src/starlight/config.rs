@@ -32,6 +32,9 @@ pub struct StarlightConfig {
     /// Optional checksum-pinned non-XP photometric inference artifact.
     #[serde(default)]
     pub photometric_inference: Option<ArtifactPinConfig>,
+    /// Opt-in candidate monochromatic B/V calibration. Requires fresh shards.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bv_photometry: Option<ArtifactPinConfig>,
     /// Optional checksum-pinned Gaia selection-function artifact.
     #[serde(default)]
     pub selection_function: Option<ArtifactPinConfig>,

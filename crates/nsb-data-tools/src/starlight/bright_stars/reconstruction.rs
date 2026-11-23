@@ -194,6 +194,16 @@ pub fn reconstruct_spectral_estimates(
     model: &SpectralReconstructionModel,
     product_band: &str,
 ) -> Result<BTreeMap<u32, SpectralEstimate>> {
+    reconstruct_spectral_estimates_with_bv(hipparcos, xhip_by_hip, model, product_band, false)
+}
+
+pub(in crate::starlight) fn reconstruct_spectral_estimates_with_bv(
+    hipparcos: &[Hipparcos2Record],
+    xhip_by_hip: &BTreeMap<u32, XhipRecord>,
+    model: &SpectralReconstructionModel,
+    product_band: &str,
+    include_bv: bool,
+) -> Result<BTreeMap<u32, SpectralEstimate>> {
     model.validate_for_product_band(product_band)?;
     let combined = product_band == super::artifact::BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID;
     let templates: BTreeMap<_, _> = model
@@ -261,6 +271,17 @@ pub fn reconstruct_spectral_estimates(
         };
         let estimate = SpectralEstimate {
             hip: hip.astrometry.hip,
+            bv: include_bv
+                .then(|| {
+                    reconstruct_bv(
+                        template,
+                        model,
+                        hip.hp_mag,
+                        mag_fraction,
+                        independent_fraction,
+                    )
+                })
+                .transpose()?,
             flux_300_336_ph_m2_s: flux_300_336,
             flux_336_650_ph_m2_s: flux_336_650,
             statistical_uncertainty_300_336_ph_m2_s: flux_300_336 * mag_fraction,
@@ -287,11 +308,44 @@ pub fn reconstruct_spectral_estimates(
     Ok(estimates)
 }
 
+fn reconstruct_bv(
+    template: &SpectralTemplate,
+    model: &SpectralReconstructionModel,
+    hp_mag: f64,
+    mag_fraction: f64,
+    independent_fraction: f64,
+) -> Result<crate::starlight::bv::BvFlux> {
+    use super::photometry::{
+        integrate_template_through_response, interpolate_template, magnitude_to_band_photon_flux,
+    };
+    use crate::starlight::{bv::BvFlux, xp::calibrate::BV_REFERENCE_NM};
+    use nsb::units::length::{Meter, Nanometers};
+
+    let observed = magnitude_to_band_photon_flux(hp_mag, &model.hp_calibration)?;
+    let synthetic = integrate_template_through_response(template, &model.hp_response)?;
+    let mut flux = [0.0; 2];
+    for (value, nm) in flux.iter_mut().zip(BV_REFERENCE_NM) {
+        let m = Nanometers::new(nm).to::<Meter>().value();
+        let per_nm =
+            interpolate_template(template, m)? * Nanometers::new(1.0).to::<Meter>().value();
+        *value = per_nm * observed / synthetic;
+    }
+    let [b, v] = flux.map(|value| value * mag_fraction);
+    let estimate = BvFlux {
+        flux_w_m2_nm: flux,
+        statistical_covariance: [b * b, v * v, b * v],
+        independent_systematic_sigma: flux.map(|value| value * independent_fraction),
+        shared_systematic_sigma: flux.map(|value| value * model.hp_zero_point_fraction),
+    };
+    estimate.validate()?;
+    Ok(estimate)
+}
+
 /// Versioned identifier for the CK04-template 300--336 nm completion route.
 pub const UV_COMPLETION_MODEL_ID_V1: &str = "ck04-hp-scaled-uv-300-336-v1";
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
     use crate::starlight::bright_stars::HipparcosAstrometry;
 
@@ -304,8 +358,11 @@ mod tests {
         }
     }
 
-    #[test]
-    fn reconstruction_propagates_photometric_and_correlated_uncertainty() {
+    pub(crate) fn fixture() -> (
+        SpectralReconstructionModel,
+        Hipparcos2Record,
+        BTreeMap<u32, XhipRecord>,
+    ) {
         let model = SpectralReconstructionModel {
             model_id: SPECTRAL_RECONSTRUCTION_MODEL_ID_V1.into(),
             builder_software_commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
@@ -373,6 +430,12 @@ mod tests {
                 radial_velocity_uncertainty_km_s: Some(1.0),
             },
         )]);
+        (model, hip, xhip)
+    }
+
+    #[test]
+    fn reconstruction_propagates_photometric_and_correlated_uncertainty() {
+        let (model, hip, xhip) = fixture();
         let estimate = reconstruct_spectral_estimates(
             std::slice::from_ref(&hip),
             &xhip,
@@ -404,6 +467,35 @@ mod tests {
         assert_eq!(
             estimate.systematic_catalogue_correlated[0].uncertainty_ph_m2_s,
             expected_combined_zero_point
+        );
+
+        let combined = reconstruct_spectral_estimates_with_bv(
+            std::slice::from_ref(&hip),
+            &xhip,
+            &model,
+            super::super::artifact::BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID,
+            true,
+        )
+        .unwrap()
+        .remove(&1)
+        .unwrap();
+        let bv = combined.bv.unwrap();
+        assert_eq!(
+            estimate,
+            SpectralEstimate {
+                bv: None,
+                ..combined
+            }
+        );
+        let [b, v] = bv.flux_w_m2_nm;
+        assert_eq!(b, v); // constant f_lambda, distinct λ and photon energies
+        let expected = 1e-9 * (1e10 * 1.986_445_86e-25) / (0.5 * 500e-9 * 500e-9);
+        assert!((b / expected - 1.0).abs() < 1e-14);
+        let sigma = b * 0.4 * std::f64::consts::LN_10 * hip.hp_mag_uncertainty;
+        assert!((bv.statistical_covariance[2] / sigma.powi(2) - 1.0).abs() < 1e-14);
+        assert_eq!(
+            bv.shared_systematic_sigma,
+            [b * model.hp_zero_point_fraction; 2]
         );
 
         let measured = reconstruct_spectral_estimates(

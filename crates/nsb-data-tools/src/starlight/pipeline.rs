@@ -61,7 +61,15 @@ impl DatasetPipeline for StarlightPipeline {
                 ];
             }
         }
-        production_output_names(canonical_nside)
+        let mut names = production_output_names(canonical_nside);
+        if config
+            .starlight
+            .as_ref()
+            .is_some_and(|s| s.bv_photometry.is_some())
+        {
+            names.extend(super::pack::BV_FILES.map(str::to_owned));
+        }
+        names
     }
 
     fn output_name<'a>(&self, source_name: &'a str) -> Result<&'a str> {
@@ -126,6 +134,7 @@ impl DatasetPipeline for StarlightPipeline {
             starlight.photometric_inference.as_ref(),
             starlight.selection_function.as_ref(),
             starlight.bright_star_supplement.as_ref(),
+            starlight.bv_photometry.as_ref(),
         )?;
         super::worker::write_artifact_index(&config.workspace.root, &artifacts)?;
         Ok(Some(artifacts))
@@ -170,6 +179,15 @@ impl DatasetPipeline for StarlightPipeline {
                 })
             })
             .transpose()?;
+        let bv_input_pins = starlight.bv_photometry.as_ref().map(|pin| {
+            super::bv::BvInputPins::new(
+                pin,
+                starlight.photometric_inference.as_ref(),
+                starlight.selection_function.as_ref(),
+                starlight.bright_star_supplement.as_ref(),
+                &starlight.gaia_products,
+            )
+        });
         let mut expected = expected;
         if let Some(pin) = &starlight.bright_star_supplement {
             let artifact =
@@ -182,17 +200,12 @@ impl DatasetPipeline for StarlightPipeline {
                     "bright-star supplement spectral coverage is incompatible with configured Starlight product band"
                 );
             }
-            let ultraviolet = starlight
-                .ultraviolet_correction
-                .as_ref()
-                .map(|pin| super::uv::UvCorrection::load(&pin.artifact_path, &pin.sha256))
-                .transpose()?;
             let shard = super::worker::bright_star_supplement_shard(
                 &artifact,
                 &pin.sha256,
                 starlight.map.canonical_nside,
                 starlight.product_band,
-                ultraviolet.as_ref(),
+                bv_input_pins.as_ref(),
             )?;
             let shard_path = config
                 .workspace
@@ -212,13 +225,14 @@ impl DatasetPipeline for StarlightPipeline {
                 .as_ref()
                 .map(|ultraviolet| ultraviolet.sha256.as_str()),
             selection_population,
+            bv_input_pins.as_ref(),
         )?))
     }
 
     fn validation_gates(
         &self,
         config: &RunConfig,
-        _artifacts: &[Artifact],
+        artifacts: &[Artifact],
     ) -> Result<Vec<ValidationGate>> {
         let Some(starlight) = &config.starlight else {
             return Ok(Vec::new());
@@ -236,10 +250,35 @@ impl DatasetPipeline for StarlightPipeline {
                 starlight.product_band == super::config::StarlightProductBand::MeasuredXpBinned,
             );
         }
-        super::map::product::scientific_gates(&config.workspace.root, starlight.map.canonical_nside)
+        let mut gates = super::map::product::scientific_gates(
+            &config.workspace.root,
+            starlight.map.canonical_nside,
+        )?;
+        if starlight.bv_photometry.is_some() {
+            let outcome = artifacts
+                .iter()
+                .find(|a| a.name == super::pack::BV_FILES[2])
+                .ok_or_else(|| anyhow::anyhow!("missing compact B/V candidate manifest"))
+                .and_then(|manifest| {
+                    super::pack::verify_bv_candidate(&config.workspace.root, &manifest.sha256)
+                });
+            gates.push(ValidationGate {
+                name: "starlight-bv-candidate-integrity".into(),
+                passed: outcome.is_ok(),
+                detail: outcome.err().map_or_else(
+                    || "Verified compact v2 and evidence. Independent science and redistribution review pending.".into(),
+                    |error| format!("{error:#}"),
+                ),
+            });
+        }
+        Ok(gates)
     }
 
     fn validate_artifact(&self, name: &str, path: &Path) -> Result<()> {
+        // The cross-artifact check above validates and re-encodes these files.
+        if super::pack::BV_FILES.contains(&name) {
+            return Ok(());
+        }
         if name == super::ingestion_audit::NAME {
             return super::ingestion_audit::validate(path);
         }
@@ -296,6 +335,15 @@ impl DatasetPipeline for StarlightPipeline {
             return Ok(());
         };
         super::config::validate_canonical_nside(starlight.map.canonical_nside)?;
+        if starlight.bv_photometry.is_some()
+            && (starlight.product_band != super::config::StarlightProductBand::Combined300To650
+                || starlight.photometric_inference.is_none()
+                || starlight.selection_function.is_none()
+                || starlight.bright_star_supplement.is_none()
+                || starlight.ingestion_audit.is_some())
+        {
+            bail!("B/V candidate requires the full combined-band source policy and bright-star supplement");
+        }
         if let Some(audit) = &starlight.ingestion_audit {
             if audit.expected_rows == 0
                 || starlight.product_band != super::config::StarlightProductBand::Measured360To570
@@ -316,6 +364,7 @@ impl DatasetPipeline for StarlightPipeline {
                 "photometric inference",
                 starlight.photometric_inference.as_ref(),
             ),
+            ("B/V photometry", starlight.bv_photometry.as_ref()),
             ("selection function", starlight.selection_function.as_ref()),
             (
                 "bright-star supplement",
@@ -348,6 +397,15 @@ impl DatasetPipeline for StarlightPipeline {
                 starlight.product_band,
             ) {
                 bail!("bright-star supplement spectral coverage is incompatible with configured Starlight product band");
+            }
+        }
+        if let Some(pin) = &starlight.bv_photometry {
+            let inference = super::bv::BvInference::load(&pin.artifact_path, &pin.sha256)?;
+            inference.check_normalization_pin(starlight.photometric_inference.as_ref())?;
+            let design =
+                super::xp::GaiaXpContinuousCalibrator::resolve_design_fixture_path(None, None);
+            if crate::platform::checksum_io::sha256_file(&design)? != inference.xp_design_sha256 {
+                bail!("B/V XP design checksum mismatch");
             }
         }
         for product in &starlight.gaia_products {
@@ -456,6 +514,7 @@ lease_timeout_seconds = 60
             spectral_bin_edges_nm: None,
             ultraviolet_correction: None,
             photometric_inference: None,
+            bv_photometry: None,
             selection_function: None,
             bright_star_supplement: None,
             ingestion_audit: None,

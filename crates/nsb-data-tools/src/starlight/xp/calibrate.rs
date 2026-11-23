@@ -20,6 +20,15 @@ const RP_WL_LOW: f64 = 635.0;
 const BP_MODEL: &str = "v375wi";
 const RP_MODEL: &str = "v142r";
 const EXPECTED_SAMPLE_COUNT: usize = 158;
+pub(crate) const BV_REFERENCE_NM: [f64; 2] = [445.0, 551.0];
+
+/// Observed-frame B/V spectral energy flux densities and their statistical
+/// covariance, in W m⁻² nm⁻¹ and its square. XP estimates are signed.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct XpReferenceFlux {
+    pub flux_w_m2_nm: [f64; 2],
+    pub covariance: [[f64; 2]; 2],
+}
 
 /// Calibrated 336–650 nm photon flux for one XP continuous source.
 #[derive(Debug, Clone, PartialEq)]
@@ -259,6 +268,32 @@ impl GaiaXpContinuousCalibrator {
         Ok(BpPhotonIntegrator { weights })
     }
 
+    /// Build the B/V linear functionals once for a stream of sources. Both
+    /// wavelengths are BP-only on the frozen grid. Interpolate energy density
+    /// before projecting the coefficient covariance through the same weights.
+    pub fn bv_sampler(&self) -> Result<XpBvSampler> {
+        let mut weights = Vec::with_capacity(BV_REFERENCE_NM.len());
+        for wavelength in BV_REFERENCE_NM {
+            let upper = self.sampling_nm.partition_point(|&nm| nm < wavelength);
+            let lower = upper - 1;
+            if [lower, upper]
+                .into_iter()
+                .any(|i| self.merge_bp[i] != 1.0 || self.merge_rp[i] != 0.0)
+            {
+                bail!("B/V reference requires an exclusively BP calibration bracket");
+            }
+            let fraction = (wavelength - self.sampling_nm[lower])
+                / (self.sampling_nm[upper] - self.sampling_nm[lower]);
+            weights.push(
+                self.design_bp
+                    .iter()
+                    .map(|basis| (1.0 - fraction) * basis[lower] + fraction * basis[upper])
+                    .collect(),
+            );
+        }
+        Ok(XpBvSampler { weights })
+    }
+
     /// Reconstruct and integrate one canonical coefficient record.
     pub fn calibrate_record(
         &self,
@@ -348,6 +383,63 @@ impl GaiaXpContinuousCalibrator {
 #[derive(Debug, Clone)]
 pub struct BpPhotonIntegrator {
     weights: Vec<Vec<f64>>,
+}
+
+/// Precomputed calibrated XP B/V samples in coefficient space.
+#[derive(Debug, Clone)]
+pub struct XpBvSampler {
+    weights: Vec<Vec<f64>>,
+}
+
+impl XpBvSampler {
+    pub fn sample(&self, record: &CanonicalXpContinuousRecord) -> Result<XpReferenceFlux> {
+        record.validate()?;
+        let n = record.bp_n_parameters;
+        if n == 0 || self.weights.iter().any(|w| w.len() != n) {
+            bail!("no supported BP coefficients for B/V");
+        }
+        let flux = std::array::from_fn(|band| {
+            self.weights[band]
+                .iter()
+                .zip(&record.bp_coefficients)
+                .map(|(a, b)| a * b)
+                .sum::<f64>()
+        });
+        // Project the packed DR3 covariance directly. In the calibrated
+        // covariance the standard-deviation normalization cancels against
+        // the final GaiaXPy rescaling, leaving the published formal errors.
+        let [blue, visual] = [0, 1].map(|band| {
+            std::array::from_fn::<_, 55, _>(|i| {
+                self.weights[band][i] * record.bp_coefficient_errors[i]
+            })
+        });
+        let mut b_var = 0.0;
+        let mut v_var = 0.0;
+        let mut cross = 0.0;
+        for i in 0..n {
+            b_var += blue[i].powi(2);
+            v_var += visual[i].powi(2);
+            cross += blue[i] * visual[i];
+            for j in 0..i {
+                let corr = record.bp_coefficient_correlations[i * (i - 1) / 2 + j];
+                b_var += 2.0 * blue[i] * blue[j] * corr;
+                v_var += 2.0 * visual[i] * visual[j] * corr;
+                cross += (blue[i] * visual[j] + blue[j] * visual[i]) * corr;
+            }
+        }
+        if flux.iter().any(|value| !value.is_finite())
+            || ![b_var, v_var, cross].into_iter().all(f64::is_finite)
+            || b_var < 0.0
+            || v_var < 0.0
+            || cross.abs() > b_var.sqrt() * v_var.sqrt() * (1.0 + 8.0 * f64::EPSILON)
+        {
+            bail!("invalid XP B/V flux or covariance");
+        }
+        Ok(XpReferenceFlux {
+            flux_w_m2_nm: flux,
+            covariance: [[b_var, cross], [cross, v_var]],
+        })
+    }
 }
 
 impl BpPhotonIntegrator {
@@ -608,10 +700,10 @@ mod tests {
 }
 
 #[cfg(test)]
-mod interval_tests {
+pub(crate) mod interval_tests {
     use super::*;
 
-    fn inputs() -> (GaiaXpContinuousCalibrator, CanonicalXpContinuousRecord) {
+    pub(crate) fn inputs() -> (GaiaXpContinuousCalibrator, CanonicalXpContinuousRecord) {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
         let calibrator = GaiaXpContinuousCalibrator::from_design_fixture(
             &root.join("gaiaxpy_continuous_design_v375wi_v142r.json"),
@@ -713,6 +805,37 @@ mod interval_tests {
         assert!((flux[0] - flux[1] - flux[2]).abs() < flux[0].abs() * 1e-12);
         let summed = covariance[1][1] + covariance[2][2] + 2.0 * covariance[1][2];
         assert!((covariance[0][0] / summed - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn bv_projection_matches_sampled_interpolation_and_correlated_coefficients() {
+        let (calibrator, record) = inputs();
+        let sampler = calibrator.bv_sampler().unwrap();
+        let projected = sampler.sample(&record).unwrap();
+        let sampled = calibrator.calibrate(&record).unwrap();
+        let errors = &record.bp_coefficient_errors;
+        for (band, left) in [54, 107].into_iter().enumerate() {
+            assert_eq!(sampled.wavelengths_nm[left] + 1.0, BV_REFERENCE_NM[band]);
+            let flux = 0.5 * (sampled.flux_w_m2_nm[left] + sampled.flux_w_m2_nm[left + 1]);
+            assert!((projected.flux_w_m2_nm[band] - flux).abs() < 1e-12 * flux.abs());
+            for other in 0..2 {
+                let x = &sampler.weights[band];
+                let y = &sampler.weights[other];
+                let mut covariance: f64 = (0..errors.len())
+                    .map(|i| x[i] * y[i] * errors[i].powi(2))
+                    .sum();
+                for i in 1..errors.len() {
+                    for j in 0..i {
+                        let corr = record.bp_coefficient_correlations[i * (i - 1) / 2 + j];
+                        covariance += (x[i] * y[j] + x[j] * y[i]) * errors[i] * errors[j] * corr;
+                    }
+                }
+                assert!(
+                    (projected.covariance[band][other] - covariance).abs()
+                        < 1e-12 * covariance.abs()
+                );
+            }
+        }
     }
 
     #[test]

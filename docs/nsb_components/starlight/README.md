@@ -74,6 +74,7 @@ Git/crates.io/PyPI channels named in the decision.
 - [Starlight data-product pipeline](map-generation.md)
 - [Starlight science requirements](science-requirements.md)
 - [Starlight map validation](map-validation.md)
+- [Monochromatic B/V candidate and validation evidence](bv-photometry-317.md)
 - [External Starlight manifest](external-manifest.md)
 - [Redistribution and attribution](licensing/README.md)
 - [Atmospheric transport](../../specifications/atmospheric-transport.md)

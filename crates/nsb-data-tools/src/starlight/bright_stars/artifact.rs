@@ -77,6 +77,8 @@ pub struct CorrelatedUncertainty {
 #[serde(deny_unknown_fields)]
 pub struct BrightStarSourceRecord {
     pub source_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bv: Option<crate::starlight::bv::BvFlux>,
     pub origin_catalogue: String,
     pub class: SupplementClass,
     pub gaia_source_id: Option<u64>,
@@ -521,6 +523,15 @@ fn validate_inputs(inputs: &[BrightStarInputProvenance]) -> Result<()> {
 }
 
 fn validate_source(source: &BrightStarSourceRecord, combined: bool) -> Result<()> {
+    if let Some(bv) = source.bv {
+        bv.validate()?;
+        if bv.flux_w_m2_nm.into_iter().any(|value| value < 0.0) {
+            bail!(
+                "bright-star source {} has negative B/V flux",
+                source.source_id
+            );
+        }
+    }
     if source.origin_catalogue.trim().is_empty()
         || source.spectral_route.trim().is_empty()
         || source.classification_reason.trim().is_empty()
@@ -856,6 +867,7 @@ mod tests {
         flux: f64,
     ) -> BrightStarSourceRecord {
         BrightStarSourceRecord {
+            bv: None,
             source_id: id.into(),
             origin_catalogue: "hip2".into(),
             class,
@@ -995,6 +1007,7 @@ mod tests {
         flux: f64,
     ) -> BrightStarSourceRecord {
         BrightStarSourceRecord {
+            bv: None,
             source_id: id.into(),
             origin_catalogue: "hip2".into(),
             class,

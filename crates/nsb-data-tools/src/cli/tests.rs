@@ -144,6 +144,7 @@ fn diagnose_export_measured_336_650_arm() -> anyhow::Result<()> {
         StarlightProductBand::Combined300To650,
         Some(UV_SHA),
         None,
+        None,
     )?;
     let merge: MergeReport =
         serde_json::from_slice(&fs::read(workspace.join("outputs/merge_report.json"))?)?;
@@ -734,5 +735,225 @@ fn starlight_runtime_admission_cli_fails_closed_without_signed_inputs() -> anyho
     assert!(!csv.exists());
     assert!(!sidecar.exists());
     assert!(!root.join("draft.toml").exists());
+    Ok(())
+}
+
+#[test]
+fn bv_xp_cli_exports_a_signed_covariance_reference_and_checks_the_join() -> Result<()> {
+    use crate::starlight::xp::{calibrate::interval_tests::inputs, canonical};
+    let dir = tempfile::tempdir()?;
+    let xp = dir.path().join("xp.csv");
+    let gaia = dir.path().join("source.csv");
+    let output = dir.path().join("reference.csv");
+    let (calibrator, record) = inputs();
+    canonical::write_gaiaxpy_datalink_csv(&xp, &record)?;
+    let header = "source_id,ra,dec,phot_g_mean_mag,phot_bp_mean_mag,phot_rp_mean_mag";
+    let row = format!("{},45,20,15,16,14", record.source_id);
+    std::fs::write(&gaia, format!("{header}\n{row}\n"))?;
+    let export = || {
+        execute_starlight_diagnose(StarlightDiagnoseArgs {
+            command: StarlightDiagnoseCommand::BvXp(StarlightDiagnoseBvXpArgs {
+                xp_continuous: Some(xp.clone()),
+                spectral_reference: None,
+                shape_photometric: None,
+                shape_photometric_sha256: None,
+                gaia_source: gaia.clone(),
+                output: output.clone(),
+            }),
+        })
+    };
+    export()?;
+    let data = std::fs::read(&output)?;
+    let expected = calibrator.bv_sampler()?.sample(&record)?;
+    let row_data = csv::Reader::from_reader(data.as_slice())
+        .records()
+        .next()
+        .unwrap()?;
+    assert_eq!(&row_data[0], &record.source_id);
+    assert_eq!(&row_data[2], "15.0");
+    for (field, expected) in row_data.iter().skip(5).zip([
+        expected.flux_w_m2_nm[0],
+        expected.flux_w_m2_nm[1],
+        expected.covariance[0][0],
+        expected.covariance[1][1],
+        expected.covariance[0][1],
+    ]) {
+        assert!((field.parse::<f64>()? / expected - 1.0).abs() < 1e-13);
+    }
+    let photometric = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/photometric_xp_anchored_v1/artifact.json");
+    let shape = dir.path().join("shape.csv");
+    execute_starlight_diagnose(StarlightDiagnoseArgs {
+        command: StarlightDiagnoseCommand::BvXp(StarlightDiagnoseBvXpArgs {
+            xp_continuous: Some(xp.clone()),
+            spectral_reference: None,
+            shape_photometric_sha256: Some(crate::platform::checksum_io::sha256_file(
+                &photometric,
+            )?),
+            shape_photometric: Some(photometric),
+            gaia_source: gaia.clone(),
+            output: shape.clone(),
+        }),
+    })?;
+    let mut reader = csv::Reader::from_path(shape)?;
+    assert_eq!(reader.headers()?.get(10), Some("xp_photon_flux"));
+    let measured = calibrator.calibrate_record(&record)?;
+    let shape_row = reader.records().next().unwrap()?;
+    // The Gaia CSV fixture rounds the coefficients on serialization.
+    assert!((shape_row[10].parse::<f64>()? / measured.flux_336_650_ph_m2_s - 1.0).abs() < 1e-10);
+    assert!(
+        (shape_row[11].parse::<f64>()? / measured.statistical_uncertainty_336_650_ph_m2_s - 1.0)
+            .abs()
+            < 1e-10
+    );
+    for index in (12..24).step_by(3) {
+        assert!(shape_row[index].parse::<f64>()? > 0.0);
+    }
+    std::fs::write(&gaia, format!("{header}\n{row}\n{row}\n"))?;
+    assert!(export()
+        .unwrap_err()
+        .to_string()
+        .contains("duplicate source"));
+    std::fs::write(&gaia, format!("{header}\n"))?;
+    assert!(export()
+        .unwrap_err()
+        .to_string()
+        .contains("missing Gaia source"));
+    std::fs::write(&gaia, format!("{header}\n{row}\n1,0,0,11,,\n"))?;
+    assert!(export()
+        .unwrap_err()
+        .to_string()
+        .contains("same nonempty source set"));
+    assert_eq!(std::fs::read(output)?, data);
+    Ok(())
+}
+
+#[test]
+fn bv_spectral_reference_preserves_observed_missingness_and_checks_covariance() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let spectra = dir.path().join("spectra.csv");
+    let gaia = dir.path().join("source.csv");
+    let output = dir.path().join("labels.csv");
+    let source = 4267180339403392768_u64;
+    // Gaia DR3 position (ESA TAP), Galactic NESTED index 1107 (Heidelberg TAP).
+    // The blank BP and fluxes below are synthetic to exercise the external join.
+    std::fs::write(
+        &gaia,
+        format!(
+            "source_id,ra,dec,phot_g_mean_mag,phot_bp_mean_mag,phot_rp_mean_mag\n\
+             {source},286.7169128963743,0.27619460064099405,15.244129,,14.419943\n"
+        ),
+    )?;
+    let header = "source_id,b_w_m2_nm,v_w_m2_nm,stat_b_var,stat_v_var,stat_cross";
+    let valid = format!("{source},-1e-18,2e-18,4e-38,9e-38,-5e-38");
+    std::fs::write(&spectra, format!("{header}\n{valid}\n"))?;
+    let export = || {
+        execute_starlight_diagnose(StarlightDiagnoseArgs {
+            command: StarlightDiagnoseCommand::BvXp(StarlightDiagnoseBvXpArgs {
+                xp_continuous: None,
+                spectral_reference: Some(spectra.clone()),
+                shape_photometric: None,
+                shape_photometric_sha256: None,
+                gaia_source: gaia.clone(),
+                output: output.clone(),
+            }),
+        })
+    };
+    export()?;
+    let row = csv::Reader::from_path(&output)?.records().next().unwrap()?;
+    assert_eq!(&row[0], &source.to_string());
+    assert_eq!(&row[1], "1107");
+    assert_eq!(&row[3], "");
+    assert_eq!(&row[4], "14.419943");
+    assert_eq!(row[5].parse::<f64>()?, -1e-18);
+    assert_eq!(row[9].parse::<f64>()?, -5e-38);
+    std::fs::write(&spectra, format!("{header}\n{valid}\n{valid}\n"))?;
+    assert!(export().unwrap_err().to_string().contains("duplicate"));
+    std::fs::write(
+        &spectra,
+        format!("{header}\n{source},1e-18,2e-18,4e-38,9e-38,7e-38\n"),
+    )?;
+    assert!(format!("{:#}", export().unwrap_err()).contains("invalid B/V covariance"));
+    Ok(())
+}
+
+#[test]
+fn compare_bv_integrated_cli_checks_format_grid_pins_and_uncertainty() -> Result<()> {
+    use nsb::components::starlight::{StarlightMap, StarlightProvenance};
+    let dir = tempfile::tempdir()?;
+    let baseline = dir.path().join("v1.bin");
+    let candidate = dir.path().join("v2.bin");
+    let source = include_str!("../../../nsb/tests/data/starlight_fixture_map.csv");
+    let bv_csv = source
+        .lines()
+        .map(|line| {
+            if line.starts_with("# s10_diagnostics=") {
+                "# s10_diagnostics=monochromatic_445_551_nm_nsb_s10".into()
+            } else if line.starts_with("healpix_index") {
+                format!("{line},b_w_m2_sr_nm,v_w_m2_sr_nm")
+            } else if line.starts_with('#') {
+                line.into()
+            } else {
+                format!("{line},1e-10,2e-10")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let encode = |csv: &str| {
+        StarlightMap::compact_csv(
+            csv,
+            StarlightProvenance::new(
+                "fixture",
+                "1",
+                "fixture",
+                "fixture",
+                "fixture",
+                "fixture",
+                "fixture",
+                "fixture",
+                None::<String>,
+            ),
+        )
+    };
+    fs::write(&baseline, encode(source)?)?;
+    let compare = |sha: Option<String>| {
+        execute_starlight_diagnose(StarlightDiagnoseArgs {
+            command: StarlightDiagnoseCommand::CompareBvIntegrated(CompareBvIntegratedArgs {
+                baseline: baseline.clone(),
+                baseline_sha256: checksum_io::sha256_file(&baseline)?,
+                candidate: candidate.clone(),
+                candidate_sha256: sha.unwrap_or(checksum_io::sha256_file(&candidate)?),
+            }),
+        })
+    };
+    fs::write(&candidate, encode(&bv_csv)?)?;
+    compare(None)?;
+    assert!(compare(Some("a".repeat(64))).is_err());
+    fs::write(
+        &candidate,
+        encode(&bv_csv.replace("ordering=ring", "ordering=nested"))?,
+    )?;
+    assert!(compare(None)
+        .unwrap_err()
+        .to_string()
+        .contains("grids differ"));
+
+    let mut rows: Vec<_> = bv_csv.lines().map(str::to_owned).collect();
+    let first = rows.iter_mut().find(|row| row.starts_with("0,")).unwrap();
+    let mut fields: Vec<_> = first.split(',').map(str::to_owned).collect();
+    fields[2] = "0.01".into();
+    fields[3] = "0.00".into();
+    fields[4] = "0.01".into();
+    *first = fields.join(",");
+    fs::write(&candidate, encode(&rows.join("\n"))?)?;
+    assert!(compare(None)
+        .unwrap_err()
+        .to_string()
+        .contains("statistical uncertainty changed"));
+    fs::write(&candidate, encode(source)?)?;
+    assert!(compare(None)
+        .unwrap_err()
+        .to_string()
+        .contains("format or checksum"));
     Ok(())
 }

@@ -15,6 +15,7 @@ pub use siderust::qtty::{Per, Quantity, Second, Unit};
 mod calibration;
 mod conventions;
 
+pub(crate) use calibration::s10_for_spectral_energy_radiance;
 pub(crate) use calibration::S10_TO_W_M2_SR_UM;
 pub(crate) use calibration::{s10_for_spectral_photon_radiance, S10_TO_W_M2_SR_NM};
 pub(crate) use conventions::SolarSpectralIrradiance;
