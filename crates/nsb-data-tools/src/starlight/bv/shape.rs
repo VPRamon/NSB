@@ -13,6 +13,7 @@ use serde::Deserialize;
 const SHAPE_SCALE: f64 = 1e-21; // J nm^-1 per integrated photon
 const SKY_PIXELS: usize = 12;
 
+#[cfg_attr(test, derive(serde::Serialize))]
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ShapeCalibration {
@@ -35,6 +36,7 @@ pub(super) struct ShapeCalibration {
     contexts: Vec<Context>,
 }
 
+#[cfg_attr(test, derive(serde::Serialize))]
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Context {
@@ -44,6 +46,7 @@ struct Context {
     g_only: Moment,
 }
 
+#[cfg_attr(test, derive(serde::Serialize))]
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Moment {
@@ -237,7 +240,7 @@ mod tests {
         };
         let design = "a".repeat(64);
         let legacy = crate::starlight::bv::tests::calibration_fixture(&[0], &design);
-        let model = ShapeCalibration {
+        let mut model = ShapeCalibration {
             schema_version: 2,
             calibration_status: "research_candidate".into(),
             method: "xp-photon-normalized-population-mixture-v1".into(),
@@ -286,6 +289,80 @@ mod tests {
             model.predict(pos, ColourRoute::GOnly, 20.0, [None; 2], &normalization)?;
         assert_eq!(status, BvSupport::MagnitudeExtrapolation);
         assert!(faint.shared_systematic_sigma[0] > flux.shared_systematic_sigma[0]);
+        assert_eq!(
+            model
+                .predict(pos, ColourRoute::GOnly, 15.0, [None; 2], &normalization)?
+                .1,
+            BvSupport::MissingColourPrior
+        );
+        assert_eq!(
+            model
+                .predict(
+                    pos,
+                    ColourRoute::GAndBp,
+                    15.0,
+                    [Some(10.0), None],
+                    &normalization
+                )?
+                .1,
+            BvSupport::ColourExtrapolation
+        );
+        for context in &mut model.contexts {
+            for moment in &mut context.g_and_rp {
+                moment.effective_local_sources = 0.0;
+            }
+        }
+        assert_eq!(
+            model
+                .predict(
+                    pos,
+                    ColourRoute::GAndRp,
+                    15.0,
+                    [None, Some(1.0)],
+                    &normalization
+                )?
+                .1,
+            BvSupport::SparseXpPrior
+        );
+        let tmp = tempfile::tempdir()?;
+        let path = tmp.path().join("shape.json");
+        let bytes = serde_json::to_vec(&model)?;
+        std::fs::write(&path, &bytes)?;
+        let sha = crate::platform::checksum_io::sha256_bytes(&bytes);
+        let inference = super::super::BvInference::load(&path, &sha)?;
+        assert!(inference.check_normalization_pin(None).is_err());
+        let pin = crate::starlight::config::ArtifactPinConfig {
+            artifact_path: tmp.path().join("photon.json"),
+            sha256: normalization.artifact_sha256.clone(),
+        };
+        inference.check_normalization_pin(Some(&pin))?;
+        let (_, route, status) = inference.predict_admitted(
+            pos,
+            crate::starlight::photometric::PhotometricFeatures {
+                phot_g_mean_mag: Some(20.0),
+                phot_bp_mean_mag: None,
+                phot_rp_mean_mag: None,
+                bp_rp: None,
+                quality_flag: true,
+            },
+            &normalization,
+        )?;
+        assert_eq!(route, super::super::BvRoute::GOnly);
+        assert_eq!(status, Some(BvSupport::MagnitudeExtrapolation));
+        let mut first = super::super::BvAccumulator::default();
+        let mut second = super::super::BvAccumulator::default();
+        first.add(faint, route, 0.0, status)?;
+        second.add(faint, route, 0.0, status)?;
+        first.merge(&second)?;
+        first.validate(2)?;
+        let evidence = first.evidence();
+        assert_eq!(
+            evidence.inference_support[&BvSupport::MagnitudeExtrapolation],
+            2
+        );
+        evidence.validate(2)?;
+        model.contexts[0].full.pop();
+        assert!(model.validate().is_err());
         Ok(())
     }
 }

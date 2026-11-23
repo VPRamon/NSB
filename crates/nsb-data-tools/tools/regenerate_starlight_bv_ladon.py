@@ -4,20 +4,20 @@
 """Prepare, submit, resume and verify the separate Starlight B/V candidate on Ladon."""
 
 import argparse
-from collections import Counter
 import fcntl
 import json
 import os
-from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
-import tomllib
+from collections import Counter
+from pathlib import Path
 
-from calibrate_starlight_bv import json_bytes, write_json
+import tomllib
+from calibrate_starlight_bv import json_bytes
 from fit_starlight_bv_shape import prepare
 from prepare_starlight_bv import (
     CONFIG,

@@ -4,14 +4,13 @@
 """Fit a research-only XP shape mixture on the approved 336–650 nm photon scale."""
 
 import argparse
-from collections import Counter, defaultdict
 import itertools
-import json
 import math
 import os
-from pathlib import Path
 import statistics
 import subprocess
+from collections import Counter, defaultdict
+from pathlib import Path
 
 from calibrate_starlight_bv import SPLITS, bin_for, json_bytes, metrics, sha, split_for
 from prepare_starlight_bv import (
@@ -245,6 +244,8 @@ def evaluate(rows, contexts, blind, g_support):
                 "all",
                 f"sky_{pixel // 256}",
                 f"g_{stratum(G_EDGES, g)}",
+                f"support_{support}",
+                "g_at_or_above_xp_limit" if g >= LIMIT_G else "g_below_xp_limit",
                 f"colour_{stratum([-1.0, 0.7, 1.4, 8.0], float(row['bp']) - float(row['rp']))}",
                 "reported_blend" if row.get("reported_blend") else "no_reported_blend",
             ):

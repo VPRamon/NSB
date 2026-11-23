@@ -780,6 +780,33 @@ fn bv_xp_cli_exports_a_signed_covariance_reference_and_checks_the_join() -> Resu
     ]) {
         assert!((field.parse::<f64>()? / expected - 1.0).abs() < 1e-13);
     }
+    let photometric = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/photometric_xp_anchored_v1/artifact.json");
+    let shape = dir.path().join("shape.csv");
+    execute_starlight_diagnose(StarlightDiagnoseArgs {
+        command: StarlightDiagnoseCommand::BvXp(StarlightDiagnoseBvXpArgs {
+            xp_continuous: Some(xp.clone()),
+            spectral_reference: None,
+            shape_photometric_sha256: Some(crate::platform::checksum_io::sha256_file(
+                &photometric,
+            )?),
+            shape_photometric: Some(photometric),
+            gaia_source: gaia.clone(),
+            output: shape.clone(),
+        }),
+    })?;
+    let mut reader = csv::Reader::from_path(shape)?;
+    assert_eq!(reader.headers()?.get(10), Some("xp_photon_flux"));
+    let measured = calibrator.calibrate_record(&record)?;
+    let shape_row = reader.records().next().unwrap()?;
+    assert_eq!(shape_row[10].parse::<f64>()?, measured.flux_336_650_ph_m2_s);
+    assert_eq!(
+        shape_row[11].parse::<f64>()?,
+        measured.statistical_uncertainty_336_650_ph_m2_s
+    );
+    for index in (12..24).step_by(3) {
+        assert!(shape_row[index].parse::<f64>()? > 0.0);
+    }
     std::fs::write(&gaia, format!("{header}\n{row}\n{row}\n"))?;
     assert!(export()
         .unwrap_err()
