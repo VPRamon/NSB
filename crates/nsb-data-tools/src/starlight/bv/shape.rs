@@ -25,6 +25,8 @@ pub(super) struct ShapeCalibration {
     pub xp_design_sha256: String,
     pub xp_shared_calibration_fraction: [f64; 2],
     pub photometric_sha256: String,
+    #[serde(default)]
+    normalization_envelope: Option<NormalizationEnvelope>,
     software_commit: String,
     references_sha256: String,
     held_out_report_sha256: String,
@@ -34,6 +36,35 @@ pub(super) struct ShapeCalibration {
     bp_nodes: Vec<f64>,
     rp_nodes: Vec<f64>,
     contexts: Vec<Context>,
+}
+
+#[cfg_attr(test, derive(serde::Serialize))]
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct NormalizationEnvelope {
+    magnitude_cells: Vec<RouteFractions>,
+    extrapolation: RouteFractions,
+}
+
+#[cfg_attr(test, derive(serde::Serialize))]
+#[derive(Clone, Copy, Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RouteFractions {
+    full: f64,
+    g_and_bp: f64,
+    g_and_rp: f64,
+    g_only: f64,
+}
+
+impl RouteFractions {
+    fn fraction(self, route: ColourRoute) -> f64 {
+        match route {
+            ColourRoute::Full => self.full,
+            ColourRoute::GAndBp => self.g_and_bp,
+            ColourRoute::GAndRp => self.g_and_rp,
+            ColourRoute::GOnly => self.g_only,
+        }
+    }
 }
 
 #[cfg_attr(test, derive(serde::Serialize))]
@@ -61,7 +92,12 @@ impl ShapeCalibration {
     pub(super) fn validate(&self) -> Result<()> {
         self.partitions.validate()?;
         calibration_splits(&self.partitions)?;
-        if self.schema_version != 2
+        let expected_schema = if self.normalization_envelope.is_some() {
+            3
+        } else {
+            2
+        };
+        if self.schema_version != expected_schema
             || self.calibration_status != "research_candidate"
             || self.method != "xp-photon-normalized-population-mixture-v1"
             || self.reference_nm != BV_REFERENCE_NM
@@ -93,6 +129,28 @@ impl ShapeCalibration {
             || self.contexts.len() != SKY_PIXELS * (self.g_edges.len() - 1)
         {
             bail!("invalid B/V research shape calibration identity or axes");
+        }
+        if let Some(envelope) = &self.normalization_envelope {
+            if envelope.magnitude_cells.len() != self.g_edges.len() - 1 {
+                bail!("incomplete B/V photon normalization envelope");
+            }
+            for route in [
+                ColourRoute::Full,
+                ColourRoute::GAndBp,
+                ColourRoute::GAndRp,
+                ColourRoute::GOnly,
+            ] {
+                let upper = envelope.extrapolation.fraction(route);
+                if !upper.is_finite()
+                    || upper < 0.0
+                    || envelope.magnitude_cells.iter().any(|cell| {
+                        let f = cell.fraction(route);
+                        !f.is_finite() || f < 0.0 || f > upper
+                    })
+                {
+                    bail!("invalid B/V photon normalization envelope");
+                }
+            }
         }
         let (bp, rp) = (self.bp_nodes.len(), self.rp_nodes.len());
         for context in &self.contexts {
@@ -183,7 +241,20 @@ impl ShapeCalibration {
         let products = [mean[0].powi(2), mean[1].powi(2), mean[0] * mean[1]];
         let photon = normalization.flux_336_650_ph_m2_s * SHAPE_SCALE;
         let stat = (normalization.statistical_uncertainty_336_650_ph_m2_s * SHAPE_SCALE).powi(2);
-        let sys = normalization.systematic_uncertainty_336_650_ph_m2_s * SHAPE_SCALE;
+        let mut sys = normalization.systematic_uncertainty_336_650_ph_m2_s * SHAPE_SCALE;
+        if let Some(envelope) = &self.normalization_envelope {
+            let fractions = if matches!(
+                status,
+                BvSupport::MagnitudeExtrapolation | BvSupport::ColourExtrapolation
+            ) {
+                envelope.extrapolation
+            } else {
+                envelope.magnitude_cells[g_bin]
+            };
+            // Both terms describe uncertainty in the same common photon scale.
+            // Keep the larger envelope and leave the point normalization intact.
+            sys = sys.max(photon * fractions.fraction(route));
+        }
         let multiplier = match status {
             BvSupport::XpColourSupport => 1.0,
             BvSupport::MissingColourPrior => 1.5,
@@ -249,6 +320,7 @@ mod tests {
             xp_design_sha256: design.clone(),
             xp_shared_calibration_fraction: [0.02; 2],
             photometric_sha256: design.clone(),
+            normalization_envelope: None,
             software_commit: "a".repeat(40),
             references_sha256: design.clone(),
             held_out_report_sha256: design,
@@ -361,6 +433,46 @@ mod tests {
             2
         );
         evidence.validate(2)?;
+        model.schema_version = 3;
+        assert!(model.validate().is_err());
+        let fractions = RouteFractions {
+            full: 0.5,
+            g_and_bp: 0.6,
+            g_and_rp: 0.7,
+            g_only: 0.8,
+        };
+        let upper = RouteFractions {
+            g_only: 0.9,
+            ..fractions
+        };
+        model.normalization_envelope = Some(NormalizationEnvelope {
+            magnitude_cells: vec![],
+            extrapolation: upper,
+        });
+        assert!(model.validate().is_err());
+        let mut envelope = model.normalization_envelope.take().unwrap();
+        envelope.magnitude_cells.push(fractions);
+        model.normalization_envelope = Some(envelope);
+        model.validate()?;
+        let bytes = serde_json::to_vec(&model)?;
+        std::fs::write(&path, &bytes)?;
+        super::super::BvInference::load(
+            &path,
+            &crate::platform::checksum_io::sha256_bytes(&bytes),
+        )?;
+        let (after, _) =
+            model.predict(pos, ColourRoute::Full, 15.0, [Some(1.0); 2], &normalization)?;
+        assert_eq!(flux.flux_w_m2_nm, after.flux_w_m2_nm);
+        assert_eq!(flux.statistical_covariance, after.statistical_covariance);
+        assert!((after.shared_systematic_sigma[0] / 1.5e-16 - 1.0).abs() < 1e-14);
+        assert!((after.shared_systematic_sigma[1] / 3e-16 - 1.0).abs() < 1e-14);
+        let (with_envelope, _) =
+            model.predict(pos, ColourRoute::GOnly, 20.0, [None; 2], &normalization)?;
+        assert!((with_envelope.shared_systematic_sigma[0] / 5.8e-16 - 1.0).abs() < 1e-14);
+        let envelope = model.normalization_envelope.as_mut().unwrap();
+        envelope.extrapolation.g_only = 0.2;
+        assert!(model.validate().is_err());
+        model.normalization_envelope.as_mut().unwrap().extrapolation = upper;
         model.contexts[0].full.pop();
         assert!(model.validate().is_err());
         Ok(())

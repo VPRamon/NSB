@@ -21,6 +21,7 @@ from prepare_starlight_bv import (  # noqa: E402
 )
 from fit_starlight_bv_shape import fit as fit_shape, interpolate  # noqa: E402
 import regenerate_starlight_bv_ladon as ladon  # noqa: E402
+from starlight_bv_normalization import ROUTES, fit_envelopes, normalization_metrics  # noqa: E402
 
 
 class StarlightBvCalibration(unittest.TestCase):
@@ -223,6 +224,60 @@ class StarlightBvCalibration(unittest.TestCase):
 
 
 class ShapeAndLadon(unittest.TestCase):
+    def test_norm_envelope_uses_independent_sky_blocks_and_fallback(self):
+        rows = []
+        for i in range(40):
+            measured = 100
+            predicted = 50 if i < 20 else 100
+            rows.append({
+                "g": "15", "galactic_nest16": str(i if i < 20 else 256 + i),
+                "xp_photon_flux": str(measured),
+                **{route + "_photon": str(predicted) for route in ROUTES},
+            })
+        table, audit = fit_envelopes(rows, [3.0, 14.0, 16.0, 22.0])
+        faint = [{**r, "g": "19.0", "xp_photon_flux": "1e6"} for r in rows]
+        self.assertEqual(fit_envelopes(rows + faint, [3.0, 14.0, 16.0, 22.0]), (table, audit))
+        self.assertEqual(audit["full"]["pooled"]["nside1_blocks"], 2)
+        self.assertAlmostEqual(audit["full"]["pooled"]["relative_bias_vs_prediction"], -1 / 3)
+        self.assertAlmostEqual(audit["full"]["pooled"]["block_jackknife_se"], 0.5)
+        self.assertIsNone(audit["full"]["magnitude_cells"][0])
+        self.assertAlmostEqual(table["magnitude_cells"][0]["full"], 1 / 3 + 0.5)
+        with self.assertRaisesRegex(ValueError, "validation sky support"):
+            fit_envelopes([{**r, "galactic_nest16": str(i)} for i, r in enumerate(rows)], [3, 22])
+
+    def test_photon_bias_decomposition_distinguishes_flux_and_source_weights(self):
+        entries = [(100, 50, [10, 20], [11, 18], [5.5, 9]),
+                   (5, 10, [1, 2], [1, 2], [2, 4])]
+        report = normalization_metrics(entries)
+        self.assertAlmostEqual(report["flux_weighted_bias"], 60 / 105 - 1)
+        self.assertEqual(report["source_weighted_mean_ratio"], 1.25)
+        bv = report["bv_bias_decomposition"][0]
+        self.assertAlmostEqual(bv["shape_bias_on_truth_sum"], 1 / 11)
+        self.assertAlmostEqual(bv["normalization_bias_on_truth_sum"], -4.5 / 11)
+        self.assertAlmostEqual(bv["shape_bias_on_truth_sum"] + bv["normalization_bias_on_truth_sum"], 7.5 / 11 - 1)
+
+    def test_ladon_test_only_checks_configured_account_and_resources(self):
+        root = Path("/shared/starlight")
+        slurm = {"account": "ice-research", "partition": "ladon", "time_limit": "24:00:00", "memory": "32G"}
+        with patch.object(ladon, "run") as run:
+            ladon.check_slurm_request({"execution": {"slurm": slurm}}, root)
+        run.assert_called_once_with(
+            "sbatch", "--test-only", "--account", "ice-research", "--partition", "ladon",
+            "--time", "24:00:00", "--mem", "32G", "--wrap", "true", cwd=root,
+        )
+
+    def test_submit_only_leaves_completed_shards_for_explicit_finalization(self):
+        workspace = Path("/shared/starlight")
+        records = [(workspace / "initial.json", {"partitions": ["p1"], "slurm_job_id": "101"})]
+        with (
+            patch.object(ladon, "builds", return_value=records),
+            patch.object(ladon, "run", side_effect=["", '{"partitions_complete":1}']) as run,
+            patch.object(ladon, "finish") as finish,
+        ):
+            ladon.execute("cli", workspace / "config.toml", workspace, workspace, 1, True)
+        self.assertEqual(run.call_count, 2)
+        finish.assert_not_called()
+
     def test_latent_shape_uses_colour_and_marginalizes_missing_bands(self):
         blue = (2.0, 1.0, 4.0, 1.0, 2.0)
         red = (0.3, 2.0, 0.09, 4.0, 0.6)

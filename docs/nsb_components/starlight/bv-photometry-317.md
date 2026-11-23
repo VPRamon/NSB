@@ -37,7 +37,7 @@ S10 calibration.
   and selection weight retain their existing semantics.
 - **Photometric population prior.** The training anchors require positive
   3σ detections in both bands and in the photon integral, complete observed
-  Gaia colours, and G ≤ 17.65. The mixture uses a Galactic NESTED nside-1
+  Gaia colours, and G < 17.65. The mixture uses a Galactic NESTED nside-1
   prior and magnitude groups split at G=14 and 16. Gaussian weights
   with bandwidths 0.26 mag in BP−G and 0.23 mag in G−RP condition on the
   observed colours. A missing colour contributes unit likelihood, which
@@ -52,10 +52,11 @@ S10 calibration.
   \(F=PR\) use \(\mathrm{E}[P^2]\mathrm{Cov}(R)
   +\mathrm{Var}(P)\mathrm{E}[R]\mathrm{E}[R]^\top\) under conditional
   independence. Label noise and unresolved shape differences contribute
-  to the empirical scatter. The systematic envelope combines the pinned
-  photometric normalizer's scale uncertainty, local/global and alternate
-  magnitude prior sensitivity, and regional bias on a sky-disjoint
-  validation split. Weak support adds a coherent transport scenario based
+  to the empirical scatter. The schema-v3 artifact also carries a
+  validation-derived coherent photon-normalization envelope. It takes
+  the larger of the inherited photon systematic and the validation scale,
+  and combines that result with local/global and alternate magnitude
+  shape sensitivity in the shared inference group. Weak support adds a coherent transport scenario based
   on the empirical shape scatter, with multipliers of 1.5 for the
   missing-colour prior and 2 for sparse support or extrapolation.
   Edge-clamped colour and magnitude inference, sparse local XP support,
@@ -96,6 +97,86 @@ estimate a Solar-neighbourhood spectrum with magnitude limits, latitude
 weighting and volume corrections. A single such spectrum would remove
 directional colour variation. [Masana et al. (2021)](https://arxiv.org/html/2101.01500),
 [Melchior et al. (2007)](https://www.aanda.org/articles/aa/pdf/2007/06/aa6188-06.pdf)
+
+## Photon-normalization audit
+
+The replay used the same 989 XP sources, sky splits and pinned artifacts.
+The approved full-route photometric prediction supplies 70.43% of the
+measured XP photon sum. The median individual predicted/measured ratio is
+0.739 and the source-weighted mean is 1.030. The brightest 1% by measured
+photons have a sum ratio of 0.619. Photon-sum bias varies by colour,
+magnitude and latitude. It is −24.2% at absolute latitude below 10° and
+−37.7% between 30° and 60°. Gaia blend flags provide a crowding proxy.
+
+The discrepancy enters through the pinned log-flux prediction. The
+[checked-in XP-scale test targets](../../../crates/nsb-data-tools/tests/fixtures/photometric_xp_validation_v1.json)
+for the full route follow the nominal analytic G/colour curve with
+1.4 × 10⁴ photons m⁻² s⁻¹ at G=15 and BP−RP=0.8. Those tests
+check the implementation against that curve. The artifact names an
+external fitting script and contains a synthetic sky-split identifier.
+The training spectra and selection are unavailable here, so the audit
+cannot attribute the residual to a specific historical fitting choice.
+The measured log residuals have a shifted center and a skewed tail.
+A generic log-smearing factor would leave the colour- and
+population-dependent discrepancy unexplained.
+
+Both paths use the nominal unweighted 336–650 nm photon band. NSB
+trapezoid-integrates the monochromatic energy density times wavelength
+divided by hc, with wavelength in metres in the conversion and bin width
+in nm. A separate trapezoid of 100 archive sampled XP spectra agreed with
+the Rust continuous integral to 6.4 × 10⁻⁶ maximum relative difference.
+This cross-check shares Gaia XP's instrument. The worker multiplies the
+shape by the raw photon prediction and then applies the admitted source
+weight once. The UV correction enters the legacy integrated flux only.
+G+BP uses the integrated G-only normalizer because the pinned partial
+route requires RP. Its B/V shape still uses BP.
+
+Let X be the measured XP photon integral, P the photometric prediction
+and R the predicted monochromatic flux per integrated photon. The
+monochromatic residual splits into the shape error at measured photon
+flux, X × R − F(XP), and the normalization contribution, (P − X) × R.
+On the full route the shape terms contribute −1.67 and +1.40 percentage
+points in B and V. The normalization terms add −32.15 and −29.25 points.
+The paired signed terms correlate in this XP sample. The conditional
+stochastic covariance of future non-XP errors remains unconstrained.
+
+The validation-only, route-and-magnitude scale envelope takes the
+absolute flux-sum discrepancy relative to predicted photons plus its
+delete-region jackknife standard error, using Galactic nside-1 blocks.
+It requires 32 sources spanning at least five nside-16 cells and two
+nside-1 blocks. A sparse magnitude cell uses its pooled route result.
+Fitting stays below G=17.65, and extrapolation uses the largest supported
+envelope for the route. This is a coherent sensitivity scale. It takes
+the maximum of the new estimate and the inherited photon systematic,
+which describe the same scale, and adds shape transport linearly within
+the common `gaia-bv-inference` group. Point predictions and independent
+statistical covariance are preserved. The latter uses the existing
+conditional product-moment approximation. Direct XP monochromatic
+covariance still projects the packed BP coefficient covariance. The
+reported photon-integral error uses grid-diagonal propagation and serves
+as a quality proxy; joint reference noise is retained in the empirical
+shape scatter.
+
+| XP test | Route | Photon-sum bias | B/V flux-sum bias | B/V 68% coverage before → after | B/V 95% coverage before → after |
+| --- | --- | ---: | ---: | --- | --- |
+| Original 989 | Full | −29.6% | −33.8% / −27.8% | 54.5/37.5 → 65.6/62.4 | 86.9/95.9 → 95.7/99.9 |
+| Original 989 | Masked G+BP | −32.4% | −37.6% / −30.5% | 61.2/38.5 → 72.9/66.9 | 90.0/93.0 → 97.9/99.8 |
+| Original 989 | Masked G+RP | −38.4% | −41.8% / −36.8% | 57.4/37.0 → 80.0/94.5 | 95.2/99.2 → 99.0/100 |
+| Original 989 | Masked G-only | −32.4% | −37.7% / −30.2% | 55.5/41.2 → 69.6/71.6 | 91.9/97.8 → 98.0/100 |
+| New 237 | Full | −32.0% | −35.0% / −29.8% | 60.3/37.6 → 69.2/62.0 | 88.2/94.1 → 97.5/99.6 |
+
+The new cohort uses Gaia DR3 random indices 45,000–56,999, previously
+unexamined source IDs and the reserved test sky cells. It was scored after
+freezing the validation rule and model. Both cohorts share Gaia XP's
+instrument and selection. The percentages are per-source coverage against
+measured XP at one or 1.96 times the marginal prediction scale. Some
+routes overcover. The figures express marginal sensitivity coverage.
+Pixel-level significance needs independent spatial calibration. The JSON report carries MAE, RMSE,
+relative-error quantiles, stratified bias decomposition and nside-16
+held-out pixel sums. Only two original test sources reached G ≥ 17.65.
+The genuine pilot exercises natural incompleteness and faint fallback
+for execution. Independent observations of the non-XP population remain
+necessary to justify a point-scale correction and scientific approval.
 
 ## Compact layout and regeneration
 
@@ -164,6 +245,13 @@ differential:
 python3 crates/nsb-data-tools/tools/regenerate_starlight_bv_ladon.py
 ```
 
+Preflight checks the configured account, partition and resource request
+with Slurm's `sbatch --test-only`. It reports shared-filesystem free space
+and tests that the workspace root is writable. Each worker requests 32 GiB,
+with at most eight tasks active per array. The local merge loads the
+reconciled shards on the invoking node. Run finalization with sufficient
+memory and scratch space under Ladon's login or compute policy.
+
 The driver uses the checked-in combined-band configuration and expects the
 original production tree at `/mnt/beegfs/valles/nsb-data/`. It looks first
 for the configured `starlight-production-300-650-fix116-photometric` cache,
@@ -181,7 +269,7 @@ SHA-256 before reading it. The original cache receives read traffic.
 
 The driver takes a fixed random-index sample from 24 evenly spaced
 partition ranges, exports true coefficient-space B/V and measured photon
-integrals, builds the schema-v2 shape artifact and scores held-out sky
+integrals, builds the schema-v3 shape artifact and scores held-out sky
 cells. Training, validation and test are assigned by the existing
 Galactic nside-16 cell hash. The fit stores a table of smooth
 colour-conditioned moments for every context and observed route.
@@ -193,8 +281,11 @@ launching this candidate.
 The workspace is printed at launch. Its generated `combined-bv.toml` pins
 the fitted model and the B/V-enabled Hipparcos/CK04 supplement. The driver
 submits all 3,386 Gaia partition pairs through `nsb-data`. Pass
-`--submit-only` to return once arrays have been submitted. After a
-disconnect, failed array, or submission-only run, pass the printed workspace
+`--submit-only` to return once arrays have been submitted. Closing SSH
+after submission leaves the Slurm arrays running. If SSH disconnects
+during preparation or submission, the printed workspace lets you recover
+completed steps and accepted job IDs. After a disconnect, failed array,
+or submission-only run, pass the printed workspace
 to the same entry point:
 
 ```bash
@@ -239,7 +330,9 @@ XP projection, the non-XP worker, selection, CK04 and replacement
 mechanics, compact v2 and the public evaluator. The integrated pilot
 CSV was identical with B/V enabled and disabled. The ordinary full-sky
 plane-coverage gate rejected the one-partition footprint and compact
-candidate integrity passed. The pilot supplies engineering evidence;
+candidate integrity passed. The normalization revision preserved the
+pilot's B/V means and random covariance and broadened its shared
+inference envelope. The pilot supplies engineering evidence;
 it cannot establish full-sky bitwise parity or calibrate transport to
 faint and naturally incomplete populations.
 

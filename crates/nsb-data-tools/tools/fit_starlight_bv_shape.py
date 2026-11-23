@@ -28,19 +28,19 @@ from prepare_starlight_bv import (
     pin,
 )
 
+from starlight_bv_normalization import (
+    LIMIT_G,
+    ROUTES,
+    fit_envelopes,
+    normalization_metrics,
+)
+
 SCALE = 1e-21  # J nm^-1 per integrated photon
 SEED = 317
 G_EDGES = [3.0, 14.0, 16.0, 22.0]
 BP = [-0.5, 0.0, 0.35, 0.7, 1.05, 1.4, 1.75, 2.1, 2.5, 3.0, 4.0]
 RP = [-0.5, 0.0, 0.35, 0.7, 1.05, 1.4, 1.75, 2.1, 2.5, 3.0]
-ROUTES = {
-    "full": (True, True),
-    "g_and_bp": (True, False),
-    "g_and_rp": (False, True),
-    "g_only": (False, False),
-}
 PRIOR_SIZE = 40
-LIMIT_G = 17.65
 XP_SCALE_SCENARIO = 0.02
 
 
@@ -58,7 +58,7 @@ def anchors(rows):
         truth = tuple(float(row[key]) for key in LABELS[-2:])
         cov = tuple(float(row[key]) for key in ("stat_b_var", "stat_v_var"))
         if (
-            g > LIMIT_G
+            g >= LIMIT_G
             or photon <= 3 * float(row["xp_photon_sigma"])
             or any(value <= 3 * math.sqrt(var) for value, var in zip(truth, cov))
         ):
@@ -186,12 +186,17 @@ def shape_for(contexts, row, route):
     return interpolate(contexts, route, g, bp, rp, pixel)
 
 
-def evaluate(rows, contexts, blind, g_support):
+def evaluate(rows, contexts, blind, g_support, normalization=None):
     groups = defaultdict(list)
+    previous = defaultdict(list)
+    photon_diagnostics = defaultdict(list)
     baseline = defaultdict(list)
     shape_only = defaultdict(list)
     normalization_only = defaultdict(list)
-    nside16_sums = defaultdict(lambda: [[0.0, 0.0], [0.0, 0.0]])
+    nside16_sums = defaultdict(lambda: [[0.0, 0.0] for _ in range(3)])
+    bright_cut = sorted(float(r["xp_photon_flux"]) for r in rows)
+    p90 = bright_cut[math.ceil(0.9 * len(rows)) - 1]
+    p99 = bright_cut[math.ceil(0.99 * len(rows)) - 1]
     support_counts = Counter()
     for row in rows:
         g = float(row["g"])
@@ -230,16 +235,36 @@ def evaluate(rows, contexts, blind, g_support):
             truth = [float(row[name]) for name in LABELS[-2:]]
             if factor > 1:
                 transfer = [max(t, math.sqrt(v)) for t, v in zip(transfer, var)]
-            sig = [
-                math.hypot(
-                    math.sqrt(
-                        (p * p + stat * stat) * var[i] + stat * stat * mean[i] ** 2
-                    ),
-                    sys * mean[i] + p * transfer[i] * factor,
+            photon_sys = sys
+            if normalization:
+                outside_xp = support in (
+                    "colour_extrapolation",
+                    "magnitude_extrapolation",
                 )
+                fraction = (
+                    normalization["extrapolation"]
+                    if outside_xp
+                    else normalization["magnitude_cells"][stratum(G_EDGES, g)]
+                )[route]
+                photon_sys = max(sys, p * fraction)
+            stat_sigma = [
+                math.sqrt((p * p + stat * stat) * var[i] + stat * stat * mean[i] ** 2)
                 for i in range(2)
             ]
-            entries = tuple(zip(truth, point, sig))
+
+            def sigmas(scale):
+                return [
+                    math.hypot(
+                        stat_sigma[i], scale * mean[i] + p * transfer[i] * factor
+                    )
+                    for i in range(2)
+                ]
+
+            entries = tuple(zip(truth, point, sigmas(photon_sys)))
+            legacy_entries = tuple(zip(truth, point, sigmas(sys)))
+            measured = float(row["xp_photon_flux"])
+            measured_prediction = [m * measured * SCALE for m in mean]
+            latitude = row.get("galactic_latitude")
             for name in (
                 "all",
                 f"sky_{pixel // 256}",
@@ -248,32 +273,57 @@ def evaluate(rows, contexts, blind, g_support):
                 "g_at_or_above_xp_limit" if g >= LIMIT_G else "g_below_xp_limit",
                 f"colour_{stratum([-1.0, 0.7, 1.4, 8.0], float(row['bp']) - float(row['rp']))}",
                 "reported_blend" if row.get("reported_blend") else "no_reported_blend",
+                "galactic_latitude_unknown"
+                if latitude is None
+                else f"absolute_latitude_band_{stratum([0.0, 10.0, 30.0, 60.0, 90.0], abs(latitude))}",
+                "photon_top_one_percent"
+                if measured > p99
+                else (
+                    "photon_next_nine_percent"
+                    if measured > p90
+                    else "photon_lower_ninety_percent"
+                ),
+                "xp_photon_grid_snr_below_20"
+                if measured < 20 * float(row["xp_photon_sigma"])
+                else "xp_photon_grid_snr_at_least_20",
             ):
                 groups[route, name].append(entries)
+                previous[route, name].append(legacy_entries)
+                photon_diagnostics[route, name].append(
+                    (measured, p / SCALE, truth, measured_prediction, point)
+                )
             baseline[route].append(tuple((t, p * m, 0.0) for t, m in zip(truth, blind)))
-            measured = float(row["xp_photon_flux"]) * SCALE
             shape_only[route].append(
-                tuple((t, measured * m, 0.0) for t, m in zip(truth, mean))
+                tuple((t, m, 0.0) for t, m in zip(truth, measured_prediction))
             )
             normalization_only[route].append(
-                ((measured / SCALE, p / SCALE, math.hypot(stat, sys) / SCALE),)
+                ((measured, p / SCALE, math.hypot(stat, sys) / SCALE),)
             )
             sums = nside16_sums[route, pixel]
             for i in range(2):
                 sums[0][i] += truth[i]
                 sums[1][i] += point[i]
+            sums[2][i] += measured_prediction[i]
     return {
         "stratified": [
             {"route": r, "stratum": k, **metrics(v)}
             for (r, k), v in sorted(groups.items())
         ],
+        "prior_uncertainty_stratified": [
+            {"route": r, "stratum": k, **metrics(v)}
+            for (r, k), v in sorted(previous.items())
+        ],
+        "photon_normalization_and_bias_decomposition": [
+            {"route": r, "stratum": k, **normalization_metrics(v)}
+            for (r, k), v in sorted(photon_diagnostics.items())
+        ],
         "support": [
             {"route": r, "status": k, "sources": n}
             for (r, k), n in sorted(support_counts.items())
         ],
-        "global_shape_control": {r: metrics(v) for r, v in baseline.items()},
+        "global_shape_control": {r: point_metrics(v) for r, v in baseline.items()},
         "shape_with_measured_photon_control": {
-            r: metrics(v) for r, v in shape_only.items()
+            r: point_metrics(v) for r, v in shape_only.items()
         },
         "integrated_photon_normalization_control": {
             r: {
@@ -284,14 +334,37 @@ def evaluate(rows, contexts, blind, g_support):
             for r, v in normalization_only.items()
         },
         "nside16_held_out_flux_sums": [
-            {"route": r, "pixel": p, "reference": x, "predicted": y}
-            for (r, p), (x, y) in sorted(nside16_sums.items())
+            {
+                "route": r,
+                "pixel": p,
+                "reference": x,
+                "predicted": y,
+                "shape_with_measured_photons": z,
+            }
+            for (r, p), (x, y, z) in sorted(nside16_sums.items())
         ],
     }
 
 
-def train(references, out, photometric, origin, crowding):
-    rows = list(csv_rows(references, (*LABELS, "xp_photon_flux", "xp_photon_sigma")))
+def point_metrics(values):
+    result = metrics(values)
+    for band in result.get("bands_b_v", []):
+        del band["coverage_68"], band["coverage_95"]
+    return result
+
+
+def reference_rows(references, crowding, latitudes=None):
+    latitudes = latitudes or {}
+    rows = csv_rows(references, (*LABELS, "xp_photon_flux", "xp_photon_sigma"))
+    for row in rows:
+        source = int(row["source_id"])
+        row["reported_blend"] = source in crowding
+        row["galactic_latitude"] = latitudes.get(source)
+        yield row
+
+
+def train(references, out, photometric, origin, crowding, latitudes=None):
+    rows = reference_rows(references, crowding, latitudes)
     splits = defaultdict(list)
     ids = set()
     for row in rows:
@@ -302,7 +375,6 @@ def train(references, out, photometric, origin, crowding):
         ids.add(sid)
         if not all(row[name] for name in ("g", "bp", "rp", "xp_photon_flux")):
             continue
-        row["reported_blend"] = sid in crowding
         splits[split_for(SEED, pixel)].append(row)
     grouped = anchors(splits["training"])
     population = list(itertools.chain.from_iterable(grouped))
@@ -349,7 +421,8 @@ def train(references, out, photometric, origin, crowding):
                     max(x, y)
                     for x, y in zip(moment["transfer_sigma"], envelopes[route])
                 ]
-    holdout = evaluate(splits["test"], contexts, blind, g_support)
+    normalization, normalization_evidence = fit_envelopes(splits["validation"], G_EDGES)
+    holdout = evaluate(splits["test"], contexts, blind, g_support, normalization)
     if {
         r["route"]
         for r in holdout["stratified"]
@@ -383,6 +456,9 @@ def train(references, out, photometric, origin, crowding):
         bp_nodes=BP,
         rp_nodes=RP,
         validation_ratio_bias_envelopes=envelopes,
+        validation_photon_normalization_envelopes=normalization_evidence,
+        global_shape=blind,
+        coverage_definition="Per-source fractions within 1 or 1.96 times total marginal prediction scale against measured XP. Shared terms are coherent scenarios; coverage is not a map-level significance or independent validation.",
         **holdout,
         classification="XP holdout; partial routes use artificial masks",
         crowding_proxy_available=bool(crowding),
@@ -400,8 +476,9 @@ def train(references, out, photometric, origin, crowding):
     report_path = out / "shape-held-out.json"
     freeze(report_path, json_bytes(report))
     artifact = dict(
-        schema_version=2,
+        schema_version=3,
         calibration_status="research_candidate",
+        normalization_envelope=normalization,
         method="xp-photon-normalized-population-mixture-v1",
         reference_nm=[445, 551],
         shape_unit="1e-21 J nm-1 photon-1",
@@ -448,6 +525,7 @@ def prepare(
     out.mkdir(parents=True, exist_ok=True)
     pin(DESIGN, DESIGN_SHA)
     crowding = set()
+    latitudes = {}
     if cache:
         gaia_rows, xp_rows, census, pins = cache_input(
             out, cache, partitions, random_limit, stellar_only=True
@@ -460,6 +538,7 @@ def prepare(
                 int(r[f"phot_{b}_n_blended_transits"] or 0) > 0 for b in ("bp", "rp")
             )
         }
+        latitudes = {sid: float(r["b"]) for sid, r in gaia_rows.items() if r["b"]}
         csv_write(gaia, GAIA, (gaia_rows[i] for i in sorted(gaia_rows)))
         csv_write(xp, XP, (xp_rows[i] for i in sorted(xp_rows)))
         origin = dict(
@@ -483,6 +562,8 @@ def prepare(
                     "phot_rp_n_blended_transits",
                 ),
             ):
+                if r.get("b"):
+                    latitudes[int(r["source_id"])] = float(r["b"])
                 if any(
                     int(r[f"phot_{b}_n_blended_transits"] or 0) > 0
                     for b in ("bp", "rp")
@@ -495,6 +576,9 @@ def prepare(
         gaia=digest(gaia),
         binary=digest(binary),
         fit_source=digest(Path(__file__)),
+        normalization_source=digest(
+            Path(__file__).with_name("starlight_bv_normalization.py")
+        ),
         photometric=digest(photometric),
     )
     freeze(out / "shape-inputs.json", json_bytes(request))
@@ -523,7 +607,7 @@ def prepare(
             env={**os.environ, "STARLIGHT_GAIAXPY_DESIGN_FIXTURE": str(DESIGN)},
         )
     freeze(out / "shape-reference-sha256.json", json_bytes({"sha256": digest(refs)}))
-    return train(refs, out, photometric, origin, crowding)
+    return train(refs, out, photometric, origin, crowding, latitudes)
 
 
 def main():

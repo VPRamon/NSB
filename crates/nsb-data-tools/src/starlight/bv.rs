@@ -222,7 +222,10 @@ impl BvInference {
         struct Schema {
             schema_version: u32,
         }
-        if serde_json::from_slice::<Schema>(&bytes)?.schema_version == 2 {
+        if matches!(
+            serde_json::from_slice::<Schema>(&bytes)?.schema_version,
+            2 | 3
+        ) {
             let shape: shape::ShapeCalibration = serde_json::from_slice(&bytes)?;
             shape.validate()?;
             return Ok(Self {

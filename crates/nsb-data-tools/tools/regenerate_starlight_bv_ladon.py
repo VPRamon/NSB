@@ -16,6 +16,9 @@ import time
 from collections import Counter
 from pathlib import Path
 
+if sys.version_info < (3, 11):
+    sys.exit("Starlight B/V regeneration requires Python 3.11 or later on Ladon")
+
 import tomllib
 from calibrate_starlight_bv import json_bytes
 from fit_starlight_bv_shape import prepare
@@ -213,6 +216,27 @@ def replace_quoted_path(text, old, new):
     return text.replace(literal, path_literal(new))
 
 
+def check_slurm_request(config, root):
+    # Validate the actual account, partition and resource options without
+    # submitting even a test array.
+    slurm = config["execution"]["slurm"]
+    run(
+        "sbatch",
+        "--test-only",
+        "--account",
+        slurm["account"],
+        "--partition",
+        slurm["partition"],
+        "--time",
+        slurm["time_limit"],
+        "--mem",
+        slurm["memory"],
+        "--wrap",
+        "true",
+        cwd=root,
+    )
+
+
 def preflight(root, cache_override, inventory_downloads):
     if not root.is_dir():
         raise ValueError(f"Ladon data root is unavailable: {root}")
@@ -235,6 +259,7 @@ def preflight(root, cache_override, inventory_downloads):
             r"^\s*MaxArraySize\s*=\s*([0-9]+)", controller, re.MULTILINE
         )
     ]
+    limits.extend(int(m) for m in re.findall(r"\bmax_array_tasks=([0-9]+)", controller))
     array_size = min(
         [config["execution"]["slurm"].get("max_array_size", 1000), *limits]
     )
@@ -323,6 +348,10 @@ def build_configs(workspace, preparation):
         shutil.copy2(REPO / "target/release/nsb-data", tmp)
         tmp.replace(binary)
     freeze(workspace / "binary-sha256.json", json_bytes({"sha256": digest(binary)}))
+    if not os.access(binary, os.X_OK):
+        raise ValueError(
+            f"candidate worker binary is not executable on shared storage: {binary}"
+        )
     # Unequally sized catalogue partitions span the ordered Gaia HEALPix inventory.
     sample = [parts[(2 * i + 1) * len(parts) // 48] for i in range(24)]
     fit_dir = workspace / "fit"
@@ -524,6 +553,12 @@ def execute(binary, cfg, map_dir, workspace, count, submit_only):
             run(binary, "run", "status", "--run", initial, capture=True)
         )
         if status["partitions_complete"] == count:
+            if submit_only:
+                print(
+                    "All shards are ready. Resume without --submit-only to validate and merge.",
+                    flush=True,
+                )
+                return
             finish(binary, cfg, map_dir, workspace)
             return
         if retried:
@@ -576,11 +611,18 @@ def main():
             flush=True,
         )
         if args.check:
+            check_slurm_request(tomllib.loads(preparation[5]), root)
+            with tempfile.TemporaryDirectory(prefix=".nsb-bv-write-check-", dir=root):
+                free_gib = shutil.disk_usage(root).free / (1024**3)
+                print(
+                    f"Shared output root is writable; filesystem free space {free_gib:.1f} GiB",
+                    flush=True,
+                )
             for name in preparation[1]:
                 receipt = preparation[2][name, preparation[3][0]]
                 pin(Path(receipt["object_path"]), receipt["sha256"])
             print(
-                "Slurm partition, pinned calibrations, catalogue inventories and sample object hashes verified",
+                "Slurm account and worker request, pinned calibrations, catalogue inventories and sample object hashes verified",
                 flush=True,
             )
             return
