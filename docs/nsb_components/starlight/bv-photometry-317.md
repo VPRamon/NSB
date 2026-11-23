@@ -203,8 +203,10 @@ python3 crates/nsb-data-tools/tools/regenerate_starlight_bv_ladon.py \
 ```
 
 The driver retains completed preparation, immutable per-run array manifests,
-and each accepted job ID. It waits for live arrays before asking the run
-engine to retry incomplete work. If an automatic retry still leaves missing
+and each accepted job ID. It submits from the shared `map/` directory, where
+Slurm writes its job logs. Array workers use the binary and XP design snapshot
+in the shared candidate workspace. The driver waits for live arrays before
+asking the run engine to retry incomplete work. If a retry still leaves missing
 partitions, inspect the Slurm logs before resuming. Keep the same checkout,
 cache and candidate workspace for recovery. A changed input pin, software
 commit or fit creates a fresh candidate workspace.

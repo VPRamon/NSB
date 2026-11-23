@@ -41,10 +41,10 @@ ARTIFACT = "starlight-bright-stars-v1.json"
 MANIFEST = "starlight-bright-stars-v1-build-manifest.json"
 
 
-def run(*argv, capture=False, env=None):
+def run(*argv, capture=False, env=None, cwd=REPO):
     return subprocess.run(
         argv,
-        cwd=REPO,
+        cwd=cwd,
         text=True,
         check=True,
         env=env,
@@ -495,6 +495,7 @@ def execute(binary, cfg, map_dir, workspace, count, submit_only):
             cfg,
             "--executor",
             "slurm",
+            cwd=map_dir,
         )
         if submit_only:
             return
@@ -529,7 +530,7 @@ def execute(binary, cfg, map_dir, workspace, count, submit_only):
             raise ValueError(
                 f"{status['partitions_pending']} partitions remain after a retry. Inspect Slurm logs before resuming."
             )
-        run(binary, "run", "resume", "--run", initial)
+        run(binary, "run", "resume", "--run", initial, cwd=map_dir)
         retried = True
         if submit_only:
             return
